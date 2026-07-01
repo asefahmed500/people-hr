@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__wonder__get_element_code",
+      "mcp__wonder__get_basic_info",
+      "mcp__wonder__take_screenshot",
+      "mcp__wonder__get_element_tree"
+    ]
+  }
+}
