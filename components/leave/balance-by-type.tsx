@@ -1,3 +1,4 @@
+import type { Balances } from "@/lib/data"
 import { cn } from "@/lib/utils"
 
 type Balance = {
@@ -7,7 +8,7 @@ type Balance = {
   fill: string
 }
 
-const balances: Balance[] = [
+const defaultBalances: Balance[] = [
   {
     label: "Vacation",
     meta: "15d used · 9d left",
@@ -34,14 +35,39 @@ const balances: Balance[] = [
   },
 ]
 
-export function BalanceByType() {
+const BALANCE_MAP: Record<string, { label: string; fill: string }> = {
+  annual: { label: "Vacation", fill: "bg-[#2f6f61]" },
+  sick: { label: "Sick", fill: "bg-[#64b6ac]" },
+  personal: { label: "Personal", fill: "bg-[#f4a261]" },
+  parental: { label: "Parental", fill: "bg-[#42504a]" },
+}
+
+export function BalanceByType({ balances }: { balances?: Balances }) {
+  const items: Balance[] = balances
+    ? (Object.entries(BALANCE_MAP) as [keyof Balances, { label: string; fill: string }][]).map(
+        ([key, meta]) => {
+          const b = balances[key]
+          const used = b.used
+          const total = b.total
+          const left = total - used
+          const fillPct = total > 0 ? Math.round((used / total) * 100) : 0
+          return {
+            label: meta.label,
+            meta: `${used}d used · ${left}d left`,
+            fillPct,
+            fill: meta.fill,
+          }
+        },
+      )
+    : defaultBalances
+
   return (
     <div className="flex flex-col gap-4 rounded-[18px] border border-[#edeae3] bg-white p-5 shadow-[0px_2px_10px_rgba(47,111,97,0.05)]">
       <h2 className="font-display inline-block text-[15px] font-semibold leading-normal text-[#1f2a26]">
         Balance by type
       </h2>
       <div className="flex flex-col gap-4">
-        {balances.map((balance) => (
+        {items.map((balance) => (
           <div key={balance.label} className="flex flex-col gap-[7px]">
             <div className="flex items-center justify-between">
               <span className="font-sans inline-block text-xs font-medium leading-normal text-[#1f2a26]">

@@ -1,25 +1,21 @@
+import { cn } from "@/lib/utils"
 import { ChevronRight } from "lucide-react"
+import type { OrgNode } from "@/lib/data"
 
-type Node = {
-  initials: string
-  name: string
-  role: string
+type OrgChartCardProps = {
+  expanded?: boolean
+  onExpand?: () => void
+  orgChart?: OrgNode[]
 }
 
-const ceo: Node = {
-  initials: "AC",
-  name: "Amelia Chen",
-  role: "Chief Executive Officer",
-}
+export function OrgChartCard({ expanded, onExpand, orgChart = [] }: OrgChartCardProps) {
+  const ceo = orgChart.find((n) => n.isCeo)
+  const nonCeo = orgChart.filter((n) => !n.isCeo)
+  const visible = nonCeo.slice(0, 4)
+  const extra = nonCeo.slice(4)
 
-const execs: Node[] = [
-  { initials: "RP", name: "Raj Patel", role: "Chief Technology Officer" },
-  { initials: "HL", name: "Hana Lindqvist", role: "Chief Product Officer" },
-  { initials: "MB", name: "Marcus Bailey", role: "Chief Revenue Officer" },
-  { initials: "NK", name: "Nadia Khan", role: "Chief Financial Officer" },
-]
+  if (!ceo) return null
 
-export function OrgChartCard() {
   return (
     <div className="flex w-full flex-col gap-6 rounded-[18px] border border-[#edeae3] bg-white p-6 shadow-[0px_2px_10px_rgba(47,111,97,0.05)]">
       <div className="flex items-center justify-between">
@@ -31,28 +27,41 @@ export function OrgChartCard() {
             Leadership and reporting lines
           </p>
         </div>
-        <button type="button" className="flex items-center gap-1.5">
-          <span className="font-sans inline-block text-[13px] font-semibold leading-normal text-[#2f6f61]">
-            Expand full chart
-          </span>
-          <ChevronRight className="size-[15px] text-[#2f6f61]" strokeWidth={2} />
-        </button>
+        {extra.length > 0 && (
+          <button type="button" onClick={onExpand} className="flex items-center gap-1.5">
+            <span className="font-sans inline-block text-[13px] font-semibold leading-normal text-[#2f6f61]">
+              {expanded ? "Collapse" : "Expand full chart"}
+            </span>
+            <ChevronRight className={cn("size-[15px] text-[#2f6f61] transition-transform", expanded && "rotate-90")} strokeWidth={2} />
+          </button>
+        )}
       </div>
       <div className="flex w-full flex-col items-center px-0 pb-1 pt-2">
         <CeoNode node={ceo} />
         <span className="flex h-[26px] w-0.5 flex-col bg-[#e3ded4]" />
         <span className="flex h-0.5 w-[76%] flex-col bg-[#e3ded4]" />
         <div className="flex w-full items-start justify-center gap-5">
-          {execs.map((exec) => (
+          {visible.map((exec) => (
             <ExecBranch key={exec.initials} node={exec} />
           ))}
         </div>
+        {expanded && extra.length > 0 && (
+          <>
+            <span className="mt-5 flex h-[26px] w-0.5 flex-col bg-[#e3ded4]" />
+            <span className="flex h-0.5 w-[60%] flex-col bg-[#e3ded4]" />
+            <div className="mt-0 flex w-full items-start justify-center gap-5">
+              {extra.map((exec) => (
+                <ExecBranch key={exec.initials} node={exec} />
+              ))}
+            </div>
+          </>
+        )}
       </div>
     </div>
   )
 }
 
-function CeoNode({ node }: { node: Node }) {
+function CeoNode({ node }: { node: OrgNode }) {
   return (
     <div className="flex w-[210px] flex-col items-center gap-1.5 rounded-[14px] bg-[#2f6f61] px-5 py-3.5 shadow-[0px_8px_22px_rgba(47,111,97,0.22)]">
       <div className="flex size-10 items-center justify-center rounded-full bg-[#ffffff33]">
@@ -70,7 +79,7 @@ function CeoNode({ node }: { node: Node }) {
   )
 }
 
-function ExecBranch({ node }: { node: Node }) {
+function ExecBranch({ node }: { node: OrgNode }) {
   return (
     <div className="flex flex-col items-center">
       <span className="flex h-5 w-0.5 flex-col bg-[#e3ded4]" />

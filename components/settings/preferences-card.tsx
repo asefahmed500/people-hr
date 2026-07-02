@@ -1,77 +1,64 @@
+"use client"
+
 import { cn } from "@/lib/utils"
+import { Switch } from "@/components/ui/switch"
+import type { Preferences } from "@/lib/data"
 
-type Pref = {
-  label: string
-  desc: string
-  on: boolean
-}
-
-const prefs: Pref[] = [
-  {
+const prefMeta: Record<keyof Preferences, { label: string; desc: string }> = {
+  emailDigest: {
     label: "Email digest",
     desc: "Receive a daily summary of workspace activity",
-    on: true,
   },
-  {
+  desktopNotifications: {
     label: "Desktop notifications",
     desc: "Show browser notifications for mentions and tasks",
-    on: true,
   },
-  {
+  weeklyReport: {
     label: "Weekly report",
     desc: "Receive a weekly summary every Monday morning",
-    on: false,
   },
-  {
+  twoFactor: {
     label: "Two-factor authentication",
     desc: "Add an extra layer of security to your account",
-    on: true,
   },
-]
+}
 
-export function PreferencesCard() {
+export function PreferencesCard({
+  preferences,
+  onToggle,
+}: {
+  preferences: Preferences
+  onToggle: (key: string) => void
+}) {
+  const entries = Object.entries(prefMeta) as [keyof Preferences, { label: string; desc: string }][]
+
   return (
     <div className="flex flex-col rounded-[14px] border border-[#e8ebe6] bg-white p-6">
       <h2 className="mx-0 mb-4 mt-0 font-sans inline-block text-[15px] font-semibold leading-normal text-[#1f2a26]">
         Preferences
       </h2>
-      {prefs.map((pref, idx) => (
-        <PrefRow key={pref.label} pref={pref} last={idx === prefs.length - 1} />
+      {entries.map(([key, meta], idx) => (
+        <div
+          key={key}
+          className={cn(
+            "flex h-fit items-center justify-between px-0 py-3.5",
+            idx !== entries.length - 1 && "border-b border-b-[#f0f2ef]",
+          )}
+        >
+          <div className="flex flex-col gap-0.5">
+            <span className="font-sans inline-block text-[13.5px] font-medium leading-normal text-[#1f2a26]">
+              {meta.label}
+            </span>
+            <span className="font-sans inline-block text-xs leading-normal text-[#8a948d]">
+              {meta.desc}
+            </span>
+          </div>
+          <Switch
+            checked={preferences[key]}
+            onCheckedChange={() => onToggle(key)}
+          />
+        </div>
       ))}
     </div>
-  )
-}
-
-function PrefRow({ pref, last }: { pref: Pref; last: boolean }) {
-  return (
-    <div
-      className={cn(
-        "flex h-fit items-center justify-between px-0 py-3.5",
-        !last && "border-b border-b-[#f0f2ef]",
-      )}
-    >
-      <div className="flex flex-col gap-0.5">
-        <span className="font-sans inline-block text-[13.5px] font-medium leading-normal text-[#1f2a26]">
-          {pref.label}
-        </span>
-        <span className="font-sans inline-block text-xs leading-normal text-[#8a948d]">
-          {pref.desc}
-        </span>
-      </div>
-      <Toggle on={pref.on} />
-    </div>
-  )
-}
-
-function Toggle({ on }: { on: boolean }) {
-  return (
-    <span
-      className={cn(
-        "flex h-[22px] w-10 shrink-0 items-center rounded-full px-[3px] py-0",
-        on ? "justify-end bg-[#2f6f61]" : "justify-start bg-[#d7ddd5]",
-      )}
-    >
-      <span className="size-4 shrink-0 rounded-full bg-white" />
-    </span>
   )
 }

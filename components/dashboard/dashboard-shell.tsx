@@ -1,5 +1,4 @@
-import { DashboardSidebar } from "./dashboard-sidebar"
-import { TopBar } from "./top-bar"
+import { DashboardShellClient } from "./dashboard-shell-client"
 
 type DashboardShellProps = {
   activeHref: string
@@ -15,12 +14,12 @@ export function DashboardShell({
   children,
 }: DashboardShellProps) {
   return (
-    <div className="flex min-h-svh w-full bg-[#f6f4ef]">
-      <DashboardSidebar activeHref={activeHref} />
-      <main className="flex min-w-0 flex-1 flex-col gap-6 px-6 py-5">
-        <TopBar current={current} accentCurrent={accentCurrent} />
-        {children}
-      </main>
-    </div>
+    <DashboardShellClient
+      activeHref={activeHref}
+      current={current}
+      accentCurrent={accentCurrent}
+    >
+      {children}
+    </DashboardShellClient>
   )
 }

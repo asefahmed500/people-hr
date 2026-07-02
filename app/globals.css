@@ -128,3 +128,9 @@
     @apply font-sans;
     }
 }
+
+@layer utilities {
+  .focus-ring {
+    @apply outline-none focus-visible:ring-2 focus-visible:ring-[#2f6f61]/50 focus-visible:ring-offset-2 focus-visible:ring-offset-[#f6f4ef];
+  }
+}

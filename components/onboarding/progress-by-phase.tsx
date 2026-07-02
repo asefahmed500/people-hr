@@ -1,3 +1,5 @@
+import type { OnboardingTask } from "@/lib/data"
+
 type PhaseBar = {
   label: string
   meta: string
@@ -5,7 +7,7 @@ type PhaseBar = {
   fill: string
 }
 
-const phases: PhaseBar[] = [
+const defaultPhases: PhaseBar[] = [
   {
     label: "Pre-boarding",
     meta: "14 · 24%",
@@ -32,7 +34,42 @@ const phases: PhaseBar[] = [
   },
 ]
 
-export function ProgressByPhase() {
+const PHASE_FILLS: Record<string, string> = {
+  pre: "bg-[#0f9b8e]",
+  w1: "bg-[#64b6ac]",
+  m1: "bg-[#f4a261]",
+  ramped: "bg-[#0f9b8e]",
+}
+
+const PHASE_LABELS: Record<string, string> = {
+  pre: "Pre-boarding",
+  w1: "Week 1",
+  m1: "First month",
+  ramped: "Fully ramped",
+}
+
+export function ProgressByPhase({ tasks }: { tasks?: OnboardingTask[] }) {
+  const phases: PhaseBar[] = tasks
+    ? (() => {
+        const total = tasks.length
+        const phaseCounts: Record<string, number> = {}
+        for (const t of tasks) {
+          phaseCounts[t.phase] = (phaseCounts[t.phase] ?? 0) + 1
+        }
+        return (
+          ["pre", "w1", "m1", "ramped"] as const
+        ).map((phase) => {
+          const count = phaseCounts[phase] ?? 0
+          const pct = total > 0 ? Math.round((count / total) * 100) : 0
+          return {
+            label: PHASE_LABELS[phase],
+            meta: `${count} · ${pct}%`,
+            fillPct: pct,
+            fill: PHASE_FILLS[phase],
+          }
+        })
+      })()
+    : defaultPhases
   return (
     <div className="flex flex-col gap-4 rounded-[18px] border border-[#edeae3] bg-white p-5">
       <div className="flex flex-col gap-0.5">

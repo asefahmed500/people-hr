@@ -1,14 +1,10 @@
 import { DashboardShell } from "@/components/dashboard/dashboard-shell"
-import { ProjectsHeader } from "@/components/projects/projects-header"
-import { ProjectsKpiStrip } from "@/components/projects/projects-kpi-strip"
-import { KanbanBoard } from "@/components/projects/kanban-board"
+import { ProjectsPageClient } from "./projects-page-client"
 
 export default function ProjectsPage() {
   return (
     <DashboardShell activeHref="/projects" current="Projects" accentCurrent>
-      <ProjectsHeader />
-      <ProjectsKpiStrip />
-      <KanbanBoard />
+      <ProjectsPageClient />
     </DashboardShell>
   )
 }

@@ -1,18 +1,53 @@
+"use client"
+
+import * as React from "react"
 import { Bell, ChevronRight, Command, Search } from "lucide-react"
 
 import { cn } from "@/lib/utils"
+import { STORAGE_KEYS, defaultNotificationsStore, type NotificationsStore } from "@/lib/data"
+import { useMockStore } from "@/hooks/use-mock-store"
+import { NotificationDropdown } from "@/components/notifications/notification-dropdown"
 
 type TopBarProps = {
   current: string
   accentCurrent?: boolean
+  onOpenCommand?: () => void
 }
 
-export function TopBar({ current, accentCurrent = false }: TopBarProps) {
+export function TopBar({ current, accentCurrent = false, onOpenCommand }: TopBarProps) {
+  const { state: notifStore, setState: setNotifs } = useMockStore<NotificationsStore>(
+    STORAGE_KEYS.notifications,
+    () => defaultNotificationsStore,
+  )
+
+  const unreadCount = notifStore.items.filter((n) => !n.read).length
+
+  const handleMarkRead = (id: string) => {
+    setNotifs((prev) => ({
+      ...prev,
+      items: prev.items.map((n) => (n.id === id ? { ...n, read: true } : n)),
+    }))
+  }
+
+  const handleMarkAllRead = () => {
+    setNotifs((prev) => ({
+      ...prev,
+      items: prev.items.map((n) => ({ ...n, read: true })),
+    }))
+  }
+
   return (
-    <div className="flex h-12 w-full shrink-0 items-center gap-4">
+    <div className="flex h-12 w-full shrink-0 items-center gap-4 pl-12 lg:pl-0">
       <Breadcrumb current={current} accentCurrent={accentCurrent} />
-      <CommandSearch />
-      <TopActions />
+      <CommandSearch onOpen={onOpenCommand} />
+      <div className="ml-auto mr-0 my-0 flex shrink-0 items-center gap-3">
+        <NotificationDropdown
+          items={notifStore.items}
+          unreadCount={unreadCount}
+          onMarkRead={handleMarkRead}
+          onMarkAllRead={handleMarkAllRead}
+        />
+      </div>
     </div>
   )
 }
@@ -42,34 +77,24 @@ function Breadcrumb({
   )
 }
 
-function CommandSearch() {
+function CommandSearch({ onOpen }: { onOpen?: () => void }) {
   return (
-    <div className="flex h-10 max-w-[420px] flex-1 items-center gap-2.5 rounded-xl border border-[#ece9e2] bg-white px-3.5">
+    <button
+      type="button"
+      onClick={onOpen}
+      className="flex h-10 max-w-[420px] flex-1 items-center gap-2.5 rounded-xl border border-[#ece9e2] bg-white px-3.5 text-left"
+    >
       <Search className="size-4 shrink-0 text-[#b0b7af]" strokeWidth={2} />
       <span className="flex-1 font-sans text-[13px] leading-normal text-[#a6aca3]">
-        Search people, teams, documents…
+        <span className="hidden sm:inline">Search people, teams, documents…</span>
+        <span className="sm:hidden">Search…</span>
       </span>
-      <span className="flex shrink-0 items-center gap-[3px] rounded-[7px] border border-[#ece9e2] bg-[#f3f1ec] px-[7px] py-[3px]">
+      <span className="hidden shrink-0 items-center gap-[3px] rounded-[7px] border border-[#ece9e2] bg-[#f3f1ec] px-[7px] py-[3px] sm:flex">
         <Command className="size-3 text-[#8a948d]" strokeWidth={2} />
         <span className="font-sans text-[11px] font-semibold leading-normal text-[#8a948d]">
           K
         </span>
       </span>
-    </div>
-  )
-}
-
-function TopActions() {
-  return (
-    <div className="ml-auto mr-0 my-0 flex shrink-0 items-center gap-3">
-      <button
-        type="button"
-        aria-label="Notifications"
-        className="relative flex size-10 items-center justify-center rounded-xl border border-[#ece9e2] bg-white"
-      >
-        <Bell className="size-[18px] text-[#5b655e]" strokeWidth={2} />
-        <span className="absolute right-2.5 top-[9px] size-[7px] rounded-full border-2 border-white bg-[#e76f51]" />
-      </button>
-    </div>
+    </button>
   )
 }

@@ -1,6 +1,12 @@
 import { ChevronDown, Download, Plus } from "lucide-react"
 
-export function OnboardingHeader() {
+type OnboardingHeaderProps = {
+  onThisMonth?: () => void
+  onExport?: () => void
+  onAddNewHire?: () => void
+}
+
+export function OnboardingHeader({ onThisMonth, onExport, onAddNewHire }: OnboardingHeaderProps) {
   return (
     <div className="flex w-full items-start justify-between gap-6">
       <div className="flex flex-col gap-1.5">
@@ -15,6 +21,7 @@ export function OnboardingHeader() {
       <div className="flex shrink-0 items-center gap-2.5">
         <button
           type="button"
+          onClick={onThisMonth}
           className="flex h-10 items-center gap-2 rounded-[11px] border border-[#e3ded4] bg-white px-4"
         >
           <span className="font-sans text-[13px] font-medium leading-normal text-[#42504a]">
@@ -27,6 +34,7 @@ export function OnboardingHeader() {
         </button>
         <button
           type="button"
+          onClick={onExport}
           className="flex h-10 items-center gap-2 rounded-[11px] border border-[#e3ded4] bg-white px-4"
         >
           <Download className="size-4 text-[#5b655e]" strokeWidth={2} />
@@ -36,6 +44,7 @@ export function OnboardingHeader() {
         </button>
         <button
           type="button"
+          onClick={onAddNewHire}
           className="flex h-10 items-center gap-2 rounded-[11px] bg-[#0f9b8e] px-4 shadow-[0px_6px_16px_rgba(15,155,142,0.24)]"
         >
           <Plus className="size-4 text-white" strokeWidth={2} />

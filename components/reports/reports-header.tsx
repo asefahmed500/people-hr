@@ -1,6 +1,11 @@
 import { Calendar, Plus } from "lucide-react"
 
-export function ReportsHeader() {
+type ReportsHeaderProps = {
+  onPeriodChange?: () => void
+  onNewReport?: () => void
+}
+
+export function ReportsHeader({ onPeriodChange, onNewReport }: ReportsHeaderProps) {
   return (
     <div className="flex w-full items-start justify-between gap-6">
       <div className="flex flex-col gap-1.5">
@@ -14,6 +19,7 @@ export function ReportsHeader() {
       <div className="flex shrink-0 items-center gap-2.5">
         <button
           type="button"
+          onClick={onPeriodChange}
           className="flex h-10 items-center gap-2 rounded-[11px] border border-[#e3ded4] bg-white px-4"
         >
           <Calendar className="size-4 text-[#5b655e]" strokeWidth={2} />
@@ -23,6 +29,7 @@ export function ReportsHeader() {
         </button>
         <button
           type="button"
+          onClick={onNewReport}
           className="flex h-10 items-center gap-2 rounded-[11px] bg-[#2f6f61] px-4 shadow-[0px_6px_16px_rgba(47,111,97,0.24)]"
         >
           <Plus className="size-4 text-white" strokeWidth={2} />

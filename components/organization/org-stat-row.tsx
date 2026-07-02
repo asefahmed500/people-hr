@@ -1,6 +1,7 @@
 import { Building2, MapPin, Network, Workflow, type LucideIcon } from "lucide-react"
 
 import { cn } from "@/lib/utils"
+import type { Dept, Office, OrgNode } from "@/lib/data"
 
 type Tone = "forest" | "mint" | "amber" | "green" | "neutral"
 
@@ -14,41 +15,6 @@ type Stat = {
   label: string
 }
 
-const stats: Stat[] = [
-  {
-    icon: Building2,
-    iconBg: "bg-[#2f6f611a]",
-    iconColor: "text-[#2f6f61]",
-    delta: { text: "+2", tone: "green" },
-    value: "14",
-    label: "Departments",
-  },
-  {
-    icon: Network,
-    iconBg: "bg-[#64b6ac29]",
-    iconColor: "text-[#3e9488]",
-    delta: { text: "+3", tone: "green" },
-    value: "38",
-    label: "Teams",
-  },
-  {
-    icon: MapPin,
-    iconBg: "bg-[#f4a2612e]",
-    iconColor: "text-[#b96a2c]",
-    delta: { text: "+1", tone: "green" },
-    value: "12",
-    label: "Office locations",
-  },
-  {
-    icon: Workflow,
-    iconBg: "bg-[#3bb27326]",
-    iconColor: "text-[#2e9160]",
-    deltaNeutral: "avg",
-    value: "8.4",
-    label: "Reports per manager",
-  },
-]
-
 const deltaTone: Record<Exclude<Tone, "neutral">, string> = {
   forest: "bg-[#3bb2731f] text-[#2e9160]",
   mint: "bg-[#3bb2731f] text-[#2e9160]",
@@ -56,7 +22,52 @@ const deltaTone: Record<Exclude<Tone, "neutral">, string> = {
   green: "bg-[#3bb2731f] text-[#2e9160]",
 }
 
-export function OrgStatRow() {
+type OrgStatRowProps = {
+  departments?: Dept[]
+  offices?: Office[]
+  orgChart?: OrgNode[]
+}
+
+export function OrgStatRow({ departments = [], offices = [], orgChart = [] }: OrgStatRowProps) {
+  const deptCount = departments.length
+  const totalTeams = departments.reduce((sum, d) => sum + d.teams, 0)
+  const officeCount = offices.length
+
+  const stats: Stat[] = [
+    {
+      icon: Building2,
+      iconBg: "bg-[#2f6f611a]",
+      iconColor: "text-[#2f6f61]",
+      delta: { text: "+2", tone: "green" },
+      value: String(deptCount),
+      label: "Departments",
+    },
+    {
+      icon: Network,
+      iconBg: "bg-[#64b6ac29]",
+      iconColor: "text-[#3e9488]",
+      delta: { text: "+3", tone: "green" },
+      value: String(totalTeams),
+      label: "Teams",
+    },
+    {
+      icon: MapPin,
+      iconBg: "bg-[#f4a2612e]",
+      iconColor: "text-[#b96a2c]",
+      delta: { text: "+1", tone: "green" },
+      value: String(officeCount),
+      label: "Office locations",
+    },
+    {
+      icon: Workflow,
+      iconBg: "bg-[#3bb27326]",
+      iconColor: "text-[#2e9160]",
+      deltaNeutral: "avg",
+      value: "8.4",
+      label: "Reports per manager",
+    },
+  ]
+
   return (
     <div className="flex w-full gap-5">
       {stats.map((stat, idx) => (

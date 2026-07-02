@@ -1,4 +1,5 @@
 import {
+  Globe,
   LayoutDashboard,
   Users,
   Network,
@@ -20,11 +21,19 @@ import {
 export type NavItem = {
   label: string
   icon: LucideIcon
+
+
+
+
+
+
+  
   href: string
   badge?: { text: string; tone: "muted" | "accent" }
 }
 
 export const navItems: NavItem[] = [
+  { label: "Landing page", icon: Globe, href: "/landing" },
   { label: "Dashboard", icon: LayoutDashboard, href: "/" },
   { label: "Employees", icon: Users, href: "/employees" },
   { label: "Organization", icon: Network, href: "/organization" },

@@ -1,59 +1,95 @@
-import { Sparkles } from "lucide-react"
+import * as React from "react"
+import { Paperclip, Sparkles } from "lucide-react"
 
-type Risk = "high" | "medium" | "low"
+import { notify } from "@/lib/toast"
+import type { ChatMessage } from "@/lib/data"
 
-type RiskRow = {
-  team: string
-  risk: Risk
-  rate: string
+type ChatConversationProps = {
+  messages?: ChatMessage[]
+  suggestedPrompts?: string[]
+  onSendMessage?: (msg: string) => void
+  onSelectPrompt?: (prompt: string) => void
 }
 
-const riskStyles: Record<Risk, { dot: string; text: string }> = {
-  high: { dot: "bg-[#e76f51]", text: "text-[#e76f51]" },
-  medium: { dot: "bg-[#f4a261]", text: "text-[#f4a261]" },
-  low: { dot: "bg-[#b0b7af]", text: "text-[#5b655e]" },
-}
+export function ChatConversation({ messages, suggestedPrompts, onSendMessage, onSelectPrompt }: ChatConversationProps) {
+  const [input, setInput] = React.useState("")
+  const msgs = messages ?? []
+  const prompts = suggestedPrompts ?? [
+    "Summarize this month’s hiring",
+    "Who is up for review?",
+    "Explain our parental leave policy",
+    "Forecast Q2 headcount",
+  ]
 
-const riskRows: RiskRow[] = [
-  { team: "Sales", risk: "high", rate: "12% risk" },
-  { team: "Customer Support", risk: "medium", rate: "9% risk" },
-  { team: "Marketing", risk: "low", rate: "6% risk" },
-]
+  const handleSend = () => {
+    const msg = input.trim()
+    if (!msg) return
+    onSendMessage?.(msg)
+    setInput("")
+  }
 
-const prompts = [
-  "Summarize this month’s hiring",
-  "Who is up for review?",
-  "Explain our parental leave policy",
-  "Forecast Q2 headcount",
-]
+  const handlePromptClick = (prompt: string) => {
+    setInput(prompt)
+    onSelectPrompt?.(prompt)
+  }
 
-export function ChatConversation() {
   return (
     <div className="flex min-w-0 flex-1 flex-col gap-5 rounded-[14px] border border-[#e8ebe6] bg-white p-6">
       <div className="flex flex-1 flex-col gap-5">
-        <UserMessage text="Which teams have the highest attrition risk this quarter?" />
-        <AssistantMessage
-          intro="Based on current turnover signals and exit interview patterns, here are the teams with the highest Q1 attrition risk:"
-          rows={riskRows}
-          followUp="Would you like me to draft a retention plan for any of these teams?"
-        />
-        <UserMessage text="Drill into Sales — who is most likely to leave?" />
-        <AssistantSimple
-          text="Looking at Sales specifically, Owen Park and Marcus Bell surface as the two highest flight-risk candidates, both flagged on the basis of compensation gap and engagement pulse drops in the last 60 days."
-          followUp="Want me to set up a check-in with Marcus’s manager or pull his comp band comparison?"
-        />
+        {msgs.length === 0 ? (
+          <div className="flex flex-1 items-center justify-center">
+            <p className="font-sans text-[13.5px] leading-normal text-[#8a948d]">
+              Start a conversation by typing a message below or choosing a prompt.
+            </p>
+          </div>
+        ) : (
+          msgs.map((msg) =>
+            msg.role === "user" ? (
+              <UserMessage key={msg.id} text={msg.content} />
+            ) : (
+              <AssistantSimple key={msg.id} text={msg.content} />
+            ),
+          )
+        )}
       </div>
-      <div className="flex shrink-0 flex-wrap gap-2">
-        {prompts.map((prompt) => (
-          <span
-            key={prompt}
-            className="flex items-center rounded-full border border-[#e8ebe6] bg-white px-3 py-1.5 font-sans text-[12.5px] leading-normal text-[#42504a]"
-          >
-            {prompt}
+      <div className="flex shrink-0 items-center gap-2.5 rounded-[12px] border border-[#e8ebe6] bg-white px-3.5 py-2.5">
+        <button type="button" onClick={() => notify.info("File upload coming soon")} aria-label="Attach file">
+          <Paperclip className="size-4 shrink-0 text-[#8a948d]" />
+        </button>
+        <input
+          type="text"
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && handleSend()}
+          placeholder="Ask AetherPeople AI anything…"
+          className="flex-1 border-0 bg-transparent font-sans text-[13.5px] leading-normal text-[#1f2a26] outline-none placeholder:text-[#b0b7af]"
+        />
+        <span className="flex shrink-0 items-center gap-1.5 rounded-full border border-[#e8ebe6] bg-[#f8f7f4] px-2.5 py-1">
+          <span className="size-1.5 rounded-full bg-[#2f6f61]" />
+          <span className="font-sans text-[11px] font-semibold leading-normal text-[#5b655e]">
+            Claude 4.7
           </span>
-        ))}
+        </span>
+        <button
+          type="button"
+          aria-label="Send message"
+          onClick={handleSend}
+          className="flex size-9 shrink-0 items-center justify-center rounded-full bg-[#2f6f61]"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={2}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="size-4 text-white"
+          >
+            <path d="M22 2L11 13" />
+            <path d="M22 2L15 22L11 13L2 9L22 2z" />
+          </svg>
+        </button>
       </div>
-      <ChatInput />
       <span className="text-center font-sans text-[11px] leading-normal text-[#b0b7af]">
         AI can make mistakes. Verify important info.
       </span>
@@ -73,62 +109,7 @@ function UserMessage({ text }: { text: string }) {
   )
 }
 
-function AssistantMessage({
-  intro,
-  rows,
-  followUp,
-}: {
-  intro: string
-  rows: RiskRow[]
-  followUp: string
-}) {
-  return (
-    <div className="flex items-start gap-2.5">
-      <div className="flex size-[30px] shrink-0 items-center justify-center rounded-full bg-[#2f6f611a]">
-        <Sparkles className="size-3.5 text-[#2f6f61]" strokeWidth={1.8} />
-      </div>
-      <div className="flex max-w-[78%] flex-col gap-2.5 rounded-tl border border-[#e8ebe6] bg-white px-4 py-3">
-        <p className="font-sans text-[13.5px] leading-[1.6] text-[#1f2a26]">
-          {intro}
-        </p>
-        <div className="flex flex-col overflow-clip rounded-[10px] border border-[#e8ebe6]">
-          <div className="flex items-center justify-between bg-[#f8f7f4] px-3 py-[7px]">
-            <span className="font-sans text-[11.5px] font-semibold uppercase leading-normal tracking-[0.6px] text-[#8a948d]">
-              Team
-            </span>
-            <span className="font-sans text-[11.5px] font-semibold uppercase leading-normal tracking-[0.6px] text-[#8a948d]">
-              Risk level
-            </span>
-          </div>
-          {rows.map((row) => {
-            const s = riskStyles[row.risk]
-            return (
-              <div
-                key={row.team}
-                className="flex items-center justify-between border-t border-t-[#f0ede6] px-3 py-2"
-              >
-                <div className="flex items-center gap-2">
-                  <span className={`size-2 shrink-0 rounded-full ${s.dot}`} />
-                  <span className="font-sans text-[13px] font-medium leading-normal text-[#1f2a26]">
-                    {row.team}
-                  </span>
-                </div>
-                <span className={`font-sans text-[13px] font-semibold leading-normal ${s.text}`}>
-                  {row.rate}
-                </span>
-              </div>
-            )
-          })}
-        </div>
-        <p className="font-sans text-[13px] leading-normal text-[#5b655e]">
-          {followUp}
-        </p>
-      </div>
-    </div>
-  )
-}
-
-function AssistantSimple({ text, followUp }: { text: string; followUp: string }) {
+function AssistantSimple({ text, followUp }: { text: string; followUp?: string }) {
   return (
     <div className="flex items-start gap-2.5">
       <div className="flex size-[30px] shrink-0 items-center justify-center rounded-full bg-[#2f6f611a]">
@@ -138,61 +119,14 @@ function AssistantSimple({ text, followUp }: { text: string; followUp: string })
         <p className="font-sans text-[13.5px] leading-[1.6] text-[#1f2a26]">
           {text}
         </p>
-        <p className="font-sans text-[13px] leading-normal text-[#5b655e]">
-          {followUp}
-        </p>
+        {followUp ? (
+          <p className="font-sans text-[13px] leading-normal text-[#5b655e]">
+            {followUp}
+          </p>
+        ) : null}
       </div>
     </div>
   )
 }
 
-function ChatInput() {
-  return (
-    <div className="flex shrink-0 items-center gap-2.5 rounded-[12px] border border-[#e8ebe6] bg-white px-3.5 py-2.5">
-      <PaperclipIcon />
-      <span className="flex-1 font-sans text-[13.5px] leading-normal text-[#b0b7af]">
-        Ask AetherPeople AI anything…
-      </span>
-      <span className="flex shrink-0 items-center gap-1.5 rounded-full border border-[#e8ebe6] bg-[#f8f7f4] px-2.5 py-1">
-        <span className="size-1.5 rounded-full bg-[#2f6f61]" />
-        <span className="font-sans text-[11px] font-semibold leading-normal text-[#5b655e]">
-          Claude 4.7
-        </span>
-      </span>
-      <button
-        type="button"
-        aria-label="Send message"
-        className="flex size-9 shrink-0 items-center justify-center rounded-full bg-[#2f6f61]"
-      >
-        <svg
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth={2}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          className="size-4 text-white"
-        >
-          <path d="M22 2L11 13" />
-          <path d="M22 2L15 22L11 13L2 9L22 2z" />
-        </svg>
-      </button>
-    </div>
-  )
-}
 
-function PaperclipIcon() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className="size-4 shrink-0 text-[#8a948d]"
-    >
-      <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
-    </svg>
-  )
-}

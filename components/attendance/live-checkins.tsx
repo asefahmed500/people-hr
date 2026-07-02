@@ -1,8 +1,10 @@
+"use client"
+
 import { cn } from "@/lib/utils"
 
 type Status = "on-time" | "late" | "remote"
 
-type Checkin = {
+export type Checkin = {
   initials: string
   name: string
   dept: string
@@ -37,7 +39,7 @@ const statuses: Record<
   },
 }
 
-const checkins: Checkin[] = [
+const defaultCheckins: Checkin[] = [
   { initials: "SA", name: "Sofia Alvarez", dept: "Design", time: "08:32", status: "on-time" },
   { initials: "DO", name: "Daniel Okafor", dept: "Engineering", time: "08:45", status: "on-time" },
   { initials: "MB", name: "Marcus Bailey", dept: "Sales", time: "09:14", status: "late" },
@@ -46,7 +48,13 @@ const checkins: Checkin[] = [
   { initials: "HL", name: "Hana Lindqvist", dept: "Product", time: "09:22", status: "late" },
 ]
 
-export function LiveCheckins() {
+type LiveCheckinsProps = {
+  checkIns?: Checkin[]
+  onSelect?: (checkin: Checkin) => void
+}
+
+export function LiveCheckins({ checkIns, onSelect }: LiveCheckinsProps) {
+  const items = checkIns ?? defaultCheckins
   return (
     <div className="flex w-full flex-col overflow-clip rounded-[18px] border border-[#edeae3] bg-white">
       <div className="flex items-center justify-between border-b border-b-[#edeae3] px-6 py-5">
@@ -61,21 +69,34 @@ export function LiveCheckins() {
         </span>
       </div>
       <div className="flex flex-col">
-        {checkins.map((checkin, idx) => (
-          <CheckinRow key={checkin.initials} checkin={checkin} last={idx === checkins.length - 1} />
+        {items.map((checkin, idx) => (
+          <CheckinRow key={checkin.initials + checkin.time} checkin={checkin} last={idx === items.length - 1} onSelect={onSelect} />
         ))}
       </div>
     </div>
   )
 }
 
-function CheckinRow({ checkin, last }: { checkin: Checkin; last: boolean }) {
+function CheckinRow({
+  checkin,
+  last,
+  onSelect,
+}: {
+  checkin: Checkin
+  last: boolean
+  onSelect?: (checkin: Checkin) => void
+}) {
   const s = statuses[checkin.status]
   return (
     <div
+      onClick={onSelect ? () => onSelect(checkin) : undefined}
+      onKeyDown={onSelect ? (e) => { if (e.key === "Enter") onSelect(checkin) } : undefined}
+      tabIndex={onSelect ? 0 : undefined}
+      role={onSelect ? "button" : undefined}
       className={cn(
-        "flex items-center gap-4 px-6 py-3.5",
+        "flex items-center gap-4 px-6 py-3.5 transition-colors",
         !last && "border-b border-b-[#f1eee8]",
+        onSelect && "cursor-pointer hover:bg-[#faf9f6]",
       )}
     >
       <div

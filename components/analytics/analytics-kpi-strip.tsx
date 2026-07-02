@@ -1,18 +1,30 @@
-type Kpi = {
-  label: string
-  value: string
-  delta: string
-  sub: string
+type AnalyticsKpiStripProps = {
+  headcount?: number
+  headcountDelta?: string
+  attrition?: string
+  attritionDelta?: string
+  avgTenure?: string
+  avgTenureDelta?: string
+  offerAcceptRate?: string
+  offerAcceptRateDelta?: string
 }
 
-const kpis: Kpi[] = [
-  { label: "Total headcount", value: "284", delta: "+12", sub: "vs 272 last month" },
-  { label: "Attrition rate", value: "4.2%", delta: "-0.6", sub: "Trailing 12 months" },
-  { label: "Avg tenure", value: "3.1 yrs", delta: "+0.2", sub: "Company-wide average" },
-  { label: "Offer accept rate", value: "78%", delta: "+5%", sub: "Of extended offers" },
-]
-
-export function AnalyticsKpiStrip() {
+export function AnalyticsKpiStrip({
+  headcount = 284,
+  headcountDelta = "+12",
+  attrition = "4.2%",
+  attritionDelta = "-0.6",
+  avgTenure = "3.1 yrs",
+  avgTenureDelta = "+0.2",
+  offerAcceptRate = "78%",
+  offerAcceptRateDelta = "+5%",
+}: AnalyticsKpiStripProps) {
+  const kpis = [
+    { label: "Total headcount", value: String(headcount), delta: headcountDelta, sub: "vs 272 last month" },
+    { label: "Attrition rate", value: attrition, delta: attritionDelta, sub: "Trailing 12 months" },
+    { label: "Avg tenure", value: avgTenure, delta: avgTenureDelta, sub: "Company-wide average" },
+    { label: "Offer accept rate", value: offerAcceptRate, delta: offerAcceptRateDelta, sub: "Of extended offers" },
+  ]
   return (
     <div className="flex w-full gap-4">
       {kpis.map((kpi) => (

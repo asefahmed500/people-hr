@@ -1,3 +1,7 @@
+"use client"
+
+import type { AttendanceStore, Employee } from "@/lib/data"
+
 type Row = {
   label: string
   count: string
@@ -6,38 +10,55 @@ type Row = {
   fill: string
 }
 
-const rows: Row[] = [
-  {
-    label: "Present",
-    count: "1,210",
-    pct: "92%",
-    fillPct: 92,
-    fill: "bg-[#2f6f61]",
-  },
-  {
-    label: "Remote",
-    count: "186",
-    pct: "14%",
-    fillPct: 14,
-    fill: "bg-[#64b6ac]",
-  },
-  {
-    label: "On leave",
-    count: "42",
-    pct: "3%",
-    fillPct: 6,
-    fill: "bg-[#f4a261]",
-  },
-  {
-    label: "Absent",
-    count: "32",
-    pct: "2%",
-    fillPct: 4,
-    fill: "bg-[#e76f51]",
-  },
-]
+export function AttendanceCard({
+  attendance,
+  employees,
+}: {
+  attendance?: AttendanceStore
+  employees?: Employee[]
+}) {
+  const checkIns = attendance?.checkIns ?? []
+  const total = employees?.length ?? (checkIns.length || 1)
 
-export function AttendanceCard() {
+  const onTime = checkIns.filter((c) => c.status === "on-time").length
+  const late = checkIns.filter((c) => c.status === "late").length
+  const remote = checkIns.filter((c) => c.status === "remote").length
+  const onLeave =
+    employees?.filter((e) => e.status === "leave").length ?? 0
+  const present = onTime + late
+  const absent = total - present - remote - onLeave
+
+  const rows: Row[] = [
+    {
+      label: "Present",
+      count: String(present),
+      pct: `${Math.round((present / total) * 100)}%`,
+      fillPct: Math.round((present / total) * 100),
+      fill: "bg-[#2f6f61]",
+    },
+    {
+      label: "Remote",
+      count: String(remote),
+      pct: `${Math.round((remote / total) * 100)}%`,
+      fillPct: Math.round((remote / total) * 100),
+      fill: "bg-[#64b6ac]",
+    },
+    {
+      label: "On leave",
+      count: String(onLeave),
+      pct: `${Math.round((onLeave / total) * 100)}%`,
+      fillPct: Math.round((onLeave / total) * 100),
+      fill: "bg-[#f4a261]",
+    },
+    {
+      label: "Absent",
+      count: String(absent),
+      pct: `${Math.round((absent / total) * 100)}%`,
+      fillPct: Math.round((absent / total) * 100),
+      fill: "bg-[#e76f51]",
+    },
+  ]
+
   return (
     <div className="flex flex-1 flex-col gap-4 rounded-[18px] border border-[#ece9e2] bg-white p-[22px] shadow-[0px_1px_3px_rgba(31,42,38,0.04),0px_8px_24px_rgba(31,42,38,0.03)]">
       <h3 className="font-sans inline-block text-[15px] font-semibold leading-normal text-[#1f2a26]">

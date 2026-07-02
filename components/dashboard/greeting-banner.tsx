@@ -1,14 +1,32 @@
+"use client"
+
 import { Sparkles } from "lucide-react"
 
-export function GreetingBanner() {
+import type { Department } from "@/lib/data"
+
+export function GreetingBanner({
+  userName = "Asef Ahmed",
+  employeeCount,
+}: {
+  userName?: string
+  employeeCount?: number
+}) {
+  const now = new Date()
+  const hour = now.getHours()
+  const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening"
+  const dayName = now.toLocaleDateString("en-US", { weekday: "long" })
+  const monthName = now.toLocaleDateString("en-US", { month: "long" })
+  const day = now.getDate()
+  const dateStr = `${dayName}, ${day} ${monthName}`
   return (
-    <div className="flex h-fit w-full shrink-0 items-center gap-6">
+    <div className="flex h-fit w-full shrink-0 flex-col gap-4 sm:flex-row sm:items-center sm:gap-6">
       <div className="flex flex-1 flex-col justify-center gap-1.5">
-        <h1 className="font-display inline-block text-3xl font-semibold leading-[1.1] tracking-[-0.3px] text-[#1f2a26]">
-          Good morning, Asef Ahmed
+        <h1 className="font-display inline-block text-2xl font-semibold leading-[1.1] tracking-[-0.3px] text-[#1f2a26] sm:text-3xl">
+          {greeting}, {userName}
         </h1>
         <p className="font-sans inline-block text-sm leading-normal text-[#6b7770]">
-          Tuesday, 18 February — here’s how your people are doing today.
+          {dateStr}
+          {employeeCount != null ? ` — ${employeeCount} people across 8 departments.` : " — here’s how your people are doing today."}
         </p>
       </div>
       <AiInsightCard />

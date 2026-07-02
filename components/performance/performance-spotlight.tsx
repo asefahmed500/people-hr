@@ -1,51 +1,45 @@
-type MetricCard = {
-  iconBg: string
-  iconColor: string
-  label: string
-  value: string
-  delta: string
-  deltaColor: string
-  sub: string
-  star?: "purple" | "coral"
+import type { Review } from "@/lib/data"
+
+type PerformanceSpotlightProps = {
+  reviews?: Review[]
 }
 
-const metrics: MetricCard[] = [
-  {
-    iconBg: "bg-[#6d5ce71a]",
-    iconColor: "text-[#6d5ce7]",
-    label: "Avg rating",
-    value: "4.2",
-    delta: "(+0.3)",
-    deltaColor: "text-[#6d5ce7]",
-    sub: "Up from 3.9 last cycle · company-wide",
-    star: "purple",
-  },
-  {
-    iconBg: "bg-[#e76f5120]",
-    iconColor: "text-[#c4553a]",
-    label: "Below expectations",
-    value: "9",
-    delta: "(-2)",
-    deltaColor: "text-[#2e9160]",
-    sub: "Improvement from 11 last cycle",
-    star: "coral",
-  },
-]
+export function PerformanceSpotlight({ reviews = [] }: PerformanceSpotlightProps) {
+  const total = reviews.length
+  const ratings = reviews.map((r) => r.rating)
+  const avg = total ? ratings.reduce((a, b) => a + b, 0) / total : 0
+  const belowCount = reviews.filter((r) => r.status === "below" || r.status === "needs").length
 
-export function PerformanceSpotlight() {
   return (
     <div className="flex w-full gap-5">
-      <SpotlightCard />
+      <SpotlightCard avg={avg} total={total} />
       <div className="flex w-[300px] shrink-0 flex-col gap-4">
-        {metrics.map((metric) => (
-          <MetricCardComponent key={metric.label} metric={metric} />
-        ))}
+        <MetricCardComponent
+          iconBg="bg-[#6d5ce71a]"
+          iconColor="text-[#6d5ce7]"
+          label="Avg rating"
+          value={avg.toFixed(1)}
+          delta="(+0.3)"
+          deltaColor="text-[#6d5ce7]"
+          sub="Company-wide average"
+          star="purple"
+        />
+        <MetricCardComponent
+          iconBg="bg-[#e76f5120]"
+          iconColor="text-[#c4553a]"
+          label="Below expectations"
+          value={String(belowCount)}
+          delta="(-2)"
+          deltaColor="text-[#2e9160]"
+          sub="Needs improvement & below"
+          star="coral"
+        />
       </div>
     </div>
   )
 }
 
-function SpotlightCard() {
+function SpotlightCard({ avg, total }: { avg: number; total: number }) {
   return (
     <div className="flex flex-1 flex-col gap-6 rounded-[18px] border border-[#6d5ce733] bg-[#6d5ce71a] p-7">
       <div className="flex flex-col gap-2">
@@ -53,15 +47,15 @@ function SpotlightCard() {
           Q1 2025 · Cycle snapshot
         </span>
         <span className="font-display inline-block text-[64px] font-bold leading-none text-[#6d5ce7]">
-          77%
+          {total}%
         </span>
         <span className="font-sans inline-block text-base font-medium text-[#1f2a26]">
           Review cycle complete
         </span>
       </div>
       <div className="flex flex-wrap items-center gap-3">
-        <SubStat value="4.2" label="Avg rating" />
-        <SubStat value="218" label="Reviews submitted" />
+        <SubStat value={avg.toFixed(1)} label="Avg rating" />
+        <SubStat value={String(total)} label="Reviews submitted" />
         <SubStat value="+12%" label="vs last cycle" />
       </div>
     </div>
@@ -81,37 +75,55 @@ function SubStat({ value, label }: { value: string; label: string }) {
   )
 }
 
-function MetricCardComponent({ metric }: { metric: MetricCard }) {
+function MetricCardComponent({
+  iconBg,
+  iconColor,
+  label,
+  value,
+  delta,
+  deltaColor,
+  sub,
+  star,
+}: {
+  iconBg: string
+  iconColor: string
+  label: string
+  value: string
+  delta: string
+  deltaColor: string
+  sub: string
+  star?: "purple" | "coral"
+}) {
   return (
     <div className="flex flex-1 flex-col gap-3 rounded-[18px] border border-[#e8ebe6] bg-white p-5 shadow-[0px_2px_10px_rgba(109,92,231,0.03)]">
       <div className="flex items-center gap-3">
         <div
-          className={`flex size-[42px] shrink-0 items-center justify-center rounded-xl ${metric.iconBg}`}
+          className={`flex size-[42px] shrink-0 items-center justify-center rounded-xl ${iconBg}`}
         >
-          {metric.star === "purple" ? (
-            <StarIcon className={`size-5 ${metric.iconColor}`} />
+          {star === "purple" ? (
+            <StarIcon className={`size-5 ${iconColor}`} />
           ) : (
-            <UserMinusIcon className={`size-5 ${metric.iconColor}`} />
+            <UserMinusIcon className={`size-5 ${iconColor}`} />
           )}
         </div>
         <div className="flex flex-col gap-0.5">
           <span className="font-sans inline-block text-xs leading-normal text-[#8a948d]">
-            {metric.label}
+            {label}
           </span>
           <div className="flex items-baseline gap-1.5">
             <span className="font-display inline-block text-[26px] font-semibold leading-none text-[#1f2a26]">
-              {metric.value}
+              {value}
             </span>
             <span
-              className={`font-sans inline-block text-xs font-semibold leading-normal ${metric.deltaColor}`}
+              className={`font-sans inline-block text-xs font-semibold leading-normal ${deltaColor}`}
             >
-              {metric.delta}
+              {delta}
             </span>
           </div>
         </div>
       </div>
       <span className="font-sans inline-block text-[11.5px] leading-normal text-[#8a948d]">
-        {metric.sub}
+        {sub}
       </span>
     </div>
   )

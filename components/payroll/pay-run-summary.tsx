@@ -1,5 +1,6 @@
 import { Check } from "lucide-react"
 
+import type { Payment } from "@/lib/data"
 import { cn } from "@/lib/utils"
 
 type Figure = {
@@ -7,7 +8,7 @@ type Figure = {
   value: string
 }
 
-const figures: Figure[] = [
+const defaultFigures: Figure[] = [
   { label: "Gross pay", value: "$1,482,600" },
   { label: "Taxes & deductions", value: "$421,340" },
   { label: "Net pay", value: "$1,061,260" },
@@ -27,7 +28,21 @@ const steps: Step[] = [
   { title: "Paid", sublabel: "Due Feb 28", state: "todo" },
 ]
 
-export function PayRunSummary() {
+export function PayRunSummary({ payments }: { payments?: Payment[] }) {
+  const totalGross = payments?.reduce((s, p) => s + p.gross, 0) ?? 0
+  const totalDeductions = payments?.reduce((s, p) => s + p.deductions, 0) ?? 0
+  const totalNet = totalGross - totalDeductions
+  const employerCost = Math.round(totalGross * 1.096)
+
+  const figures: Figure[] = payments
+    ? [
+        { label: "Gross pay", value: `$${totalGross.toLocaleString()}` },
+        { label: "Taxes & deductions", value: `$${totalDeductions.toLocaleString()}` },
+        { label: "Net pay", value: `$${totalNet.toLocaleString()}` },
+        { label: "Employer cost", value: `$${employerCost.toLocaleString()}` },
+      ]
+    : defaultFigures
+
   return (
     <div className="flex w-full flex-col gap-6 rounded-2xl border border-[#edeae3] bg-white p-6 shadow-[0px_2px_10px_rgba(47,111,97,0.05)]">
       <div className="flex">

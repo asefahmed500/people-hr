@@ -1,23 +1,28 @@
 import { ChevronRight } from "lucide-react"
+import type { MonthlyTrend } from "@/lib/data"
 
-const months = [
-  { label: "Mar", value: 38 },
-  { label: "Apr", value: 42 },
-  { label: "May", value: 47 },
-  { label: "Jun", value: 51 },
-  { label: "Jul", value: 49 },
-  { label: "Aug", value: 56 },
-  { label: "Sep", value: 60 },
-  { label: "Oct", value: 65 },
-  { label: "Nov", value: 70 },
-  { label: "Dec", value: 76 },
-  { label: "Jan", value: 84 },
-  { label: "Feb", value: 92, current: true },
-]
+type WorkforceTrendCardProps = {
+  onOpenReport?: () => void
+  monthlyTrend?: MonthlyTrend[]
+}
 
-const max = Math.max(...months.map((m) => m.value))
+export function WorkforceTrendCard({ onOpenReport, monthlyTrend }: WorkforceTrendCardProps) {
+  const months = monthlyTrend ?? [
+    { month: "Mar", value: 38 },
+    { month: "Apr", value: 42 },
+    { month: "May", value: 47 },
+    { month: "Jun", value: 51 },
+    { month: "Jul", value: 49 },
+    { month: "Aug", value: 56 },
+    { month: "Sep", value: 60 },
+    { month: "Oct", value: 65 },
+    { month: "Nov", value: 70 },
+    { month: "Dec", value: 76 },
+    { month: "Jan", value: 84 },
+    { month: "Feb", value: 92, current: true },
+  ]
+  const max = Math.max(...months.map((m) => m.value))
 
-export function WorkforceTrendCard() {
   return (
     <div className="flex flex-1 flex-col gap-5 rounded-[18px] border border-[#e8ebe6] bg-white p-6">
       <div className="flex items-start justify-between">
@@ -29,7 +34,7 @@ export function WorkforceTrendCard() {
             Active headcount over the last 12 months
           </span>
         </div>
-        <button type="button" className="flex items-center gap-1">
+        <button type="button" onClick={onOpenReport} className="flex items-center gap-1">
           <span className="font-sans inline-block text-[13px] font-semibold leading-normal text-[#2f6f61]">
             Open report
           </span>
@@ -39,7 +44,7 @@ export function WorkforceTrendCard() {
       <div className="flex h-[200px] items-end justify-between gap-2.5 border-b border-b-[#efede6] pb-2.5">
         {months.map((m) => (
           <div
-            key={m.label}
+            key={m.month}
             className="flex h-full flex-1 flex-col items-center justify-end gap-2"
           >
             <div className="flex w-full max-w-6 flex-col justify-end">
@@ -59,16 +64,15 @@ export function WorkforceTrendCard() {
                   : "font-sans inline-block text-[10.5px] leading-normal text-[#a6aca3]"
               }
             >
-              {m.label}
+              {m.month}
             </span>
           </div>
         ))}
       </div>
       <div className="flex items-center gap-6">
-        <Stat value="284" label="Current" />
-        <Stat value="+12" label="vs last month" tone="text-[#2e9160]" />
-        <Stat value="164" label="Net additions 12mo" />
-        <Stat value="13.8%" label="Growth" tone="text-[#2e9160]" />
+        <Stat value={String(months.reduce((s, m) => Math.max(s, m.value), 0))} label="Peak" />
+        <Stat value={String(months[months.length - 1]?.value ?? 0)} label="Current" />
+        <Stat value={`+${months[months.length - 1]?.value - months[0]?.value}`} label="Net additions 12mo" tone="text-[#2e9160]" />
       </div>
     </div>
   )

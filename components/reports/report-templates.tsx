@@ -1,47 +1,22 @@
-import { ArrowRight, FileText, type LucideIcon } from "lucide-react"
+import { ArrowRight, FileText } from "lucide-react"
 
 import { cn } from "@/lib/utils"
+import type { ReportTemplate } from "@/lib/data"
 
-type Template = {
-  title: string
-  desc: string
-  icon: LucideIcon
-  iconBg: string
-  iconColor: string
-}
-
-const templates: Template[] = [
-  {
-    title: "Headcount report",
-    desc: "Active, on leave, new hires and exits by department",
-    icon: FileText,
-    iconBg: "bg-[#2f6f611a]",
-    iconColor: "text-[#2f6f61]",
-  },
-  {
-    title: "Payroll summary",
-    desc: "Gross, deductions, net and employer cost by team",
-    icon: FileText,
-    iconBg: "bg-[#64b6ac24]",
-    iconColor: "text-[#3e9488]",
-  },
-  {
-    title: "Attendance report",
-    desc: "Present, remote, absent and lateness over time",
-    icon: FileText,
-    iconBg: "bg-[#f4a26129]",
-    iconColor: "text-[#d98842]",
-  },
-  {
-    title: "Engagement survey",
-    desc: "eNPS, sentiment scores and verbatim themes",
-    icon: FileText,
-    iconBg: "bg-[#3bb27326]",
-    iconColor: "text-[#2e9160]",
-  },
+const TEMPLATE_COLORS: { iconBg: string; iconColor: string }[] = [
+  { iconBg: "bg-[#2f6f611a]", iconColor: "text-[#2f6f61]" },
+  { iconBg: "bg-[#64b6ac24]", iconColor: "text-[#3e9488]" },
+  { iconBg: "bg-[#f4a26129]", iconColor: "text-[#d98842]" },
+  { iconBg: "bg-[#3bb27326]", iconColor: "text-[#2e9160]" },
 ]
 
-export function ReportTemplates() {
+type ReportTemplatesProps = {
+  onSelect?: (title: string) => void
+  templates?: ReportTemplate[]
+}
+
+export function ReportTemplates({ onSelect, templates }: ReportTemplatesProps) {
+  const items = templates ?? []
   return (
     <section className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
@@ -55,28 +30,33 @@ export function ReportTemplates() {
         </div>
       </div>
       <div className="grid grid-cols-4 gap-4">
-        {templates.map((template) => (
-          <TemplateCard key={template.title} template={template} />
+        {items.map((template, idx) => (
+          <TemplateCard
+            key={template.id}
+            template={template}
+            colors={TEMPLATE_COLORS[idx % TEMPLATE_COLORS.length]}
+            onSelect={onSelect}
+          />
         ))}
       </div>
     </section>
   )
 }
 
-function TemplateCard({ template }: { template: Template }) {
-  const Icon = template.icon
+function TemplateCard({ template, colors, onSelect }: { template: ReportTemplate; colors: { iconBg: string; iconColor: string }; onSelect?: (title: string) => void }) {
   return (
     <button
       type="button"
+      onClick={() => onSelect?.(template.title)}
       className="flex flex-col gap-3 rounded-[18px] border border-[#edeae3] bg-white p-5 text-left shadow-[0px_2px_10px_rgba(47,111,97,0.05)] transition-shadow hover:shadow-[0px_4px_14px_rgba(47,111,97,0.08)]"
     >
       <div
         className={cn(
           "flex size-[42px] items-center justify-center rounded-xl",
-          template.iconBg,
+          colors.iconBg,
         )}
       >
-        <Icon className={cn("size-5", template.iconColor)} strokeWidth={2} />
+        <FileText className={cn("size-5", colors.iconColor)} strokeWidth={2} />
       </div>
       <div className="flex flex-col gap-1">
         <span className="font-sans inline-block text-[14px] font-semibold leading-tight text-[#1f2a26]">

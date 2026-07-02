@@ -4,7 +4,10 @@
       "mcp__wonder__get_element_code",
       "mcp__wonder__get_basic_info",
       "mcp__wonder__take_screenshot",
-      "mcp__wonder__get_element_tree"
+      "mcp__wonder__get_element_tree",
+      "Bash(curl -s http://localhost:3002/employees)",
+      "Bash(curl -sv http://localhost:3002/employees)",
+      "Bash(\"/c/Program Files/Google/Chrome/Application/chrome.exe\" --headless=new --disable-gpu --hide-scrollbars --force-device-scale-factor=1 --window-size=1440,1000 --screenshot=/tmp/shots/emp-post.png http://localhost:3002/employees)"
     ]
   }
 }

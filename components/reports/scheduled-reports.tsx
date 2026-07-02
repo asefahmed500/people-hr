@@ -1,75 +1,30 @@
+import * as React from "react"
 import { ChevronRight, Clock, Ellipsis } from "lucide-react"
 
 import { cn } from "@/lib/utils"
+import type { ScheduledReport } from "@/lib/data"
 
-type Cadence = "daily" | "weekly" | "monthly"
-
-type Report = {
-  name: string
-  format: string
-  cadence: Cadence
-  nextRun: string
-  recipients: string
-  tone: "forest" | "mint" | "amber" | "slate"
-}
-
-const toneDot: Record<Report["tone"], string> = {
+const toneDot: Record<ScheduledReport["tone"], string> = {
   forest: "bg-[#2f6f61]",
   mint: "bg-[#64b6ac]",
   amber: "bg-[#d98a2b]",
   slate: "bg-[#64748b]",
 }
 
-const cadenceStyles: Record<Cadence, { bg: string; text: string }> = {
+const cadenceStyles: Record<ScheduledReport["cadence"], { bg: string; text: string }> = {
   daily: { bg: "bg-[#2f6f611a]", text: "text-[#2f6f61]" },
   weekly: { bg: "bg-[#64b6ac1f]", text: "text-[#3e9488]" },
   monthly: { bg: "bg-[#d98a2b1a]", text: "text-[#b26a1f]" },
 }
 
-const reports: Report[] = [
-  {
-    name: "Daily attendance digest",
-    format: "PDF",
-    cadence: "daily",
-    nextRun: "Tomorrow 09:00",
-    recipients: "People team · 4",
-    tone: "forest",
-  },
-  {
-    name: "Weekly payroll pre-run",
-    format: "CSV",
-    cadence: "weekly",
-    nextRun: "Fri 22 Feb",
-    recipients: "Finance · 3",
-    tone: "mint",
-  },
-  {
-    name: "Engagement pulse",
-    format: "PDF",
-    cadence: "weekly",
-    nextRun: "Mon 24 Feb",
-    recipients: "People partners · 6",
-    tone: "slate",
-  },
-  {
-    name: "Monthly OKR review",
-    format: "Slides",
-    cadence: "monthly",
-    nextRun: "Mar 03",
-    recipients: "Leadership · 9",
-    tone: "amber",
-  },
-  {
-    name: "Recruitment pipeline",
-    format: "PDF",
-    cadence: "weekly",
-    nextRun: "Tue 25 Feb",
-    recipients: "Hiring managers · 12",
-    tone: "forest",
-  },
-]
+type ScheduledReportsProps = {
+  onManage?: () => void
+  onReportAction?: (id: string, name: string, action: string) => void
+  scheduled?: ScheduledReport[]
+}
 
-export function ScheduledReports() {
+export function ScheduledReports({ onManage, onReportAction, scheduled }: ScheduledReportsProps) {
+  const items = scheduled ?? []
   return (
     <div className="flex flex-1 flex-col overflow-clip rounded-[18px] border border-[#edeae3] bg-white shadow-[0px_2px_10px_rgba(47,111,97,0.05)]">
       <div className="flex items-center justify-between border-b border-b-[#edeae3] px-6 py-5">
@@ -78,10 +33,10 @@ export function ScheduledReports() {
             Scheduled reports
           </h2>
           <span className="font-sans inline-block text-[12.5px] leading-normal text-[#8a948d]">
-            12 reports running across the workspace
+            {items.length} report{items.length !== 1 ? "s" : ""} running across the workspace
           </span>
         </div>
-        <button type="button" className="flex items-center gap-1">
+        <button type="button" onClick={onManage} className="flex items-center gap-1">
           <span className="font-sans inline-block text-[13px] font-semibold leading-normal text-[#2f6f61]">
             Manage
           </span>
@@ -89,20 +44,34 @@ export function ScheduledReports() {
         </button>
       </div>
       <div className="flex flex-col">
-        {reports.map((report, idx) => (
-          <ReportRow key={report.name} report={report} last={idx === reports.length - 1} />
+        {items.map((report, idx) => (
+          <ReportRow key={report.id} report={report} last={idx === items.length - 1} onAction={onReportAction} />
         ))}
       </div>
     </div>
   )
 }
 
-function ReportRow({ report, last }: { report: Report; last: boolean }) {
+function ReportRow({ report, last, onAction }: { report: ScheduledReport; last: boolean; onAction?: (id: string, name: string, action: string) => void }) {
+  const [open, setOpen] = React.useState(false)
+  const ref = React.useRef<HTMLDivElement>(null)
   const cadence = cadenceStyles[report.cadence]
+
+  React.useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false)
+      }
+    }
+    if (open) document.addEventListener("mousedown", handleClickOutside)
+    return () => document.removeEventListener("mousedown", handleClickOutside)
+  }, [open])
+
   return (
     <div
+      ref={ref}
       className={cn(
-        "flex items-center gap-4 px-6 py-3.5",
+        "relative flex items-center gap-4 px-6 py-3.5",
         !last && "border-b border-b-[#f1eee8]",
       )}
     >
@@ -128,13 +97,34 @@ function ReportRow({ report, last }: { report: Report; last: boolean }) {
       <span className="w-28 shrink-0 text-right font-sans text-[12.5px] leading-normal text-[#8a948d]">
         {report.nextRun}
       </span>
-      <button
-        type="button"
-        aria-label={`More options for ${report.name}`}
-        className="flex size-7 shrink-0 items-center justify-center rounded-md text-[#b0b7af] hover:bg-[#faf9f6]"
-      >
-        <Ellipsis className="size-4" strokeWidth={2} />
-      </button>
+      <div className="relative">
+        <button
+          type="button"
+          aria-label={`More options for ${report.name}`}
+          onClick={() => setOpen((v) => !v)}
+          className="flex size-7 shrink-0 items-center justify-center rounded-md text-[#b0b7af] hover:bg-[#faf9f6]"
+        >
+          <Ellipsis className="size-4" strokeWidth={2} />
+        </button>
+        {open && (
+          <div className="absolute right-0 top-full z-50 mt-1 w-36 rounded-xl border border-[#edeae3] bg-white py-1 shadow-lg">
+            <button
+              type="button"
+              onClick={() => { setOpen(false); onAction?.(report.id, report.name, "edit") }}
+              className="flex w-full items-center gap-2 px-3 py-2 text-left font-sans text-[13px] text-[#42504a] hover:bg-[#faf9f6]"
+            >
+              Edit
+            </button>
+            <button
+              type="button"
+              onClick={() => { setOpen(false); onAction?.(report.id, report.name, "delete") }}
+              className="flex w-full items-center gap-2 px-3 py-2 text-left font-sans text-[13px] text-[#c4553a] hover:bg-[#faf9f6]"
+            >
+              Delete
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   )
 }

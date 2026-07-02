@@ -1,3 +1,5 @@
+import type { Payment } from "@/lib/data"
+
 type Row = {
   name: string
   fillPct: number
@@ -5,7 +7,7 @@ type Row = {
   amount: string
 }
 
-const rows: Row[] = [
+const defaultRows: Row[] = [
   { name: "Engineering", fillPct: 100, fill: "bg-[#2f6f61]", amount: "$486k" },
   { name: "Sales", fillPct: 64, fill: "bg-[#64b6ac]", amount: "$312k" },
   { name: "Product", fillPct: 55, fill: "bg-[#3e9488]", amount: "$268k" },
@@ -14,7 +16,42 @@ const rows: Row[] = [
   { name: "People", fillPct: 20, fill: "bg-[#e76f51]", amount: "$98k" },
 ]
 
-export function CostByDepartment() {
+const DEPT_FILLS: Record<string, string> = {
+  Engineering: "bg-[#2f6f61]",
+  Sales: "bg-[#64b6ac]",
+  Product: "bg-[#3e9488]",
+  Design: "bg-[#3bb273]",
+  Marketing: "bg-[#f4a261]",
+  People: "bg-[#e76f51]",
+  Research: "bg-[#0f9b8e]",
+  Finance: "bg-[#42504a]",
+}
+
+const DEPT_ORDER = ["Engineering", "Sales", "Product", "Design", "Marketing", "People", "Research", "Finance"]
+
+export function CostByDepartment({ payments }: { payments?: Payment[] }) {
+  const rows: Row[] = payments
+    ? (() => {
+        const deptTotals: Record<string, number> = {}
+        for (const p of payments) {
+          deptTotals[p.department] = (deptTotals[p.department] ?? 0) + p.gross
+        }
+        const maxVal = Math.max(...Object.values(deptTotals), 1)
+        return DEPT_ORDER.filter((d) => deptTotals[d])
+          .map((name) => ({
+            name,
+            fillPct: Math.round((deptTotals[name] / maxVal) * 100),
+            fill: DEPT_FILLS[name] ?? "bg-[#2f6f61]",
+            amount:
+              deptTotals[name] >= 1_000_000
+                ? `$${(deptTotals[name] / 1_000_000).toFixed(1)}M`
+                : deptTotals[name] >= 1_000
+                  ? `$${Math.round(deptTotals[name] / 1_000)}k`
+                  : `$${deptTotals[name]}`,
+          }))
+          .slice(0, 6)
+      })()
+    : defaultRows
   return (
     <div className="flex flex-1 flex-col gap-5 rounded-[18px] border border-[#edeae3] bg-white p-6 shadow-[0px_2px_10px_rgba(47,111,97,0.05)]">
       <div className="flex flex-col gap-1">

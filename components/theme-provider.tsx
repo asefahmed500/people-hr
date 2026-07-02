@@ -1,71 +1,59 @@
 "use client"
 
 import * as React from "react"
-import { ThemeProvider as NextThemesProvider, useTheme } from "next-themes"
 
-function ThemeProvider({
+type Theme = "light" | "dark"
+type ThemeProviderProps = { children: React.ReactNode; defaultTheme?: Theme; storageKey?: string }
+
+function getStoredTheme(key: string, fallback: Theme): Theme {
+  if (typeof window === "undefined") return fallback
+  try {
+    const v = localStorage.getItem(key)
+    if (v === "dark" || v === "light") return v
+  } catch {}
+  return fallback
+}
+
+function applyTheme(t: Theme) {
+  document.documentElement.classList.remove("light", "dark")
+  document.documentElement.classList.add(t)
+  document.documentElement.style.colorScheme = t
+}
+
+const ThemeCtx = React.createContext<{ theme: Theme; setTheme: (t: Theme) => void }>({
+  theme: "light",
+  setTheme: () => {},
+})
+
+export function useTheme() {
+  return React.useContext(ThemeCtx)
+}
+
+export function ThemeProvider({
   children,
-  ...props
-}: React.ComponentProps<typeof NextThemesProvider>) {
-  return (
-    <NextThemesProvider
-      attribute="class"
-      defaultTheme="system"
-      enableSystem
-      disableTransitionOnChange
-      {...props}
-    >
-      <ThemeHotkey />
-      {children}
-    </NextThemesProvider>
-  )
-}
-
-function isTypingTarget(target: EventTarget | null) {
-  if (!(target instanceof HTMLElement)) {
-    return false
-  }
-
-  return (
-    target.isContentEditable ||
-    target.tagName === "INPUT" ||
-    target.tagName === "TEXTAREA" ||
-    target.tagName === "SELECT"
-  )
-}
-
-function ThemeHotkey() {
-  const { resolvedTheme, setTheme } = useTheme()
+  defaultTheme = "light",
+  storageKey = "theme",
+}: ThemeProviderProps) {
+  const [theme, setThemeState] = React.useState<Theme>(defaultTheme)
 
   React.useEffect(() => {
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.defaultPrevented || event.repeat) {
-        return
-      }
+    const stored = getStoredTheme(storageKey, defaultTheme)
+    setThemeState(stored)
+    applyTheme(stored)
+  }, [storageKey, defaultTheme])
 
-      if (event.metaKey || event.ctrlKey || event.altKey) {
-        return
-      }
+  const setTheme = React.useCallback(
+    (t: Theme) => {
+      setThemeState(t)
+      try { localStorage.setItem(storageKey, t) } catch {}
+      applyTheme(t)
+    },
+    [storageKey],
+  )
 
-      if (event.key.toLowerCase() !== "d") {
-        return
-      }
-
-      if (isTypingTarget(event.target)) {
-        return
-      }
-
-      setTheme(resolvedTheme === "dark" ? "light" : "dark")
-    }
-
-    window.addEventListener("keydown", onKeyDown)
-
-    return () => {
-      window.removeEventListener("keydown", onKeyDown)
-    }
-  }, [resolvedTheme, setTheme])
-
-  return null
+  return (
+    <ThemeCtx.Provider value={{ theme, setTheme }}>
+      {children}
+    </ThemeCtx.Provider>
+  )
 }
-
-export { ThemeProvider }

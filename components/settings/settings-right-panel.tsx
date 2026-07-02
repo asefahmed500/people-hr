@@ -1,4 +1,7 @@
+"use client"
+
 import { Check, ChevronRight, HelpCircle } from "lucide-react"
+import { notify } from "@/lib/toast"
 
 const planFeatures = [
   "Unlimited employees",
@@ -39,6 +42,7 @@ export function SettingsRightPanel() {
         </div>
         <button
           type="button"
+          onClick={() => notify.info("Plan management coming soon")}
           className="flex items-center justify-center rounded-lg border border-[#c8e5de] bg-white px-3.5 py-2"
         >
           <span className="font-sans text-[13px] font-medium leading-normal text-[#2f6f61]">
@@ -74,6 +78,7 @@ export function SettingsRightPanel() {
         </div>
         <button
           type="button"
+          onClick={() => notify.info("Opening help center...")}
           className="flex h-fit items-center gap-1.5"
         >
           <span className="font-sans text-[12.5px] font-medium leading-normal text-[#2f6f61]">
@@ -83,6 +88,7 @@ export function SettingsRightPanel() {
         </button>
         <button
           type="button"
+          onClick={() => notify.info("Opening support chat...")}
           className="flex h-fit items-center gap-1.5"
         >
           <span className="font-sans text-[12.5px] leading-normal text-[#5b655e]">

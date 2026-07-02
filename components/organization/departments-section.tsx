@@ -1,129 +1,21 @@
-import { ChevronRight, Ellipsis } from "lucide-react"
+import * as React from "react"
+import { ChevronRight, Ellipsis, Trash2 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
+import type { Dept } from "@/lib/data"
 
-type Dept = {
-  code: string
-  name: string
-  sub: string
-  people: number
-  teams: number
-  open: number
-  leadInit: string
-  leadName: string
-  leadRole: string
-  iconBg: string
-  iconText: string
+type DepartmentsSectionProps = {
+  departments?: Dept[]
+  onViewAll?: () => void
+  onDeptAction?: (id: string, action: string) => void
 }
 
-const depts: Dept[] = [
-  {
-    code: "EN",
-    name: "Engineering",
-    sub: "Product & Platform",
-    people: 284,
-    teams: 6,
-    open: 4,
-    leadInit: "DO",
-    leadName: "Daniel Okafor",
-    leadRole: "VP Engineering",
-    iconBg: "bg-[#64b6ac29]",
-    iconText: "text-[#3e9488]",
-  },
-  {
-    code: "DE",
-    name: "Design",
-    sub: "Brand & Product",
-    people: 86,
-    teams: 4,
-    open: 2,
-    leadInit: "SA",
-    leadName: "Sofia Alvarez",
-    leadRole: "Head of Design",
-    iconBg: "bg-[#f4a2612e]",
-    iconText: "text-[#b96a2c]",
-  },
-  {
-    code: "PR",
-    name: "Product",
-    sub: "Strategy & Ops",
-    people: 124,
-    teams: 5,
-    open: 3,
-    leadInit: "HL",
-    leadName: "Hana Lindqvist",
-    leadRole: "VP Product",
-    iconBg: "bg-[#2f6f611a]",
-    iconText: "text-[#2f6f61]",
-  },
-  {
-    code: "SA",
-    name: "Sales",
-    sub: "Revenue & GTM",
-    people: 142,
-    teams: 5,
-    open: 8,
-    leadInit: "MB",
-    leadName: "Marcus Bailey",
-    leadRole: "VP Sales",
-    iconBg: "bg-[#3bb27326]",
-    iconText: "text-[#2e9160]",
-  },
-  {
-    code: "MK",
-    name: "Marketing",
-    sub: "Brand & Growth",
-    people: 68,
-    teams: 3,
-    open: 1,
-    leadInit: "TV",
-    leadName: "Tomas Vidal",
-    leadRole: "VP Marketing",
-    iconBg: "bg-[#e76f5124]",
-    iconText: "text-[#cc5b3f]",
-  },
-  {
-    code: "PE",
-    name: "People",
-    sub: "Talent & Culture",
-    people: 42,
-    teams: 2,
-    open: 1,
-    leadInit: "LF",
-    leadName: "Lena Fischer",
-    leadRole: "Director of People",
-    iconBg: "bg-[#7ba88c29]",
-    iconText: "text-[#548468]",
-  },
-  {
-    code: "RE",
-    name: "Research",
-    sub: "Insights & Data",
-    people: 38,
-    teams: 2,
-    open: 1,
-    leadInit: "AC",
-    leadName: "Amara Cole",
-    leadRole: "Head of Research",
-    iconBg: "bg-[#64b6ac29]",
-    iconText: "text-[#3e9488]",
-  },
-  {
-    code: "FI",
-    name: "Finance",
-    sub: "Accounting & FP&A",
-    people: 56,
-    teams: 2,
-    open: 0,
-    leadInit: "NK",
-    leadName: "Nadia Khan",
-    leadRole: "CFO",
-    iconBg: "bg-[#2f6f611a]",
-    iconText: "text-[#2f6f61]",
-  },
-]
+const INITIAL_SHOW = 4
 
-export function DepartmentsSection() {
+export function DepartmentsSection({ departments = [], onViewAll, onDeptAction }: DepartmentsSectionProps) {
+  const [showAll, setShowAll] = React.useState(false)
+  const visible = showAll ? departments : departments.slice(0, INITIAL_SHOW)
+
   return (
     <section className="flex w-full flex-col gap-4">
       <div className="flex items-center justify-between">
@@ -132,28 +24,47 @@ export function DepartmentsSection() {
             Departments
           </h2>
           <p className="font-sans inline-block text-[12.5px] leading-normal text-[#8a948d]">
-            14 departments · 38 teams
+            {departments.length} departments · {departments.reduce((s, d) => s + d.teams, 0)} teams
           </p>
         </div>
-        <button type="button" className="flex items-center gap-1.5">
-          <span className="font-sans inline-block text-[13px] font-semibold leading-normal text-[#2f6f61]">
-            View all
-          </span>
-          <ChevronRight className="size-[15px] text-[#2f6f61]" strokeWidth={2} />
-        </button>
+        {departments.length > INITIAL_SHOW && (
+          <button
+            type="button"
+            onClick={() => setShowAll((v) => !v)}
+            className="flex items-center gap-1.5"
+          >
+            <span className="font-sans inline-block text-[13px] font-semibold leading-normal text-[#2f6f61]">
+              {showAll ? "Show less" : "View all"}
+            </span>
+            <ChevronRight className={cn("size-[15px] text-[#2f6f61] transition-transform", showAll && "rotate-90")} strokeWidth={2} />
+          </button>
+        )}
       </div>
       <div className="grid grid-cols-4 gap-4">
-        {depts.map((dept) => (
-          <DeptCard key={dept.code} dept={dept} />
+        {visible.map((dept) => (
+          <DeptCard key={dept.code} dept={dept} onAction={onDeptAction} />
         ))}
       </div>
     </section>
   )
 }
 
-function DeptCard({ dept }: { dept: Dept }) {
+function DeptCard({ dept, onAction }: { dept: Dept; onAction?: (id: string, action: string) => void }) {
+  const [open, setOpen] = React.useState(false)
+  const ref = React.useRef<HTMLDivElement>(null)
+
+  React.useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false)
+      }
+    }
+    if (open) document.addEventListener("mousedown", handleClickOutside)
+    return () => document.removeEventListener("mousedown", handleClickOutside)
+  }, [open])
+
   return (
-    <div className="flex w-full flex-col gap-4 rounded-2xl border border-[#edeae3] bg-white p-5 shadow-[0px_2px_10px_rgba(47,111,97,0.05)]">
+    <div ref={ref} className="relative flex w-full flex-col gap-4 rounded-2xl border border-[#edeae3] bg-white p-5 shadow-[0px_2px_10px_rgba(47,111,97,0.05)]">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div
@@ -180,13 +91,43 @@ function DeptCard({ dept }: { dept: Dept }) {
             </span>
           </div>
         </div>
-        <button
-          type="button"
-          aria-label={`More options for ${dept.name}`}
-          className="text-[#b0b7af]"
-        >
-          <Ellipsis className="size-4" strokeWidth={2} />
-        </button>
+        <div className="relative">
+          <button
+            type="button"
+            aria-label={`More options for ${dept.name}`}
+            onClick={() => setOpen((v) => !v)}
+            className="text-[#b0b7af]"
+          >
+            <Ellipsis className="size-4" strokeWidth={2} />
+          </button>
+          {open && (
+            <div className="absolute right-0 top-full z-50 mt-1 w-36 rounded-xl border border-[#edeae3] bg-white py-1 shadow-lg">
+              <button
+                type="button"
+                onClick={() => { setOpen(false); onAction?.(dept.code, "view") }}
+                className="flex w-full items-center gap-2 px-3 py-2 text-left font-sans text-[13px] text-[#42504a] hover:bg-[#faf9f6]"
+              >
+                View
+              </button>
+              <button
+                type="button"
+                onClick={() => { setOpen(false); onAction?.(dept.code, "edit") }}
+                className="flex w-full items-center gap-2 px-3 py-2 text-left font-sans text-[13px] text-[#42504a] hover:bg-[#faf9f6]"
+              >
+                Edit
+              </button>
+              <div className="mx-2 my-1 h-px bg-[#edeae3]" />
+              <button
+                type="button"
+                onClick={() => { setOpen(false); onAction?.(dept.code, "delete") }}
+                className="flex w-full items-center gap-2 px-3 py-2 text-left font-sans text-[13px] text-[#c4553a] hover:bg-[#faf9f6]"
+              >
+                <Trash2 className="size-3.5" strokeWidth={2} />
+                Delete
+              </button>
+            </div>
+          )}
+        </div>
       </div>
       <div className="flex items-center gap-5">
         <Stat value={String(dept.people)} label="People" />

@@ -1,19 +1,38 @@
 import { Info } from "lucide-react"
 
+import type { Payment } from "@/lib/data"
+
 type Row = {
   label: string
   pct: number
   fill: string
 }
 
-const rows: Row[] = [
+const defaultRows: Row[] = [
   { label: "Base salary", pct: 72, fill: "bg-[#2f6f61]" },
   { label: "Bonuses", pct: 11, fill: "bg-[#64b6ac]" },
   { label: "Benefits", pct: 10, fill: "bg-[#3bb273]" },
   { label: "Taxes", pct: 7, fill: "bg-[#f4a261]" },
 ]
 
-export function PayBreakdown() {
+export function PayBreakdown({ payments }: { payments?: Payment[] }) {
+  const rows: Row[] = payments
+    ? (() => {
+        const G = payments.reduce((s, p) => s + p.gross, 0)
+        const D = payments.reduce((s, p) => s + p.deductions, 0)
+        const taxesPct = G > 0 ? Math.round((D / G) * 100) : 0
+        const remaining = 100 - taxesPct
+        const base = Math.round((remaining * 72) / 93)
+        const bonus = Math.round((remaining * 11) / 93)
+        const benefit = remaining - base - bonus
+        return [
+          { label: "Base salary", pct: base, fill: "bg-[#2f6f61]" },
+          { label: "Bonuses", pct: bonus, fill: "bg-[#64b6ac]" },
+          { label: "Benefits", pct: benefit, fill: "bg-[#3bb273]" },
+          { label: "Taxes", pct: taxesPct, fill: "bg-[#f4a261]" },
+        ]
+      })()
+    : defaultRows
   return (
     <div className="flex w-[300px] shrink-0 flex-col gap-5 rounded-[18px] border border-[#edeae3] bg-white p-6 shadow-[0px_2px_10px_rgba(47,111,97,0.05)]">
       <div className="flex flex-col gap-1">

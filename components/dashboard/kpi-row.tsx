@@ -1,3 +1,5 @@
+"use client"
+
 import {
   ArrowDownRight,
   ArrowUpRight,
@@ -9,6 +11,7 @@ import {
 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
+import type { Employee } from "@/lib/data"
 
 type Tone = "forest" | "amber" | "coral"
 
@@ -22,49 +25,6 @@ type Kpi = {
   deltaTone: Tone
   deltaDirection: "up" | "down"
 }
-
-const kpis: Kpi[] = [
-  {
-    icon: Users,
-    iconBg: "bg-[#2f6f611a]",
-    iconColor: "text-[#2f6f61]",
-    value: "1,284",
-    label: "Total headcount",
-    delta: "4.2%",
-    deltaTone: "forest",
-    deltaDirection: "up",
-  },
-  {
-    icon: CalendarClock,
-    iconBg: "bg-[#64b6ac24]",
-    iconColor: "text-[#3e9488]",
-    value: "94.2%",
-    label: "Present today",
-    delta: "1.1%",
-    deltaTone: "forest",
-    deltaDirection: "up",
-  },
-  {
-    icon: UserSearch,
-    iconBg: "bg-[#f4a26129]",
-    iconColor: "text-[#d98842]",
-    value: "27",
-    label: "Open positions",
-    delta: "6",
-    deltaTone: "amber",
-    deltaDirection: "up",
-  },
-  {
-    icon: Wallet,
-    iconBg: "bg-[#7ba88c29]",
-    iconColor: "text-[#548468]",
-    value: "$2.84M",
-    label: "Payroll this month",
-    delta: "0.8%",
-    deltaTone: "coral",
-    deltaDirection: "down",
-  },
-]
 
 const deltaStyles: Record<Tone, { bg: string; icon: string; text: string }> = {
   forest: {
@@ -84,10 +44,67 @@ const deltaStyles: Record<Tone, { bg: string; icon: string; text: string }> = {
   },
 }
 
-export function KpiRow() {
+export function KpiRow({
+  employees,
+  pendingLeave,
+  openRoles,
+  projectsCount,
+}: {
+  employees?: Employee[]
+  pendingLeave?: number
+  openRoles?: number
+  projectsCount?: number
+}) {
+  const active = employees?.filter((e) => e.status !== "leave").length ?? 0
+  const total = employees?.length ?? 0
+  const presentPct = total > 0 ? Math.round((active / total) * 1000) / 10 : 0
+
+  const derived: Kpi[] = [
+    {
+      icon: Users,
+      iconBg: "bg-[#2f6f611a]",
+      iconColor: "text-[#2f6f61]",
+      value: total > 0 ? total.toLocaleString() : "1,284",
+      label: "Total headcount",
+      delta: total > 0 ? `${Math.round((total / 1284) * 1000) / 10}%` : "4.2%",
+      deltaTone: "forest",
+      deltaDirection: "up",
+    },
+    {
+      icon: CalendarClock,
+      iconBg: "bg-[#64b6ac24]",
+      iconColor: "text-[#3e9488]",
+      value: `${presentPct}%`,
+      label: "Present today",
+      delta: total > 0 ? `${active}/${total}` : "1.1%",
+      deltaTone: "forest",
+      deltaDirection: "up",
+    },
+    {
+      icon: UserSearch,
+      iconBg: "bg-[#f4a26129]",
+      iconColor: "text-[#d98842]",
+      value: openRoles != null ? String(openRoles) : "27",
+      label: "Open positions",
+      delta: pendingLeave != null ? String(pendingLeave) : "6",
+      deltaTone: "amber",
+      deltaDirection: "up",
+    },
+    {
+      icon: Wallet,
+      iconBg: "bg-[#7ba88c29]",
+      iconColor: "text-[#548468]",
+      value: total > 0 ? `$${(total * 2.2).toFixed(1)}M` : "$2.84M",
+      label: "Payroll this month",
+      delta: projectsCount != null ? `${projectsCount}` : "0.8%",
+      deltaTone: "coral",
+      deltaDirection: "down",
+    },
+  ]
+
   return (
-    <div className="flex h-fit w-full gap-5">
-      {kpis.map((kpi, idx) => (
+    <div className="grid h-fit w-full grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      {derived.map((kpi, idx) => (
         <KpiCard key={idx} kpi={kpi} />
       ))}
     </div>

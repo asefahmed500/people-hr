@@ -1,6 +1,12 @@
 import { ChevronDown, Plus } from "lucide-react"
 
-export function GoalsHeader() {
+export function GoalsHeader({
+  onPeriodChange,
+  onNewGoal,
+}: {
+  onPeriodChange?: () => void
+  onNewGoal?: () => void
+}) {
   return (
     <div className="flex w-full items-center justify-between gap-6">
       <div className="flex flex-col gap-1">
@@ -14,6 +20,7 @@ export function GoalsHeader() {
       <div className="flex items-center gap-2.5">
         <button
           type="button"
+          onClick={onPeriodChange}
           className="flex items-center gap-2 rounded-lg border border-[#e8ebe6] bg-white px-3 py-2"
         >
           <span className="font-sans text-[13px] font-medium leading-normal text-[#42504a]">
@@ -23,6 +30,7 @@ export function GoalsHeader() {
         </button>
         <button
           type="button"
+          onClick={onNewGoal}
           className="flex items-center gap-1.5 rounded-lg bg-[#2f6f61] px-3.5 py-2"
         >
           <Plus className="size-3.5 text-white" strokeWidth={2} />

@@ -1,41 +1,37 @@
 import { cn } from "@/lib/utils"
+import type { DeptBreakdown, TenureBreakdown } from "@/lib/data"
 
-type Tone = "forest" | "mint" | "amber" | "sage" | "coral"
-
-type Row = {
-  label: string
-  pct: number
-  count: string
-  fill: string
+type WorkforceBreakdownProps = {
+  byDept?: DeptBreakdown[]
+  byTenure?: TenureBreakdown[]
 }
 
-const byDept: Row[] = [
-  { label: "Engineering", pct: 30, count: "284", fill: "bg-[#2f6f61]" },
-  { label: "Sales", pct: 18, count: "142", fill: "bg-[#64b6ac]" },
-  { label: "Product", pct: 14, count: "124", fill: "bg-[#3e9488]" },
-  { label: "Design", pct: 9, count: "86", fill: "bg-[#3bb273]" },
-  { label: "Marketing", pct: 8, count: "68", fill: "bg-[#f4a261]" },
-  { label: "People", pct: 6, count: "42", fill: "bg-[#7ba88c]" },
-]
+export function WorkforceBreakdown({ byDept, byTenure }: WorkforceBreakdownProps) {
+  const deptRows = (byDept ?? [
+    { label: "Engineering", pct: 30, count: 284, fill: "bg-[#2f6f61]" },
+    { label: "Sales", pct: 18, count: 142, fill: "bg-[#64b6ac]" },
+    { label: "Product", pct: 14, count: 124, fill: "bg-[#3e9488]" },
+    { label: "Design", pct: 9, count: 86, fill: "bg-[#3bb273]" },
+    { label: "Marketing", pct: 8, count: 68, fill: "bg-[#f4a261]" },
+    { label: "People", pct: 6, count: 42, fill: "bg-[#7ba88c]" },
+  ]).map((d) => ({ label: d.label, pct: d.pct, count: String(d.count), fill: d.fill }))
+  const tenureRows = (byTenure ?? [
+    { label: "< 1 year", pct: 22, count: 63, fill: "bg-[#64b6ac]" },
+    { label: "1–2 years", pct: 28, count: 80, fill: "bg-[#2f6f61]" },
+    { label: "2–4 years", pct: 31, count: 88, fill: "bg-[#3bb273]" },
+    { label: "4–7 years", pct: 13, count: 37, fill: "bg-[#f4a261]" },
+    { label: "7+ years", pct: 6, count: 16, fill: "bg-[#e76f51]" },
+  ]).map((d) => ({ label: d.label, pct: d.pct, count: String(d.count), fill: d.fill }))
 
-const byTenure: Row[] = [
-  { label: "< 1 year", pct: 22, count: "63", fill: "bg-[#64b6ac]" },
-  { label: "1–2 years", pct: 28, count: "80", fill: "bg-[#2f6f61]" },
-  { label: "2–4 years", pct: 31, count: "88", fill: "bg-[#3bb273]" },
-  { label: "4–7 years", pct: 13, count: "37", fill: "bg-[#f4a261]" },
-  { label: "7+ years", pct: 6, count: "16", fill: "bg-[#e76f51]" },
-]
-
-export function WorkforceBreakdown() {
   return (
     <div className="flex w-[440px] shrink-0 flex-col gap-5 rounded-[18px] border border-[#e8ebe6] bg-white p-6">
       <Breakdown
         title="By department"
         sub="Headcount distribution"
-        rows={byDept}
+        rows={deptRows}
       />
       <span className="h-px w-full bg-[#f1eee8]" />
-      <Breakdown title="By tenure" sub="Years at company" rows={byTenure} />
+      <Breakdown title="By tenure" sub="Years at company" rows={tenureRows} />
     </div>
   )
 }
@@ -47,7 +43,7 @@ function Breakdown({
 }: {
   title: string
   sub: string
-  rows: Row[]
+  rows: { label: string; pct: number; count: string; fill: string }[]
 }) {
   return (
     <section className="flex flex-col gap-4">

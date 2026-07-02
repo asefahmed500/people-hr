@@ -1,6 +1,11 @@
 import { ChevronDown, Download, Plus } from "lucide-react"
 
-export function AnalyticsHeader() {
+type AnalyticsHeaderProps = {
+  onPeriodChange?: () => void
+  onExport?: () => void
+}
+
+export function AnalyticsHeader({ onPeriodChange, onExport }: AnalyticsHeaderProps) {
   return (
     <div className="flex w-full items-center justify-between gap-6">
       <div className="flex flex-col gap-1">
@@ -14,6 +19,7 @@ export function AnalyticsHeader() {
       <div className="flex items-center gap-2.5">
         <button
           type="button"
+          onClick={onPeriodChange}
           className="flex items-center gap-2 rounded-lg border border-[#e8ebe6] bg-white px-3 py-2"
         >
           <span className="font-sans text-[13px] font-medium leading-normal text-[#42504a]">
@@ -23,6 +29,7 @@ export function AnalyticsHeader() {
         </button>
         <button
           type="button"
+          onClick={onExport}
           className="flex items-center gap-1.5 rounded-lg bg-[#2f6f61] px-3.5 py-2"
         >
           <Plus className="size-3.5 text-white" strokeWidth={2} />

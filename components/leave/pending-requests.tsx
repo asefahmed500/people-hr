@@ -1,43 +1,10 @@
+"use client"
+
 import { cn } from "@/lib/utils"
-
-type Status = "approved" | "pending" | "declined"
-
-type Request = {
-  initials: string
-  name: string
-  meta: string
-  status: Status
-}
-
-const requests: Request[] = [
-  {
-    initials: "SA",
-    name: "Sofia Alvarez",
-    meta: "Vacation · 5d · Feb 24–28",
-    status: "approved",
-  },
-  {
-    initials: "MB",
-    name: "Marcus Bailey",
-    meta: "Personal · 1d · Feb 21",
-    status: "pending",
-  },
-  {
-    initials: "PN",
-    name: "Priya Nair",
-    meta: "Vacation · 8d · Mar 03–12",
-    status: "pending",
-  },
-  {
-    initials: "HL",
-    name: "Hana Lindqvist",
-    meta: "Sick · 3d · Feb 17–19",
-    status: "declined",
-  },
-]
+import type { LeaveRequest, LeaveStatus } from "@/lib/data"
 
 const statusStyles: Record<
-  Status,
+  LeaveStatus,
   { avatarBg: string; avatarText: string; pillBg: string; pillText: string; label: string }
 > = {
   approved: {
@@ -63,7 +30,18 @@ const statusStyles: Record<
   },
 }
 
-export function PendingRequests() {
+export function PendingRequests({
+  requests,
+  onApprove,
+  onDecline,
+}: {
+  requests: LeaveRequest[]
+  onApprove?: (id: string) => void
+  onDecline?: (id: string) => void
+}) {
+  const visible = requests.slice(0, 5)
+  const pendingCount = requests.filter((r) => r.status === "pending").length
+
   return (
     <div className="flex flex-col gap-4 rounded-[18px] border border-[#edeae3] bg-white p-5 shadow-[0px_2px_10px_rgba(47,111,97,0.05)]">
       <div className="flex items-center justify-between">
@@ -72,21 +50,43 @@ export function PendingRequests() {
         </h2>
         <span className="flex items-center rounded-full bg-[#f4a26126] px-2 py-[3px]">
           <span className="font-sans text-[10px] font-semibold leading-normal text-[#b96a2c]">
-            2 pending
+            {pendingCount} pending
           </span>
         </span>
       </div>
       <div className="flex flex-col gap-3">
-        {requests.map((req) => (
-          <RequestRow key={req.initials + req.name} req={req} />
+        {visible.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-[#edeae3] bg-[#faf9f6] px-4 py-6 text-center font-sans text-[12.5px] text-[#8a948d]">
+            No leave requests.
+          </div>
+        ) : null}
+        {visible.map((req) => (
+          <RequestRow
+            key={req.id}
+            req={req}
+            onApprove={onApprove}
+            onDecline={onDecline}
+          />
         ))}
       </div>
     </div>
   )
 }
 
-function RequestRow({ req }: { req: Request }) {
+function RequestRow({
+  req,
+  onApprove,
+  onDecline,
+}: {
+  req: LeaveRequest
+  onApprove?: (id: string) => void
+  onDecline?: (id: string) => void
+}) {
   const s = statusStyles[req.status]
+  const range =
+    req.startDate === req.endDate
+      ? req.startDate
+      : `${req.startDate} → ${req.endDate}`
   return (
     <div className="flex items-center gap-3">
       <div
@@ -101,21 +101,46 @@ function RequestRow({ req }: { req: Request }) {
       </div>
       <div className="flex min-w-0 flex-1 flex-col gap-px">
         <span className="inline-block overflow-clip font-sans text-[13px] font-medium leading-normal text-[#1f2a26] [text-overflow:ellipsis]">
-          {req.name}
+          {req.employeeName} · {req.days}d
         </span>
         <span className="font-sans inline-block text-[11px] leading-normal text-[#8a948d]">
-          {req.meta}
+          {range}
         </span>
       </div>
-      <span
-        className={cn(
-          "flex shrink-0 items-center rounded-full px-2 py-[3px] font-sans text-[10px] font-semibold leading-normal",
-          s.pillBg,
-          s.pillText,
-        )}
-      >
-        {s.label}
-      </span>
+      {req.status === "pending" && onApprove && onDecline ? (
+        <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            aria-label={`Approve ${req.employeeName}`}
+            onClick={() => onApprove(req.id)}
+            className="flex size-7 shrink-0 items-center justify-center rounded-md bg-[#3bb2731f] text-[#2e9160] hover:bg-[#3bb2732e]"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="size-3.5">
+              <path d="M5 12l5 5l10 -10" />
+            </svg>
+          </button>
+          <button
+            type="button"
+            aria-label={`Decline ${req.employeeName}`}
+            onClick={() => onDecline(req.id)}
+            className="flex size-7 shrink-0 items-center justify-center rounded-md bg-[#e76f511f] text-[#c4553a] hover:bg-[#e76f512e]"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="size-3.5">
+              <path d="M18 6L6 18M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+      ) : (
+        <span
+          className={cn(
+            "flex shrink-0 items-center rounded-full px-2 py-[3px] font-sans text-[10px] font-semibold leading-normal",
+            s.pillBg,
+            s.pillText,
+          )}
+        >
+          {s.label}
+        </span>
+      )}
     </div>
   )
 }

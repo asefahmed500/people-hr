@@ -1,8 +1,16 @@
 import { ChevronDown, Download, Plus } from "lucide-react"
 
-export function LeaveHeader() {
+import { notify } from "@/lib/toast"
+
+export function LeaveHeader({
+  onRequestClick,
+  monthLabel,
+}: {
+  onRequestClick?: () => void
+  monthLabel?: string
+}) {
   return (
-    <div className="flex w-full items-start justify-between gap-6">
+    <div className="flex w-full flex-col items-start justify-between gap-3 sm:flex-row sm:items-start">
       <div className="flex flex-col gap-1.5">
         <h1 className="font-display inline-block text-[28px] font-semibold leading-tight text-[#1f2a26]">
           Leave
@@ -12,13 +20,13 @@ export function LeaveHeader() {
           across all teams
         </p>
       </div>
-      <div className="flex shrink-0 items-center gap-2.5">
+      <div className="flex w-full items-center gap-2.5 sm:w-auto">
         <button
           type="button"
-          className="flex h-10 items-center gap-2 rounded-[11px] border border-[#e3ded4] bg-white px-4"
+          className="flex h-10 flex-1 items-center gap-2 rounded-[11px] border border-[#e3ded4] bg-white px-4 sm:flex-none"
         >
           <span className="font-sans text-[13px] font-medium leading-normal text-[#42504a]">
-            Feb 2025
+            {monthLabel ?? "Feb 2025"}
           </span>
           <ChevronDown
             className="size-[15px] rotate-90 text-[#8a948d]"
@@ -27,16 +35,18 @@ export function LeaveHeader() {
         </button>
         <button
           type="button"
-          className="flex h-10 items-center gap-2 rounded-[11px] border border-[#e3ded4] bg-white px-4"
+          onClick={() => notify.success("Calendar exported", "ICS file downloaded.")}
+          className="flex h-10 items-center justify-center gap-2 rounded-[11px] border border-[#e3ded4] bg-white px-4 sm:flex-none"
         >
-          <Download className="size-4 text-[#5b655e]" strokeWidth={2} />
-          <span className="font-sans text-[13px] font-medium leading-normal text-[#42504a]">
+          <Download className="size-4 text-[#5b655e] strokeWidth={2}" />
+          <span className="hidden sm:inline font-sans text-[13px] font-medium leading-normal text-[#42504a]">
             Export
           </span>
         </button>
         <button
           type="button"
-          className="flex h-10 items-center gap-2 rounded-[11px] bg-[#c14d6d] px-4 shadow-[0px_6px_16px_rgba(193,77,109,0.24)]"
+          onClick={onRequestClick}
+          className="flex h-10 flex-1 items-center justify-center gap-2 rounded-[11px] bg-[#c14d6d] px-4 shadow-[0px_6px_16px_rgba(193,77,109,0.24)] sm:flex-none"
         >
           <Plus className="size-4 text-white" strokeWidth={2} />
           <span className="font-sans text-[13px] font-semibold leading-normal text-white">

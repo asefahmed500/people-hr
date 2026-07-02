@@ -1,115 +1,32 @@
 import { ChevronRight } from "lucide-react"
 
+import type { Payment } from "@/lib/data"
+import { formatMoney, paymentStatusStyles } from "@/lib/data"
 import { cn } from "@/lib/utils"
 
-type Status = "paid" | "pending" | "failed"
-
-type Row = {
-  initials: string
-  name: string
-  role: string
-  dept: string
-  gross: string
-  ded: string
-  net: string
-  status: Status
+function mapPaymentToRow(p: Payment) {
+  const net = p.gross - p.deductions
+  return {
+    initials: p.initials,
+    name: p.name,
+    role: p.role,
+    dept: p.department,
+    gross: formatMoney(p.gross),
+    ded: formatMoney(p.deductions),
+    net: formatMoney(net),
+    status: p.status,
+  }
 }
 
-const statusStyles: Record<Status, { dot: string; bg: string; text: string; label: string }> = {
-  paid: {
-    dot: "bg-[#2f6f61]",
-    bg: "bg-[#2f6f611a]",
-    text: "text-[#2f6f61]",
-    label: "Paid",
-  },
-  pending: {
-    dot: "bg-[#d98a2b]",
-    bg: "bg-[#d98a2b1a]",
-    text: "text-[#b26a1f]",
-    label: "Pending",
-  },
-  failed: {
-    dot: "bg-[#e76f51]",
-    bg: "bg-[#e76f511a]",
-    text: "text-[#c4553a]",
-    label: "Failed",
-  },
-}
+export function EmployeePayments({
+  payments,
+  onViewAll,
+}: {
+  payments?: Payment[]
+  onViewAll?: () => void
+}) {
+  const rows = (payments ?? []).map(mapPaymentToRow)
 
-const rows: Row[] = [
-  {
-    initials: "SJ",
-    name: "Sophie Jensen",
-    role: "Staff Engineer",
-    dept: "Engineering",
-    gross: "$12,400",
-    ded: "$3,596",
-    net: "$8,804",
-    status: "paid",
-  },
-  {
-    initials: "MK",
-    name: "Marcus Kim",
-    role: "Account Executive",
-    dept: "Sales",
-    gross: "$9,800",
-    ded: "$2,842",
-    net: "$6,958",
-    status: "paid",
-  },
-  {
-    initials: "AP",
-    name: "Anika Patel",
-    role: "Product Manager",
-    dept: "Product",
-    gross: "$10,600",
-    ded: "$3,074",
-    net: "$7,526",
-    status: "pending",
-  },
-  {
-    initials: "TW",
-    name: "Tom Walsh",
-    role: "Senior Designer",
-    dept: "Design",
-    gross: "$8,200",
-    ded: "$2,378",
-    net: "$5,822",
-    status: "paid",
-  },
-  {
-    initials: "RL",
-    name: "Raquel Lopez",
-    role: "Content Lead",
-    dept: "Marketing",
-    gross: "$9,100",
-    ded: "$2,639",
-    net: "$6,461",
-    status: "pending",
-  },
-  {
-    initials: "DN",
-    name: "David Nguyen",
-    role: "Backend Engineer",
-    dept: "Engineering",
-    gross: "$11,200",
-    ded: "$3,248",
-    net: "$7,952",
-    status: "paid",
-  },
-  {
-    initials: "CF",
-    name: "Clara Fischer",
-    role: "People Partner",
-    dept: "People",
-    gross: "$8,800",
-    ded: "$2,552",
-    net: "$6,248",
-    status: "failed",
-  },
-]
-
-export function EmployeePayments() {
   return (
     <div className="flex w-full flex-col overflow-clip rounded-[18px] border border-[#edeae3] bg-white shadow-[0px_2px_10px_rgba(47,111,97,0.05)]">
       <div className="flex items-center justify-between px-6 py-5">
@@ -118,10 +35,10 @@ export function EmployeePayments() {
             Employee payments
           </h2>
           <span className="font-sans inline-block text-[12.5px] leading-normal text-[#8a948d]">
-            284 employees · February 2025
+            {payments?.length ?? 0} employees · February 2025
           </span>
         </div>
-        <button type="button" className="flex items-center gap-1">
+        <button type="button" onClick={onViewAll} className="flex items-center gap-1">
           <span className="font-sans inline-block text-[13px] font-semibold leading-normal text-[#2f6f61]">
             View all
           </span>
@@ -149,16 +66,26 @@ export function EmployeePayments() {
         </span>
       </div>
       <div className="flex flex-col">
-        {rows.map((row, idx) => (
-          <PaymentRow key={row.initials + row.name} row={row} last={idx === rows.length - 1} />
-        ))}
+        {rows.length === 0 ? (
+          <div className="flex items-center justify-center py-10">
+            <span className="font-sans text-[13px] leading-normal text-[#8a948d]">
+              No payment records
+            </span>
+          </div>
+        ) : (
+          rows.map((row, idx) => (
+            <PaymentRow key={row.initials + row.name} row={row} last={idx === rows.length - 1} />
+          ))
+        )}
       </div>
     </div>
   )
 }
 
+type Row = ReturnType<typeof mapPaymentToRow>
+
 function PaymentRow({ row, last }: { row: Row; last: boolean }) {
-  const s = statusStyles[row.status]
+  const s = paymentStatusStyles[row.status]
   return (
     <div
       className={cn(
