@@ -7,6 +7,7 @@ import { ChatHistoryPanel } from "@/components/assistant/chat-history-panel"
 import { ChatConversation } from "@/components/assistant/chat-conversation"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useApiStore } from "@/hooks/use-api-store"
+import { apiRequest } from "@/lib/api-client"
 import { consumePendingAction } from "@/lib/command-actions"
 import {
   type AssistantStore,
@@ -104,14 +105,12 @@ export function AssistantPageClient() {
     })
 
     setThinking(true)
-    fetch("/api/assistant/chat", {
+    apiRequest<{ reply?: string }>("/api/assistant/chat", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ prompt: clean, messages: history }),
+      body: { prompt: clean, messages: history },
     })
-      .then((res) => res.json().catch(() => null))
       .then((data) => {
-        const reply = (data as { reply?: string } | null)?.reply ?? "Sorry, I couldn’t respond right now."
+        const reply = data?.reply ?? "Sorry, I couldn't respond right now."
         setState((prev) => ({
           ...prev,
           conversations: prev.conversations.map((c) => ({
@@ -128,7 +127,7 @@ export function AssistantPageClient() {
           conversations: prev.conversations.map((c) => ({
             ...c,
             messages: c.messages.map((m) =>
-              m.id === thinkId ? { ...m, content: "Sorry, I couldn’t respond right now." } : m,
+              m.id === thinkId ? { ...m, content: "Sorry, I couldn't respond right now." } : m,
             ),
           })),
         }))

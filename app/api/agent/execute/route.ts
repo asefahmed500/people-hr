@@ -69,7 +69,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Invalid request", details: e.issues }, { status: 400 });
     }
     return NextResponse.json(
-      { error: `Agent failed: ${(e as Error).message}` },
+      { error: "Agent processing failed" },
       { status: 500 }
     );
   }

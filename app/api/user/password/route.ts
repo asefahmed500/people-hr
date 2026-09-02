@@ -3,9 +3,13 @@ import bcrypt from "bcryptjs"
 
 import { prisma } from "@/lib/db"
 import { auth } from "@/lib/auth"
+import { rateLimit } from "@/lib/rate-limit"
 
 // Change the signed-in user's password (verifies the current one).
 export async function POST(request: Request) {
+  const limited = rateLimit(request, { name: "change-password", limit: 5, windowMs: 15 * 60_000 })
+  if (limited) return limited
+
   const session = await auth()
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
@@ -17,6 +21,9 @@ export async function POST(request: Request) {
 
   if (!current || next.length < 8) {
     return NextResponse.json({ error: "New password must be at least 8 characters." }, { status: 400 })
+  }
+  if (next.length > 128) {
+    return NextResponse.json({ error: "New password must be at most 128 characters." }, { status: 400 })
   }
 
   const user = await prisma.user.findUnique({ where: { id: session.user.id } })

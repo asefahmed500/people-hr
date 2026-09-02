@@ -52,9 +52,9 @@ export async function processFile(
       const pageTexts: string[] = [];
       const parsePages = (await import("pdf-parse")).default;
       await parsePages(buffer, {
-        pagerender: async (pageData: any) => {
+        pagerender: async (pageData: { getTextContent: () => Promise<{ items: { str: string }[] }> }) => {
           const text = await pageData.getTextContent();
-          pageTexts.push(text.items.map((i: any) => i.str).join(" "));
+          pageTexts.push(text.items.map((i) => i.str).join(" "));
           return "";
         },
       });

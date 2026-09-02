@@ -290,6 +290,15 @@ export function EmployeesPageClient() {
                       p.id === deactivateTarget.id ? { ...p, status: "inactive" as const } : p,
                     ),
                   )
+                  // Cancel any pending leave requests for the deactivated employee
+                  setLeaveStore?.((prev) => ({
+                    ...prev,
+                    requests: prev.requests.map((r) =>
+                      r.employeeId === deactivateTarget.id && r.status === "pending"
+                        ? { ...r, status: "declined" as const }
+                        : r,
+                    ),
+                  }))
                   notify.success(`${deactivateTarget.name} deactivated`)
 
                 }

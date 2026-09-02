@@ -58,7 +58,8 @@ export class DocumentProcessor {
     };
 
     await ensureDir(UPLOAD_DIR);
-    const filePath = join(UPLOAD_DIR, `${docId}_${fileName}`);
+    const safeName = fileName.replace(/[^a-zA-Z0-9._-]/g, "_").substring(0, 200);
+    const filePath = join(UPLOAD_DIR, `${docId}_${safeName}`);
     await writeFile(filePath, fileBuffer);
 
     try {

@@ -381,7 +381,7 @@ function mergeLeave(
           )))
     if (!allowed) return { ok: false, error: "You can only change your own balance." }
     // Non-admins can only change `used`, not `total` (entitlement)
-    if (!isAdmin(ctx) && key === ctx.id && sto.balances?.[key]) {
+    if (!isAdmin(ctx) && sto.balances?.[key]) {
       const stored = sto.balances[key] as Record<string, { used: number; total: number }>
       const incoming = value as Record<string, { used: number; total: number }>
       const locked: Record<string, { used: number; total: number }> = {}

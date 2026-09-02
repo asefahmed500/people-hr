@@ -73,9 +73,7 @@ export function PayrollPageClient() {
     notify.success(
       "Payroll run complete",
       `${processed} payment(s) processed (${formatMoney(
-        [...state.payments, ...generated]
-          .filter((p) => p.status !== "paid")
-          .reduce((s, p) => s + p.gross, 0),
+        generated.reduce((s, p) => s + p.gross, 0),
       )} gross).${skippedNote}`,
     )
 

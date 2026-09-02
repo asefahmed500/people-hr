@@ -51,7 +51,7 @@ const leaveRequest = z.object({
   status: z.enum(["approved", "pending", "declined"]),
   startDate: z.string(),
   endDate: z.string(),
-  days: z.number().min(0).multipleOf(0.5),
+  days: z.number().min(0.5).multipleOf(0.5),
   reason: z.string(),
   halfDay: z.boolean().optional(),
 })
@@ -314,7 +314,7 @@ export const STORE_SCHEMAS: Record<string, z.ZodType> = {
   onboarding: z.object({ tasks: z.array(onboardingTask) }),
   attendance: z.object({ checkIns: z.array(checkIn) }),
   organization: z.object({
-    companyName: z.string().optional(),
+    companyName: z.string(),
     departments: z.array(dept),
     offices: z.array(office),
     orgChart: z.array(orgNode),

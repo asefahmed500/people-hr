@@ -62,7 +62,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Invalid request", details: e.issues }, { status: 400 });
     }
     return NextResponse.json(
-      { error: `Search failed: ${(e as Error).message}` },
+      { error: "Search failed" },
       { status: 500 }
     );
   }

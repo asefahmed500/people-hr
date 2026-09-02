@@ -59,7 +59,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Invalid request", details: e.issues }, { status: 400 });
     }
     return NextResponse.json(
-      { error: `Execution failed: ${(e as Error).message}` },
+      { error: "Tool execution failed" },
       { status: 500 }
     );
   }

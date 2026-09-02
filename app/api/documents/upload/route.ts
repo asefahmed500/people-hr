@@ -74,8 +74,9 @@ export async function POST(request: NextRequest) {
       chunkCount: result.chunks?.length || 0,
     });
   } catch (e) {
+    console.error("Document upload failed:", e);
     return NextResponse.json(
-      { error: `Processing failed: ${(e as Error).message}` },
+      { error: "Document processing failed" },
       { status: 500 }
     );
   }

@@ -69,18 +69,18 @@ export function DashboardPageClient() {
     () => defaultOrganizationStore,
   )
 
-  const { state: goals } = useApiStore<GoalsStore>(
+  const { state: goals, hydrated: goalsHydrated } = useApiStore<GoalsStore>(
     "/api/store/goals",
     () => defaultGoalsStore,
   )
 
-  const { state: performance } = useApiStore<PerformanceStore>(
+  const { state: performance, hydrated: performanceHydrated } = useApiStore<PerformanceStore>(
     "/api/store/performance",
     () => defaultPerformanceStore,
   )
 
   const hydrated =
-    leaveHydrated && employeesHydrated && recruitmentHydrated && attendanceHydrated && projectsHydrated && organizationHydrated
+    leaveHydrated && employeesHydrated && recruitmentHydrated && attendanceHydrated && projectsHydrated && organizationHydrated && goalsHydrated && performanceHydrated
 
   const canManageLeave = user?.role === "admin" || user?.role === "manager"
 
