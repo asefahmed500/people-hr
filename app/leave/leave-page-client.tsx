@@ -518,10 +518,10 @@ function RequestLeaveDialog({
             new Date(parsed.data.startDate).getTime()) /
             86400_000 +
           1
-    if (days > (remaining ?? days)) {
+    if (remaining === null || remaining === undefined || days > remaining) {
       notify.error(
         "Not enough balance",
-        `You have ${remaining} ${bucket} day${remaining === 1 ? "" : "s"} remaining.`,
+        `You have ${remaining ?? 0} ${bucket} day${remaining === 1 ? "" : "s"} remaining.`,
       )
       return
     }

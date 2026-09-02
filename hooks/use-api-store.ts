@@ -111,7 +111,7 @@ export function useApiStore<T>(
       const cur = store.getState()
       // Never mutate a store that hasn't loaded — the write would be based on
       // seed defaults and the PUT could clobber real server data.
-      if (!cur.hydrated || cur.reverting) return
+      if (!cur.hydrated) return
       const next = typeof updater === "function" ? (updater as (p: T) => T)(cur.state) : updater
       const seq = cur.writeSeq + 1
       store.setState({ state: next, writeSeq: seq })

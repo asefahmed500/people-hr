@@ -20,6 +20,7 @@ export type UserCtx = {
 type Row = Record<string, unknown>
 
 const isManager = (ctx: UserCtx) => ctx.role === "manager"
+const isAdmin = (ctx: UserCtx) => ctx.role === "admin"
 const isEmployee = (ctx: UserCtx) => ctx.role === "employee"
 
 function deepEqual(a: unknown, b: unknown): boolean {
@@ -129,6 +130,12 @@ function mergeArrayModule(
     const changed = prev && !deepEqual(prev, row)
     if ((added || changed) && !inScope(row, config, ctx)) {
       return { ok: false, error: "You can only change your own records." }
+    }
+    // Prevent non-admins from hijacking rows by changing the dept field
+    if (changed && prev && config.deptField && !isAdmin(ctx)) {
+      if (String(prev[config.deptField] ?? "") !== String(row[config.deptField] ?? "")) {
+        return { ok: false, error: "Department can only be changed by an admin." }
+      }
     }
   }
 
@@ -373,7 +380,21 @@ function mergeLeave(
               deptOf(String(r.employeeName ?? "")) === ctx.department,
           )))
     if (!allowed) return { ok: false, error: "You can only change your own balance." }
-    mergedBalances[key] = value
+    // Non-admins can only change `used`, not `total` (entitlement)
+    if (!isAdmin(ctx) && key === ctx.id && sto.balances?.[key]) {
+      const stored = sto.balances[key] as Record<string, { used: number; total: number }>
+      const incoming = value as Record<string, { used: number; total: number }>
+      const locked: Record<string, { used: number; total: number }> = {}
+      for (const bucket of Object.keys(incoming)) {
+        locked[bucket] = {
+          used: incoming[bucket]?.used ?? stored[bucket]?.used ?? 0,
+          total: stored[bucket]?.total ?? incoming[bucket]?.total ?? 0,
+        }
+      }
+      mergedBalances[key] = locked
+    } else {
+      mergedBalances[key] = value
+    }
   }
 
   return {

@@ -135,6 +135,13 @@ export class OpenAICompatibleProvider implements AIProvider {
         content: m.content,
       };
       if (m.toolCallId) msg.tool_call_id = m.toolCallId;
+      if (m.toolCalls?.length) {
+        msg.tool_calls = m.toolCalls.map((tc) => ({
+          id: tc.id,
+          type: "function" as const,
+          function: { name: tc.name, arguments: tc.arguments },
+        }));
+      }
       return msg;
     });
 
@@ -177,16 +184,6 @@ export class OpenAICompatibleProvider implements AIProvider {
         }
       }
 
-      if (chunk.usage) {
-        const usage: AIUsage = {
-          promptTokens: chunk.usage.prompt_tokens || 0,
-          completionTokens: chunk.usage.completion_tokens || 0,
-          totalTokens: chunk.usage.total_tokens || 0,
-          estimatedCost: 0,
-        };
-        yield { type: "done", usage };
-      }
-
       if (choice?.finish_reason) {
         for (const [, buf] of toolCallBuffers) {
           yield {
@@ -195,6 +192,16 @@ export class OpenAICompatibleProvider implements AIProvider {
           };
         }
         toolCallBuffers.clear();
+      }
+
+      if (chunk.usage) {
+        const usage: AIUsage = {
+          promptTokens: chunk.usage.prompt_tokens || 0,
+          completionTokens: chunk.usage.completion_tokens || 0,
+          totalTokens: chunk.usage.total_tokens || 0,
+          estimatedCost: 0,
+        };
+        yield { type: "done", usage };
       }
     }
   }

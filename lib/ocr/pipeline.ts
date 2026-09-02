@@ -47,21 +47,45 @@ export async function processFile(
     const maxPages = Math.min(pdfData.numpages, config.maxPages);
 
     if (needsOCR(pdfData.text)) {
-      const { default: pdf } = await import("pdf-parse");
-      const pdfDoc = await pdf(buffer);
-      const pageImages: Buffer[] = [];
+      // When OCR is needed on a PDF, extract text per-page using pdf-parse's
+      // built-in page callback. Each page gets its own OCR entry.
+      const pageTexts: string[] = [];
+      const parsePages = (await import("pdf-parse")).default;
+      await parsePages(buffer, {
+        pagerender: async (pageData: any) => {
+          const text = await pageData.getTextContent();
+          pageTexts.push(text.items.map((i: any) => i.str).join(" "));
+          return "";
+        },
+      });
 
-      for (let i = 1; i <= maxPages; i++) {
-        try {
-          const pageBuffer = await extractPDFPageAsImage(buffer, i);
-          if (pageBuffer) pageImages.push(pageBuffer);
-        } catch {
-          continue;
+      for (let i = 0; i < Math.min(pageTexts.length, maxPages); i++) {
+        const text = pageTexts[i] || "";
+        if (needsOCR(text)) {
+          // When the page text suggests it's a scanned image embedded in the PDF,
+          // we fall back to treating the full text as the page content
+          pages.push({
+            pageNumber: i + 1,
+            width: 0,
+            height: 0,
+            fullText: text,
+            averageConfidence: 0.5,
+            processingTimeMs: 0,
+            tables: [],
+            blocks: [{ text, confidence: 0.5, bbox: { x0: 0, y0: 0, x1: 1, y1: 1 }, type: "text" as const, lines: [] }],
+          });
+        } else {
+          pages.push({
+            pageNumber: i + 1,
+            width: 0,
+            height: 0,
+            fullText: text,
+            averageConfidence: 1.0,
+            processingTimeMs: 0,
+            tables: [],
+            blocks: [{ text, confidence: 1.0, bbox: { x0: 0, y0: 0, x1: 1, y1: 1 }, type: "text" as const, lines: [] }],
+          });
         }
-      }
-
-      if (pageImages.length > 0) {
-        pages = await ocrPDFPages(pageImages, options?.preprocessOptions);
       }
     } else {
       pages = [
@@ -162,19 +186,6 @@ export async function processFile(
   ocrResult.processingTimeMs = Date.now() - startTime;
 
   return { ocrResult, metadata };
-}
-
-async function extractPDFPageAsImage(
-  _pdfBuffer: Buffer,
-  _pageNumber: number
-): Promise<Buffer | null> {
-  try {
-    const pdfParse = (await import("pdf-parse")).default;
-    const pdfData = await pdfParse(_pdfBuffer);
-    return Buffer.from(pdfData.text, "utf-8");
-  } catch {
-    return null;
-  }
 }
 
 export async function detectDocumentType(

@@ -71,10 +71,23 @@ export class AgentOrchestrator {
     } catch {}
 
     const messages = this.contextEngine.buildMessages(context, request.message, request.history);
-    const totalUsage = { promptTokens: 0, completionTokens: 0, estimatedCost: 0 };
+    const totalUsage = { promptTokens: 0, completionTokens: 0, totalTokens: 0, estimatedCost: 0 };
+    const MAX_TOTAL_TOKENS = 40000;
+    const approvalStepCounts = new Map<string, number>();
 
     for (let step = 0; step < maxSteps; step++) {
       const stepStart = Date.now();
+
+      // Enforce token budget (prompt + completion)
+      if (totalUsage.totalTokens >= MAX_TOTAL_TOKENS) {
+        steps.push({
+          stepNumber: step + 1,
+          type: "error",
+          content: "Token budget exceeded",
+          timestamp: new Date(),
+        });
+        break;
+      }
 
       const response = await this.ai.generate(messages, {
         tools: tools.length > 0 ? tools : undefined,
@@ -84,6 +97,7 @@ export class AgentOrchestrator {
 
       totalUsage.promptTokens += response.usage.promptTokens;
       totalUsage.completionTokens += response.usage.completionTokens;
+      totalUsage.totalTokens += response.usage.promptTokens + response.usage.completionTokens;
       totalUsage.estimatedCost += response.usage.estimatedCost;
 
       if (!response.toolCalls || response.toolCalls.length === 0) {
@@ -126,6 +140,30 @@ export class AgentOrchestrator {
 
         if (this.security.shouldRequireApproval(validation.tool!, JSON.parse(toolCall.arguments))) {
           const args = JSON.parse(toolCall.arguments);
+          const approvalKey = `${toolCall.name}:${JSON.stringify(args)}`;
+          const prevCount = approvalStepCounts.get(approvalKey) || 0;
+          approvalStepCounts.set(approvalKey, prevCount + 1);
+
+          // If the same approval has been requested 2+ times, stop looping
+          if (prevCount >= 1) {
+            steps.push({
+              stepNumber: step + 1,
+              type: "error",
+              content: `Approval already pending for ${toolCall.name}. Stopping to avoid loop.`,
+              timestamp: new Date(),
+            });
+            return {
+              response: `This action requires your approval: ${toolCall.name}. Please use the /api/agent/approve endpoint to approve or reject it.`,
+              steps,
+              toolCalls: toolCallResults,
+              usage: totalUsage,
+              requiresApproval: true,
+              pendingApprovals,
+              requestId,
+              durationMs: Date.now() - startTime,
+            };
+          }
+
           pendingApprovals.push({
             toolName: toolCall.name,
             args,

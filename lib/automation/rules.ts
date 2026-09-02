@@ -65,21 +65,21 @@ const rules: AutomationRule[] = [
     trigger: "on_read",
     enabled: true,
     condition: (ctx) => {
-      const reqs = (ctx.leave as any).requests || [];
+      const reqs = ctx.leave.requests || [];
       return reqs.some(
-        (r: any) =>
+        (r) =>
           r.status === "pending" &&
-          daysBetween(new Date(r.createdAt || Date.now()), new Date()) > 2
+          daysBetween(new Date(r.startDate), new Date()) > 2
       );
     },
     action: async (ctx) => {
-      const reqs = (ctx.leave as any).requests || [];
+      const reqs = ctx.leave.requests || [];
       const stale = reqs.filter(
-        (r: any) =>
+        (r) =>
           r.status === "pending" &&
-          daysBetween(new Date(r.createdAt || Date.now()), new Date()) > 2
+          daysBetween(new Date(r.startDate), new Date()) > 2
       );
-      return stale.map((r: any) => ({
+      return stale.map((r) => ({
         type: "notify" as const,
         target: "admin",
         title: "Leave request pending > 48h",
@@ -96,28 +96,31 @@ const rules: AutomationRule[] = [
     trigger: "on_write",
     enabled: true,
     condition: (ctx) => {
-      const balances = (ctx.leave as any).balances || [];
-      return balances.some((b: any) => {
-        const total = (b.annual || 0) + (b.sick || 0) + (b.personal || 0);
-        const used = (b.usedAnnual || 0) + (b.usedSick || 0) + (b.usedPersonal || 0);
+      const balances = ctx.leave.balances || {};
+      return Object.values(balances).some((b) => {
+        const total = (b?.annual?.total ?? 0) + (b?.sick?.total ?? 0) + (b?.personal?.total ?? 0);
+        const used = (b?.annual?.used ?? 0) + (b?.sick?.used ?? 0) + (b?.personal?.used ?? 0);
         return total - used < 3;
       });
     },
     action: async (ctx) => {
-      const balances = (ctx.leave as any).balances || [];
-      const low = balances.filter((b: any) => {
-        const total = (b.annual || 0) + (b.sick || 0) + (b.personal || 0);
-        const used = (b.usedAnnual || 0) + (b.usedSick || 0) + (b.usedPersonal || 0);
-        return total - used < 3;
-      });
-      return low.map((b: any) => ({
-        type: "notify" as const,
-        target: b.employeeId,
-        title: "Low leave balance",
-        message: `You have less than 3 days of leave remaining. Consider planning accordingly.`,
-        severity: "info" as const,
-        module: "leave",
-      }));
+      const balances = ctx.leave.balances || {};
+      const actions: AutomationAction[] = [];
+      for (const [employeeId, b] of Object.entries(balances)) {
+        const total = (b?.annual?.total ?? 0) + (b?.sick?.total ?? 0) + (b?.personal?.total ?? 0);
+        const used = (b?.annual?.used ?? 0) + (b?.sick?.used ?? 0) + (b?.personal?.used ?? 0);
+        if (total - used < 3) {
+          actions.push({
+            type: "notify",
+            target: employeeId,
+            title: "Low leave balance",
+            message: `You have less than 3 days of leave remaining. Consider planning accordingly.`,
+            severity: "info",
+            module: "leave",
+          });
+        }
+      }
+      return actions;
     },
   },
 
@@ -129,24 +132,24 @@ const rules: AutomationRule[] = [
     trigger: "on_write",
     enabled: true,
     condition: (ctx) => {
-      const tasks = (ctx.onboarding as any).tasks || [];
+      const tasks = ctx.onboarding.tasks || [];
       const phases = ["pre", "w1", "m1", "ramped"];
       for (const phase of phases.slice(0, -1)) {
-        const phaseTasks = tasks.filter((t: any) => t.phase === phase);
-        if (phaseTasks.length > 0 && phaseTasks.every((t: any) => t.done)) {
+        const phaseTasks = tasks.filter((t) => t.phase === phase);
+        if (phaseTasks.length > 0 && phaseTasks.every((t) => t.done)) {
           return true;
         }
       }
       return false;
     },
     action: async (ctx) => {
-      const tasks = (ctx.onboarding as any).tasks || [];
+      const tasks = ctx.onboarding.tasks || [];
       const phases = ["pre", "w1", "m1", "ramped"];
       const actions: AutomationAction[] = [];
       for (let i = 0; i < phases.length - 1; i++) {
         const phase = phases[i];
-        const phaseTasks = tasks.filter((t: any) => t.phase === phase);
-        if (phaseTasks.length > 0 && phaseTasks.every((t: any) => t.done)) {
+        const phaseTasks = tasks.filter((t) => t.phase === phase);
+        if (phaseTasks.length > 0 && phaseTasks.every((t) => t.done)) {
           actions.push({
             type: "notify",
             target: "admin",
@@ -160,31 +163,6 @@ const rules: AutomationRule[] = [
       return actions;
     },
   },
-  {
-    id: "onboarding-stale-task",
-    name: "Flag overdue onboarding tasks",
-    module: "onboarding",
-    trigger: "on_read",
-    enabled: true,
-    condition: (ctx) => {
-      const tasks = (ctx.onboarding as any).tasks || [];
-      return tasks.some((t: any) => !t.done && t.dueDate && new Date(t.dueDate) < new Date());
-    },
-    action: async (ctx) => {
-      const tasks = (ctx.onboarding as any).tasks || [];
-      const overdue = tasks.filter(
-        (t: any) => !t.done && t.dueDate && new Date(t.dueDate) < new Date()
-      );
-      return overdue.slice(0, 3).map((t: any) => ({
-        type: "notify" as const,
-        target: "admin",
-        title: "Onboarding task overdue",
-        message: `"${t.title}" for ${t.hireName} was due ${t.dueDate}.`,
-        severity: "warning" as const,
-        module: "onboarding",
-      }));
-    },
-  },
 
   // ─── Recruitment Rules ───
   {
@@ -194,25 +172,23 @@ const rules: AutomationRule[] = [
     trigger: "on_read",
     enabled: true,
     condition: (ctx) => {
-      const candidates = (ctx.recruitment as any).candidates || [];
+      const candidates = ctx.recruitment.candidates || [];
       return candidates.some(
-        (c: any) =>
+        (c) =>
           c.stage !== "hired" &&
-          c.stage !== "rejected" &&
-          daysBetween(new Date(c.appliedAt || Date.now()), new Date()) > 14
+          daysBetween(new Date(c.appliedAt), new Date()) > 14
       );
     },
     action: async (ctx) => {
-      const candidates = (ctx.recruitment as any).candidates || [];
+      const candidates = ctx.recruitment.candidates || [];
       const stale = candidates
         .filter(
-          (c: any) =>
+          (c) =>
             c.stage !== "hired" &&
-            c.stage !== "rejected" &&
-            daysBetween(new Date(c.appliedAt || Date.now()), new Date()) > 14
+            daysBetween(new Date(c.appliedAt), new Date()) > 14
         )
         .slice(0, 3);
-      return stale.map((c: any) => ({
+      return stale.map((c) => ({
         type: "notify" as const,
         target: "admin",
         title: "Candidate in stage > 14 days",
@@ -231,27 +207,27 @@ const rules: AutomationRule[] = [
     trigger: "on_read",
     enabled: true,
     condition: (ctx) => {
-      const objectives = (ctx.goals as any).objectives || [];
-      return objectives.some((o: any) => {
+      const objectives = ctx.goals.objectives || [];
+      return objectives.some((o) => {
         if (!o.deadline || o.progress >= 100) return false;
         const daysLeft = daysBetween(new Date(), new Date(o.deadline));
         return daysLeft <= 7 && daysLeft >= 0;
       });
     },
     action: async (ctx) => {
-      const objectives = (ctx.goals as any).objectives || [];
+      const objectives = ctx.goals.objectives || [];
       const urgent = objectives
-        .filter((o: any) => {
+        .filter((o) => {
           if (!o.deadline || o.progress >= 100) return false;
           const daysLeft = daysBetween(new Date(), new Date(o.deadline));
           return daysLeft <= 7 && daysLeft >= 0;
         })
         .slice(0, 3);
-      return urgent.map((o: any) => ({
+      return urgent.map((o) => ({
         type: "notify" as const,
-        target: o.owner || "admin",
+        target: o.ownerInit || "admin",
         title: "Goal deadline approaching",
-        message: `"${o.title}" is due in ${daysBetween(new Date(), new Date(o.deadline))} days (${o.progress}% complete).`,
+        message: `"${o.title}" is due in ${daysBetween(new Date(), new Date(o.deadline!))} days (${o.progress}% complete).`,
         severity: "warning" as const,
         module: "goals",
       }));
@@ -264,19 +240,19 @@ const rules: AutomationRule[] = [
     trigger: "on_read",
     enabled: true,
     condition: (ctx) => {
-      const objectives = (ctx.goals as any).objectives || [];
+      const objectives = ctx.goals.objectives || [];
       return objectives.some(
-        (o: any) => o.deadline && new Date(o.deadline) < new Date() && o.progress < 100
+        (o) => o.deadline && new Date(o.deadline) < new Date() && o.progress < 100
       );
     },
     action: async (ctx) => {
-      const objectives = (ctx.goals as any).objectives || [];
+      const objectives = ctx.goals.objectives || [];
       const overdue = objectives
-        .filter((o: any) => o.deadline && new Date(o.deadline) < new Date() && o.progress < 100)
+        .filter((o) => o.deadline && new Date(o.deadline) < new Date() && o.progress < 100)
         .slice(0, 3);
-      return overdue.map((o: any) => ({
+      return overdue.map((o) => ({
         type: "notify" as const,
-        target: o.owner || "admin",
+        target: o.ownerInit || "admin",
         title: "Goal overdue",
         message: `"${o.title}" was due ${o.deadline} and is ${o.progress}% complete.`,
         severity: "urgent" as const,
@@ -293,20 +269,20 @@ const rules: AutomationRule[] = [
     trigger: "on_write",
     enabled: true,
     condition: (ctx) => {
-      const tasks = (ctx.projects as any).tasks || [];
-      return tasks.some((t: any) => t.status === "at-risk" || t.status === "delayed");
+      const tasks = ctx.projects.tasks || [];
+      return tasks.some((t) => t.status === "at-risk" || t.status === "delayed");
     },
     action: async (ctx) => {
-      const tasks = (ctx.projects as any).tasks || [];
+      const tasks = ctx.projects.tasks || [];
       const flagged = tasks
-        .filter((t: any) => t.status === "at-risk" || t.status === "delayed")
+        .filter((t) => t.status === "at-risk" || t.status === "delayed")
         .slice(0, 3);
-      return flagged.map((t: any) => ({
+      return flagged.map((t) => ({
         type: "notify" as const,
-        target: t.owner || "admin",
+        target: t.ownerInit || "admin",
         title: `Project ${t.status === "delayed" ? "delayed" : "at risk"}`,
         message: `"${t.name}" needs attention. Current status: ${t.status}.`,
-        severity: t.status === "delayed" ? "urgent" : "warning",
+        severity: t.status === "delayed" ? ("urgent" as const) : ("warning" as const),
         module: "projects",
       }));
     },
@@ -314,25 +290,25 @@ const rules: AutomationRule[] = [
 
   // ─── Performance Rules ───
   {
-    id: "performance-reviews-overdue",
-    name: "Remind overdue performance reviews",
+    id: "performance-reviews-low",
+    name: "Flag low-rated reviews",
     module: "performance",
     trigger: "on_read",
     enabled: true,
     condition: (ctx) => {
-      const reviews = (ctx.performance as any).reviews || [];
-      return reviews.some((r: any) => r.status === "pending" && r.dueDate && new Date(r.dueDate) < new Date());
+      const reviews = ctx.performance.reviews || [];
+      return reviews.some((r) => r.status === "below" || r.status === "needs");
     },
     action: async (ctx) => {
-      const reviews = (ctx.performance as any).reviews || [];
-      const overdue = reviews
-        .filter((r: any) => r.status === "pending" && r.dueDate && new Date(r.dueDate) < new Date())
+      const reviews = ctx.performance.reviews || [];
+      const flagged = reviews
+        .filter((r) => r.status === "below" || r.status === "needs")
         .slice(0, 3);
-      return overdue.map((r: any) => ({
+      return flagged.map((r) => ({
         type: "notify" as const,
-        target: r.reviewerId || "admin",
-        title: "Performance review overdue",
-        message: `Review for ${r.employeeName} was due ${r.dueDate}.`,
+        target: "admin",
+        title: "Review flagged for development",
+        message: `Review for ${r.name} has a below-expectations rating (${r.status}).`,
         severity: "warning" as const,
         module: "performance",
       }));

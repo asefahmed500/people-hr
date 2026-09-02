@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import bcrypt from "bcryptjs"
+import { Prisma } from "@prisma/client"
 
 import { prisma } from "@/lib/db"
 import { rateLimit } from "@/lib/rate-limit"
@@ -52,6 +53,12 @@ export async function POST(request: Request) {
       { status: 400 },
     )
   }
+  if (password.length > 128) {
+    return NextResponse.json(
+      { ok: false, error: "Password must be at most 128 characters." },
+      { status: 400 },
+    )
+  }
 
   const existing = await prisma.user.findUnique({ where: { email } })
   if (existing) {
@@ -62,15 +69,25 @@ export async function POST(request: Request) {
   }
 
   const passwordHash = await bcrypt.hash(password, 10)
-  await prisma.user.create({
-    data: {
-      name,
-      email,
-      password: passwordHash,
-      role: "employee",
-      initials: initialsFromName(name),
-    },
-  })
+  try {
+    await prisma.user.create({
+      data: {
+        name,
+        email,
+        password: passwordHash,
+        role: "employee",
+        initials: initialsFromName(name),
+      },
+    })
+  } catch (e) {
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
+      return NextResponse.json(
+        { ok: false, error: "An account with that email already exists." },
+        { status: 409 },
+      )
+    }
+    throw e
+  }
 
   return NextResponse.json({ ok: true })
 }

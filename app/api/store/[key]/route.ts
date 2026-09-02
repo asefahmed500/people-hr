@@ -9,6 +9,7 @@ import { computeAnalytics } from "@/lib/analytics"
 import { mergeNonAdminWrite, type UserCtx } from "@/lib/non-admin-merge"
 import { notifyLeaveChanges } from "@/lib/notify-server"
 import { defaultBalances } from "@/lib/data/leave"
+import { DEPARTMENTS } from "@/lib/data/types"
 import type { Employee } from "@/lib/data/employees"
 import type { LeaveStore } from "@/lib/data/leave"
 import type { RecruitmentStore } from "@/lib/data/recruitment"
@@ -286,7 +287,7 @@ export async function GET(_request: Request, { params }: RouteContext) {
         name: session.user.name ?? "Team Member",
         email: session.user.email ?? "",
         initials,
-        department: session.user.department ?? "People",
+        department: (DEPARTMENTS as readonly string[]).includes(session.user.department ?? "") ? (session.user.department ?? "People") : "People",
         role: "Team Member",
         location: "Remote",
         status: "active",
@@ -317,9 +318,21 @@ export async function GET(_request: Request, { params }: RouteContext) {
   if (key === "leave") {
     const store = doc.data as { balances?: Record<string, unknown> }
     if (!store.balances || !store.balances[session.user.id]) {
-      dataToFilter = {
+      const updatedStore = {
         ...store,
         balances: { ...(store.balances ?? {}), [session.user.id]: defaultBalances },
+      }
+      dataToFilter = updatedStore
+      // Persist the balance so cross-module reads (analytics, etc.) can see it
+      try {
+        await prisma.moduleState.updateMany({
+          where: { userId: scopeId, key, updatedAt: doc.updatedAt },
+          data: { data: updatedStore as unknown as Prisma.InputJsonValue },
+        })
+        doc.data = updatedStore as unknown as Prisma.JsonValue
+      } catch {
+        // Best effort — if CAS fails, another write won; the balance will be
+        // seeded on the next read.
       }
     }
   }
