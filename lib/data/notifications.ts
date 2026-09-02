@@ -21,6 +21,7 @@ export type NotificationType =
   | "attendance_updated"
   | "settings_changed"
   | "document_generated"
+  | "automation_alert"
 
 export type Notification = {
   id: ID

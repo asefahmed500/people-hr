@@ -20,6 +20,8 @@ import {
   type OrganizationStore,
   defaultOrganizationStore,
 } from "@/lib/data"
+import { type GoalsStore, defaultGoalsStore } from "@/lib/data/goals"
+import { type PerformanceStore, defaultPerformanceStore } from "@/lib/data/performance"
 import { useApiStore } from "@/hooks/use-api-store"
 import { useAuth } from "@/hooks/use-auth"
 import { notify } from "@/lib/toast"
@@ -65,6 +67,16 @@ export function DashboardPageClient() {
   const { state: organization, hydrated: organizationHydrated } = useApiStore<OrganizationStore>(
     "/api/store/organization",
     () => defaultOrganizationStore,
+  )
+
+  const { state: goals } = useApiStore<GoalsStore>(
+    "/api/store/goals",
+    () => defaultGoalsStore,
+  )
+
+  const { state: performance } = useApiStore<PerformanceStore>(
+    "/api/store/performance",
+    () => defaultPerformanceStore,
   )
 
   const hydrated =
@@ -150,6 +162,9 @@ export function DashboardPageClient() {
           employees={employees}
           projects={projects.tasks}
           candidates={recruitment.candidates}
+          leaveRequests={leaveStore.requests}
+          objectives={goals.objectives}
+          reviews={performance.reviews}
         />
       </div>
       <div className="grid w-full grid-cols-1 gap-6 lg:grid-cols-3">

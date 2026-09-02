@@ -224,10 +224,15 @@ export async function GET(_request: Request, { params }: RouteContext) {
       })
       return (doc?.data as T) ?? (MODULE_DEFAULTS[k] as T)
     }
+    const [empData, leaveData, recData] = await Promise.all([
+      read<Employee[]>("employees"),
+      read<LeaveStore>("leave"),
+      read<RecruitmentStore>("recruitment"),
+    ])
     const computed = computeAnalytics({
-      employees: await read<Employee[]>("employees"),
-      leave: await read<LeaveStore>("leave"),
-      recruitment: await read<RecruitmentStore>("recruitment"),
+      employees: empData,
+      leave: leaveData,
+      recruitment: recData,
     })
     return NextResponse.json(computed)
   }
