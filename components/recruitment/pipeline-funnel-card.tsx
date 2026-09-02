@@ -21,14 +21,13 @@ export function PipelineFunnelCard({ candidates }: { candidates: Candidate[] }) 
   }
 
   return (
-    <div className="flex flex-1 flex-col gap-5 rounded-[18px] border border-[#edeae3] bg-white p-6">
-      <h2 className="font-display inline-block text-[17px] font-semibold leading-normal text-[#1f2a26]">
+    <div className="flex flex-1 flex-col gap-5 rounded-2xl border border-border bg-card p-6">
+      <h2 className="text-h3">
         Candidate pipeline
       </h2>
       <div className="flex w-full flex-col items-center gap-2">
         {rows.map((row) => {
           const meta = stageMeta[row.stage]
-          const isLight = row.stage === "offer" || row.stage === "hired"
           return (
             <div
               key={row.stage}
@@ -41,20 +40,10 @@ export function PipelineFunnelCard({ candidates }: { candidates: Candidate[] }) 
                   meta.fill,
                 )}
               >
-                <span
-                  className={cn(
-                    "font-sans inline-block text-[13px] font-semibold leading-normal",
-                    isLight ? "text-[#1f2a26]" : "text-white",
-                  )}
-                >
+                <span className="font-sans inline-block text-[13px] font-semibold leading-normal text-background">
                   {meta.label}
                 </span>
-                <span
-                  className={cn(
-                    "font-sans inline-block text-[13px] font-medium leading-normal",
-                    isLight ? "text-[#1f2a26]" : "text-white",
-                  )}
-                >
+                <span className="font-sans inline-block text-[13px] font-medium leading-normal text-background">
                   {row.count} · {row.pct}%
                 </span>
               </div>

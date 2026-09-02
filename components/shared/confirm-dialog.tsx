@@ -10,6 +10,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import { Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 type ConfirmDialogProps = {
@@ -20,6 +21,7 @@ type ConfirmDialogProps = {
   confirmLabel?: string
   cancelLabel?: string
   destructive?: boolean
+  submitting?: boolean
   onConfirm: () => void
 }
 
@@ -31,6 +33,7 @@ export function ConfirmDialog({
   confirmLabel = "Confirm",
   cancelLabel = "Cancel",
   destructive = false,
+  submitting = false,
   onConfirm,
 }: ConfirmDialogProps) {
   return (
@@ -43,14 +46,20 @@ export function ConfirmDialog({
           ) : null}
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel>{cancelLabel}</AlertDialogCancel>
+          <AlertDialogCancel disabled={submitting}>{cancelLabel}</AlertDialogCancel>
           <AlertDialogAction
-            onClick={onConfirm}
+            disabled={submitting}
+            onClick={(e) => {
+              e.preventDefault()
+              onConfirm()
+            }}
             className={cn(
+              "disabled:opacity-60",
               destructive &&
-                "bg-[#c4553a] text-white hover:bg-[#b8462f] focus-visible:ring-[#c4553a]/40",
+                "bg-foreground text-background hover:bg-foreground/90 focus-visible:ring-foreground/40",
             )}
           >
+            {submitting ? <Loader2 className="size-4 animate-spin" /> : null}
             {confirmLabel}
           </AlertDialogAction>
         </AlertDialogFooter>

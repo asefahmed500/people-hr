@@ -7,43 +7,32 @@ type Kpi = {
   valueColor: string
 }
 
-const defaultKpis: Kpi[] = [
-  { value: "34", label: "New hires", valueColor: "text-[#1f2a26]" },
-  { value: "58", label: "Onboarding", valueColor: "text-[#1f2a26]" },
-  { value: "87%", label: "Checklist done", valueColor: "text-[#2e9160]" },
-  { value: "6", label: "Overdue", valueColor: "text-[#e76f51]" },
-]
-
-export function OnboardingKpiStrip({ tasks }: { tasks?: OnboardingTask[] }) {
-  const kpis: Kpi[] = tasks
-    ? (() => {
-        const unique = new Set(tasks.map((t) => t.hireName))
-        const done = tasks.filter((t) => t.done).length
-        const overdue = tasks.filter((t) => !t.done).length
-        return [
-          { value: String(unique.size), label: "New hires", valueColor: "text-[#1f2a26]" },
-          { value: String(tasks.length), label: "Onboarding", valueColor: "text-[#1f2a26]" },
-          { value: `${tasks.length > 0 ? Math.round((done / tasks.length) * 100) : 0}%`, label: "Checklist done", valueColor: "text-[#2e9160]" },
-          { value: String(overdue), label: "Overdue", valueColor: "text-[#e76f51]" },
-        ]
-      })()
-    : defaultKpis
+export function OnboardingKpiStrip({ tasks }: { tasks: OnboardingTask[] }) {
+  const unique = new Set(tasks.map((t) => t.hireName))
+  const done = tasks.filter((t) => t.done).length
+  const overdue = tasks.filter((t) => !t.done).length
+  const kpis: Kpi[] = [
+    { value: String(unique.size), label: "New hires", valueColor: "text-foreground" },
+    { value: String(tasks.length), label: "Tasks", valueColor: "text-foreground" },
+    { value: `${tasks.length > 0 ? Math.round((done / tasks.length) * 100) : 0}%`, label: "Checklist done", valueColor: "text-secondary-foreground" },
+    { value: String(overdue), label: "Incomplete", valueColor: "text-foreground" },
+  ]
   return (
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
       {kpis.map((kpi) => (
         <div
           key={kpi.label}
-          className="flex flex-col gap-1 rounded-[18px] border border-[#edeae3] bg-white px-5 py-4"
+          className="flex flex-col gap-1 rounded-2xl border border-border bg-card px-5 py-4"
         >
           <span
             className={cn(
-              "font-display inline-block text-2xl font-semibold leading-none",
+              "inline-block text-2xl font-semibold leading-none",
               kpi.valueColor,
             )}
           >
             {kpi.value}
           </span>
-          <span className="font-sans inline-block text-[11.5px] leading-normal text-[#8a948d]">
+          <span className="font-sans inline-block text-[11.5px] leading-normal text-muted-foreground">
             {kpi.label}
           </span>
         </div>

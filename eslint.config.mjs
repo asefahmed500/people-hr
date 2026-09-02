@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Third-party vendored code (minified ESM bundles) — never lint these.
+    "lib/vendor/**",
   ]),
 ]);
 

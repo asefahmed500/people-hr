@@ -1,11 +1,14 @@
 "use client"
 
 import * as React from "react"
-import { Bell, ChevronRight, Command, Search } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { ChevronRight, Command, LogOut, Moon, Search, Sun } from "lucide-react"
 
 import { cn } from "@/lib/utils"
-import { STORAGE_KEYS, defaultNotificationsStore, type NotificationsStore } from "@/lib/data"
-import { useMockStore } from "@/hooks/use-mock-store"
+import { useNotificationsStore } from "@/lib/stores/notifications"
+import { useAuth } from "@/hooks/use-auth"
+import { useTheme } from "@/components/theme-provider"
+import { notify } from "@/lib/toast"
 import { NotificationDropdown } from "@/components/notifications/notification-dropdown"
 
 type TopBarProps = {
@@ -15,40 +18,80 @@ type TopBarProps = {
 }
 
 export function TopBar({ current, accentCurrent = false, onOpenCommand }: TopBarProps) {
-  const { state: notifStore, setState: setNotifs } = useMockStore<NotificationsStore>(
-    STORAGE_KEYS.notifications,
-    () => defaultNotificationsStore,
-  )
+  const items = useNotificationsStore((s) => s.items)
+  const ensureLoaded = useNotificationsStore((s) => s.ensureLoaded)
+  const markRead = useNotificationsStore((s) => s.markRead)
+  const markAllRead = useNotificationsStore((s) => s.markAllRead)
 
-  const unreadCount = notifStore.items.filter((n) => !n.read).length
+  React.useEffect(() => {
+    void ensureLoaded()
+  }, [ensureLoaded])
 
-  const handleMarkRead = (id: string) => {
-    setNotifs((prev) => ({
-      ...prev,
-      items: prev.items.map((n) => (n.id === id ? { ...n, read: true } : n)),
-    }))
-  }
-
-  const handleMarkAllRead = () => {
-    setNotifs((prev) => ({
-      ...prev,
-      items: prev.items.map((n) => ({ ...n, read: true })),
-    }))
-  }
+  const unreadCount = items.filter((n) => !n.read).length
 
   return (
     <div className="flex h-12 w-full shrink-0 items-center gap-4 pl-12 lg:pl-0">
       <Breadcrumb current={current} accentCurrent={accentCurrent} />
       <CommandSearch onOpen={onOpenCommand} />
       <div className="ml-auto mr-0 my-0 flex shrink-0 items-center gap-3">
+        <ThemeToggle />
         <NotificationDropdown
-          items={notifStore.items}
+          items={items}
           unreadCount={unreadCount}
-          onMarkRead={handleMarkRead}
-          onMarkAllRead={handleMarkAllRead}
+          onMarkRead={markRead}
+          onMarkAllRead={markAllRead}
         />
+        <SignOutButton />
       </div>
     </div>
+  )
+}
+
+function ThemeToggle() {
+  const { theme, setTheme } = useTheme()
+  return (
+    <button
+      type="button"
+      aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+      onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+      className="flex size-10 items-center justify-center rounded-xl border border-border bg-card text-secondary-foreground transition-colors hover:bg-muted"
+    >
+      {theme === "dark" ? (
+        <Sun className="size-4" strokeWidth={2} />
+      ) : (
+        <Moon className="size-4" strokeWidth={2} />
+      )}
+    </button>
+  )
+}
+
+function SignOutButton() {
+  const router = useRouter()
+  const { logout } = useAuth()
+  const [pending, setPending] = React.useState(false)
+  const handleSignOut = async () => {
+    if (pending) return
+    setPending(true)
+    try {
+      await logout()
+      notify.success("Signed out", "You've been signed out.")
+      router.replace("/login")
+    } finally {
+      setPending(false)
+    }
+  }
+  return (
+    <button
+      type="button"
+      aria-label="Sign out"
+      title="Sign out"
+      onClick={handleSignOut}
+      disabled={pending}
+      className="flex h-10 shrink-0 items-center gap-2 rounded-xl border border-border bg-card px-3.5 font-sans text-[13px] font-medium text-secondary-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50"
+    >
+      <LogOut className="size-4" strokeWidth={2} />
+      {pending ? "Signing out…" : "Sign out"}
+    </button>
   )
 }
 
@@ -61,14 +104,14 @@ function Breadcrumb({
 }) {
   return (
     <nav className="flex shrink-0 items-center gap-2">
-      <span className="font-sans text-[13px] leading-normal text-[#8a948d]">
+      <span className="font-sans text-[13px] leading-normal text-muted-foreground">
         Workspace
       </span>
-      <ChevronRight className="size-3.5 text-[#c3c8c0]" strokeWidth={2} />
+      <ChevronRight className="size-3.5 text-muted-foreground" strokeWidth={2} />
       <span
         className={cn(
           "font-sans text-[13px] font-semibold leading-normal",
-          accentCurrent ? "text-[#2f6f61]" : "text-[#1f2a26]",
+          accentCurrent ? "text-primary" : "text-foreground",
         )}
       >
         {current}
@@ -82,16 +125,16 @@ function CommandSearch({ onOpen }: { onOpen?: () => void }) {
     <button
       type="button"
       onClick={onOpen}
-      className="flex h-10 max-w-[420px] flex-1 items-center gap-2.5 rounded-xl border border-[#ece9e2] bg-white px-3.5 text-left"
+      className="flex h-10 max-w-[420px] flex-1 items-center gap-2.5 rounded-xl border border-border bg-card px-3.5 text-left"
     >
-      <Search className="size-4 shrink-0 text-[#b0b7af]" strokeWidth={2} />
-      <span className="flex-1 font-sans text-[13px] leading-normal text-[#a6aca3]">
+      <Search className="size-4 shrink-0 text-muted-foreground" strokeWidth={2} />
+      <span className="flex-1 font-sans text-[13px] leading-normal text-muted-foreground">
         <span className="hidden sm:inline">Search people, teams, documents…</span>
         <span className="sm:hidden">Search…</span>
       </span>
-      <span className="hidden shrink-0 items-center gap-[3px] rounded-[7px] border border-[#ece9e2] bg-[#f3f1ec] px-[7px] py-[3px] sm:flex">
-        <Command className="size-3 text-[#8a948d]" strokeWidth={2} />
-        <span className="font-sans text-[11px] font-semibold leading-normal text-[#8a948d]">
+      <span className="hidden shrink-0 items-center gap-[3px] rounded-md border border-border bg-muted px-[7px] py-[3px] sm:flex">
+        <Command className="size-3 text-muted-foreground" strokeWidth={2} />
+        <span className="font-sans text-[11px] font-semibold leading-normal text-muted-foreground">
           K
         </span>
       </span>

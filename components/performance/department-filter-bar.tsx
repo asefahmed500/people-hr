@@ -10,14 +10,14 @@ type DepartmentFilterBarProps = {
 }
 
 const deptMeta: Record<string, { dot: string; label: string }> = {
-  engineering: { dot: "bg-[#845ef7]", label: "Engineering" },
-  design: { dot: "bg-[#6d5ce7]", label: "Design" },
-  product: { dot: "bg-[#b197fc]", label: "Product" },
-  people: { dot: "bg-[#5f3dc4]", label: "People" },
-  marketing: { dot: "bg-[#f4a261]", label: "Marketing" },
-  sales: { dot: "bg-[#e76f51]", label: "Sales" },
-  research: { dot: "bg-[#64b6ac]", label: "Research" },
-  finance: { dot: "bg-[#2f6f61]", label: "Finance" },
+  engineering: { dot: "bg-foreground", label: "Engineering" },
+  design: { dot: "bg-foreground", label: "Design" },
+  product: { dot: "bg-secondary-foreground/40", label: "Product" },
+  people: { dot: "bg-foreground", label: "People" },
+  marketing: { dot: "bg-muted-foreground", label: "Marketing" },
+  sales: { dot: "bg-foreground", label: "Sales" },
+  research: { dot: "bg-secondary-foreground", label: "Research" },
+  finance: { dot: "bg-primary", label: "Finance" },
 }
 
 export function DepartmentFilterBar({ activeDept, onDeptChange, reviews = [] }: DepartmentFilterBarProps) {
@@ -43,14 +43,14 @@ export function DepartmentFilterBar({ activeDept, onDeptChange, reviews = [] }: 
   }, [deptCounts, reviews.length])
 
   return (
-    <div className="flex w-full flex-wrap items-center gap-3 rounded-[14px] border border-[#e8ebe6] bg-white px-4 py-3 shadow-[0px_2px_10px_rgba(109,92,231,0.03)]">
+    <div className="flex w-full flex-wrap items-center gap-3 rounded-2xl border border-border bg-card px-4 py-3 shadow-card">
       <div className="flex shrink-0 items-center gap-2 pl-0 pr-2 py-0">
-        <Filter className="size-[15px] shrink-0 text-[#8a948d]" strokeWidth={2} />
-        <span className="font-sans inline-block text-[12.5px] font-semibold leading-normal text-[#5b655e]">
+        <Filter className="size-[15px] shrink-0 text-muted-foreground" strokeWidth={2} />
+        <span className="font-sans inline-block text-[12.5px] font-semibold leading-normal text-secondary-foreground">
           Department
         </span>
       </div>
-      <span className="flex h-6 w-px shrink-0 flex-col bg-[#ece9e2]" />
+      <span className="flex h-6 w-px shrink-0 flex-col bg-border" />
       <div className="flex flex-wrap items-center gap-2">
         {chips.map((chip) => (
           <Chip
@@ -81,12 +81,12 @@ function Chip({
       <button
         type="button"
         onClick={onClick}
-        className="flex shrink-0 items-center gap-2 rounded-full bg-[#6d5ce7] px-3.5 py-1.5"
+        className="flex shrink-0 items-center gap-2 rounded-full bg-foreground px-3.5 py-1.5"
       >
-        <span className="font-sans inline-block text-[12.5px] font-semibold leading-normal text-white">
+        <span className="font-sans inline-block text-[12.5px] font-medium leading-normal text-background">
           {chip.label}
         </span>
-        <span className="font-sans inline-block text-[11.5px] font-medium leading-normal text-[#ffffffcc]">
+        <span className="font-sans inline-block text-[11.5px] font-medium leading-normal text-background/80">
           {chip.count}
         </span>
       </button>
@@ -97,14 +97,14 @@ function Chip({
       type="button"
       onClick={onClick}
       className={cn(
-        "flex shrink-0 items-center gap-2 rounded-full border border-[#e8ebe6] bg-white px-3.5 py-1.5",
+        "flex shrink-0 items-center gap-2 rounded-full border border-border bg-card px-3.5 py-1.5",
       )}
     >
       {chip.dot ? <span className={`size-2.5 shrink-0 rounded-full ${chip.dot}`} /> : null}
-      <span className="font-sans inline-block text-[12.5px] font-medium leading-normal text-[#5b655e]">
+      <span className="font-sans inline-block text-[12.5px] font-medium leading-normal text-secondary-foreground">
         {chip.label}
       </span>
-      <span className="font-sans inline-block text-[11.5px] font-medium leading-normal text-[#a6aca3]">
+      <span className="font-sans inline-block text-[11.5px] font-medium leading-normal text-muted-foreground">
         {chip.count}
       </span>
     </button>

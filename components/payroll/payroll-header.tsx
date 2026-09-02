@@ -1,40 +1,46 @@
+"use client"
+
 import { Download, Play } from "lucide-react"
 
 export function PayrollHeader({
+  employeeCount,
   onExport,
   onRunPayroll,
 }: {
+  employeeCount?: number
   onExport?: () => void
   onRunPayroll?: () => void
 }) {
+  const now = new Date()
+  const monthYear = now.toLocaleDateString("en-US", { month: "long", year: "numeric" })
   return (
-    <div className="flex w-full items-start justify-between gap-6">
+    <div className="flex w-full flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
       <div className="flex flex-col gap-1.5">
-        <h1 className="font-display inline-block text-[28px] font-semibold leading-tight text-[#1f2a26]">
+        <h1 className="text-h1">
           Payroll
         </h1>
-        <p className="font-sans inline-block text-[13.5px] leading-normal text-[#6b7770]">
-          February 2025 pay run · 284 employees · Pay date 28 Feb
+        <p className="font-sans inline-block text-[13.5px] leading-normal text-secondary-foreground">
+          {monthYear} pay run{employeeCount != null ? ` · ${employeeCount} employees` : ""}
         </p>
       </div>
       <div className="flex shrink-0 items-center gap-2.5">
         <button
           type="button"
           onClick={onExport}
-          className="flex h-10 items-center gap-2 rounded-[11px] border border-[#e3ded4] bg-white px-4"
+          className="flex h-10 items-center gap-2 rounded-lg border border-border bg-card px-4 transition-colors hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
         >
-          <Download className="size-4 text-[#5b655e]" strokeWidth={2} />
-          <span className="font-sans text-[13px] font-medium leading-normal text-[#42504a]">
+          <Download className="size-4 text-secondary-foreground" strokeWidth={2} />
+          <span className="font-sans text-[13px] font-medium leading-normal text-secondary-foreground">
             Export report
           </span>
         </button>
         <button
           type="button"
           onClick={onRunPayroll}
-          className="flex h-10 items-center gap-2 rounded-[11px] bg-[#2f6f61] px-4 shadow-[0px_6px_16px_rgba(47,111,97,0.24)]"
+          className="flex h-10 items-center gap-2 rounded-lg border border-border bg-gradient-to-b from-white to-[#ececea] shadow-xs transition-colors hover:to-[#e2e2df]"
         >
-          <Play className="size-4 text-white" strokeWidth={2} />
-          <span className="font-sans text-[13px] font-semibold leading-normal text-white">
+          <Play className="size-4 text-secondary-foreground" strokeWidth={2} />
+          <span className="font-sans text-[13px] font-medium leading-normal text-secondary-foreground">
             Run payroll
           </span>
         </button>

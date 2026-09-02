@@ -1,27 +1,23 @@
-import { Inter, Fraunces } from "next/font/google"
+import { Inter } from "next/font/google"
 import type { Viewport } from "next"
 import Script from "next/script"
 
 import "./globals.css"
-import { ThemeProvider } from "@/components/theme-provider"
+import { Providers } from "@/components/providers"
 import { Toaster } from "@/components/ui/sonner"
 import { cn } from "@/lib/utils"
 
 const inter = Inter({
   subsets: ["latin"],
   variable: "--font-sans",
-})
-
-const fraunces = Fraunces({
-  subsets: ["latin"],
-  variable: "--font-display",
+  display: "swap",
 })
 
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   maximumScale: 5,
-  themeColor: "#f6f4ef",
+  themeColor: "#fafaf8",
 }
 
 const themeInitCode = `(function(){try{var e=localStorage.getItem("theme")||"light",t=e==="dark"||e==="light"?e:"light";document.documentElement.classList.add(t),document.documentElement.style.colorScheme=t}catch(e){}})()`
@@ -35,12 +31,7 @@ export default function RootLayout({
     <html
       lang="en"
       suppressHydrationWarning
-      className={cn(
-        "antialiased",
-        inter.variable,
-        fraunces.variable,
-        "font-sans",
-      )}
+      className={cn("antialiased", inter.variable, "font-sans")}
     >
       <head>
         <Script id="theme-init" strategy="beforeInteractive">
@@ -48,7 +39,7 @@ export default function RootLayout({
         </Script>
       </head>
       <body>
-        <ThemeProvider>{children}</ThemeProvider>
+        <Providers>{children}</Providers>
         <Toaster richColors position="bottom-right" />
       </body>
     </html>

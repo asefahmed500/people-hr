@@ -1,0 +1,526 @@
+// PeopleHR — Prisma schema (PostgreSQL)
+// Auth.js adapter models + all 15 feature-module models.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Roles (DB-enforced access tiers)
+// ---------------------------------------------------------------------------
+
+enum Role {
+  admin
+  manager
+  employee
+}
+
+// ---------------------------------------------------------------------------
+// Auth.js (Prisma adapter) models
+// ---------------------------------------------------------------------------
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  emailVerified DateTime?
+  image         String?
+  role          Role      @default(employee)
+  initials      String    @default("")
+  password      String? // for credentials provider (bcrypt hash)
+  department    String? // for manager/employee scoping
+  managerId     String? // self-relation: who manages this user
+  // account lifecycle / security
+  deactivatedAt   DateTime?
+  stripeCustomerId String?
+  twoFactorEnabled Boolean @default(false)
+  totpSecret      String?
+  accounts      Account[]
+  sessions      Session[]
+  settings      Settings?
+  notifications Notification[]
+  conversations Conversation[]
+  backupCodes   BackupCode[]
+  // manager relationship
+  manager       User?     @relation("ManagerOf", fields: [managerId], references: [id])
+  directReports User[]    @relation("ManagerOf")
+
+  @@index([managerId])
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model BackupCode {
+  id        String   @id @default(cuid())
+  code      String
+  used      Boolean  @default(false)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, code])
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// Per-user aggregate state for feature modules (employees, leave, projects, …).
+// Stored as a JSON document keyed by module name. Seeded from lib/data defaults.
+model ModuleState {
+  id        String   @id @default(cuid())
+  userId    String
+  key       String
+  data      Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, key])
+}
+
+// ---------------------------------------------------------------------------
+// Employees
+// ---------------------------------------------------------------------------
+
+model Employee {
+  id           String  @id
+  name         String
+  email        String
+  initials     String
+  department   String
+  role         String
+  location     String
+  status       String  @default("active") // active | leave | remote
+  avatar       String?
+  hiredDaysAgo Int     @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+// ---------------------------------------------------------------------------
+// Leave
+// ---------------------------------------------------------------------------
+
+model LeaveRequest {
+  id           String  @id
+  employeeId   String
+  employeeName String
+  initials     String
+  type         String // vac | sick | pers | par
+  status       String // approved | pending | declined
+  startDate    String
+  endDate      String
+  days         Int
+  reason       String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model LeaveBalance {
+  id             String  @id
+  employeeId     String  @unique
+  annualUsed     Int     @default(0)
+  annualTotal    Int     @default(0)
+  sickUsed       Int     @default(0)
+  sickTotal      Int     @default(0)
+  personalUsed   Int     @default(0)
+  personalTotal  Int     @default(0)
+  parentalUsed   Int     @default(0)
+  parentalTotal  Int     @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+// ---------------------------------------------------------------------------
+// Recruitment
+// ---------------------------------------------------------------------------
+
+model Candidate {
+  id         String  @id
+  name       String
+  initials   String
+  role       String
+  department String
+  appliedAt  String
+  stage      String // applied | screening | interview | offer | hired
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model Opening {
+  id           String  @id
+  title        String
+  department   String
+  location     String
+  applicants   Int     @default(0)
+  postedDaysAgo Int    @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+// ---------------------------------------------------------------------------
+// Projects
+// ---------------------------------------------------------------------------
+
+model ProjectTask {
+  id          String  @id
+  name        String
+  ownerName   String
+  ownerInit   String
+  department  String
+  progress    Int     @default(0)
+  dueOrShipped String
+  status      String // on-track | at-risk | delayed | on-hold
+  tone        String // green | amber | forest | mint | coral | slate
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// ---------------------------------------------------------------------------
+// Goals
+// ---------------------------------------------------------------------------
+
+model Objective {
+  id          String       @id
+  eyebrow     String
+  title       String
+  ownerInit   String
+  ownerName   String
+  ownerRole   String
+  progress    Int          @default(0)
+  status      String       // on-track | at-risk | completed
+  deadline    String?
+  description String?
+  krs         KeyResult[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+}
+
+model KeyResult {
+  id          String   @id @default(cuid())
+  label       String
+  pct         Int      @default(0)
+  objectiveId String
+  objective   Objective @relation(fields: [objectiveId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// ---------------------------------------------------------------------------
+// Payroll
+// ---------------------------------------------------------------------------
+
+model Payment {
+  id          String  @id
+  initials    String
+  name        String
+  role        String
+  department  String
+  gross       Int
+  deductions  Int
+  status      String // paid | pending | failed
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// Single-row meta table (id is fixed "singleton")
+model PayrollMeta {
+  id      String   @id @default("singleton")
+  lastRun String?
+}
+
+// ---------------------------------------------------------------------------
+// Performance
+// ---------------------------------------------------------------------------
+
+model Review {
+  id         String  @id
+  initials   String
+  avatarBg   String
+  name       String
+  role       String
+  deptDot    String
+  department String
+  reviewer   String
+  rating     Float
+  status     String // exceeds | meets | below | needs
+  comments   String?
+  reviewedAt String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model TeamScore {
+  id       String  @id
+  rank     Int
+  dot      String
+  team     String
+  reviewed String
+  fillPct  Int
+  fill     String
+  rating   String
+  rankBg   String
+  rankText String
+}
+
+// ---------------------------------------------------------------------------
+// Onboarding
+// ---------------------------------------------------------------------------
+
+model OnboardingTask {
+  id        String  @id
+  hireInit  String
+  hireName  String
+  hireRole  String
+  hireDept  String
+  phase     String // pre | w1 | m1 | ramped
+  done      Boolean @default(false)
+  label     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ---------------------------------------------------------------------------
+// Attendance
+// ---------------------------------------------------------------------------
+
+model CheckIn {
+  id        String  @id
+  initials  String
+  name      String
+  dept      String
+  time      String
+  status    String // on-time | late | remote
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model DeptHeat {
+  id       String  @id
+  dept     String
+  pct      String
+  tileBg   String
+  pctColor String
+}
+
+// ---------------------------------------------------------------------------
+// Organization
+// ---------------------------------------------------------------------------
+
+model Dept {
+  id       String  @id
+  code     String
+  name     String
+  sub      String
+  people   Int
+  teams    Int
+  open     Int
+  leadInit String
+  leadName String
+  leadRole String
+  iconBg   String
+  iconText String
+}
+
+model Office {
+  id      String  @id
+  city    String
+  country String
+  count   Int
+  fillPct Int
+  fill    String
+}
+
+model OrgNode {
+  id       String  @id
+  initials String
+  name     String
+  role     String
+  isCeo    Boolean @default(false)
+}
+
+// ---------------------------------------------------------------------------
+// Settings (per-user)
+// ---------------------------------------------------------------------------
+
+model Settings {
+  id                    String  @id @default(cuid())
+  userId                String  @unique
+  fullName              String
+  email                 String
+  jobTitle              String
+  department            String
+  emailDigest           Boolean @default(true)
+  desktopNotifications  Boolean @default(true)
+  weeklyReport          Boolean @default(false)
+  twoFactor             Boolean @default(false)
+  user                  User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+}
+
+// ---------------------------------------------------------------------------
+// Assistant (per-user conversations)
+// ---------------------------------------------------------------------------
+
+model Conversation {
+  id        String       @id
+  title     String
+  updatedAt BigInt
+  userId    String
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages  ChatMessage[]
+  createdAt DateTime     @default(now())
+}
+
+model ChatMessage {
+  id             String       @id @default(cuid())
+  role           String // user | assistant
+  content        String
+  ts             BigInt
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  createdAt      DateTime     @default(now())
+}
+
+// ---------------------------------------------------------------------------
+// Notifications (per-user)
+// ---------------------------------------------------------------------------
+
+model Notification {
+  id          String   @id
+  userId      String
+  type        String
+  title       String
+  description String
+  timestamp   String
+  read        Boolean  @default(false)
+  href        String?
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+
+  @@index([userId, createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// Analytics (singleton + child rows; ordering by "order" column)
+// ---------------------------------------------------------------------------
+
+model Analytics {
+  id                    String           @id @default("singleton")
+  headcount             Int              @default(0)
+  headcountDelta        String           @default("")
+  attrition             String           @default("")
+  attritionDelta        String           @default("")
+  avgTenure             String           @default("")
+  avgTenureDelta        String           @default("")
+  offerAcceptRate       String           @default("")
+  offerAcceptRateDelta  String           @default("")
+  monthlyTrend          AnalyticsTrend[]
+  byDept                AnalyticsDept[]
+  byTenure              AnalyticsTenure[]
+}
+
+model AnalyticsTrend {
+  id         String   @id @default(cuid())
+  month      String
+  value      Int
+  current    Boolean  @default(false)
+  analyticsId String
+  order      Int      @default(0)
+  analytics  Analytics @relation(fields: [analyticsId], references: [id], onDelete: Cascade)
+}
+
+model AnalyticsDept {
+  id         String   @id @default(cuid())
+  label      String
+  pct        Int
+  count      Int
+  fill       String
+  analyticsId String
+  order      Int      @default(0)
+  analytics  Analytics @relation(fields: [analyticsId], references: [id], onDelete: Cascade)
+}
+
+model AnalyticsTenure {
+  id         String   @id @default(cuid())
+  label      String
+  pct        Int
+  count      Int
+  fill       String
+  analyticsId String
+  order      Int      @default(0)
+  analytics  Analytics @relation(fields: [analyticsId], references: [id], onDelete: Cascade)
+}
+
+// ---------------------------------------------------------------------------
+// Reports
+// ---------------------------------------------------------------------------
+
+model ReportTemplate {
+  id        String  @id
+  title     String
+  desc      String  @map("description")
+  iconBg    String
+  iconColor String
+
+  @@map("report_templates")
+}
+
+model ScheduledReport {
+  id         String  @id
+  name       String
+  type       String
+  format     String
+  cadence    String // daily | weekly | monthly
+  nextRun    String
+  recipients String
+  tone       String // forest | mint | amber | slate
+  enabled    Boolean @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model RecentReport {
+  id     String  @id
+  name   String
+  date   String
+  size   String
+  status String // ready | generating | failed
+  tone   String
+}

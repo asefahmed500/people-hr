@@ -10,50 +10,96 @@ import { PayBreakdown } from "@/components/payroll/pay-breakdown"
 import { EmployeePayments } from "@/components/payroll/employee-payments"
 import { Skeleton } from "@/components/ui/skeleton"
 import { notify } from "@/lib/toast"
-import { useMockStore } from "@/hooks/use-mock-store"
-import { type PayrollStore, STORAGE_KEYS, defaultPayrollStore, defaultNotificationsStore, newNotification, type Payment, type NotificationsStore, type Notification } from "@/lib/data"
+import { exportToCsv } from "@/lib/export"
+import { onAction, consumePendingAction } from "@/lib/command-actions"
+import { useApiStore } from "@/hooks/use-api-store"
+import { useAuth } from "@/hooks/use-auth"
+import { ConfirmDialog } from "@/components/shared/confirm-dialog"
+import { type PayrollStore, defaultPayrollStore, type Employee, formatMoney } from "@/lib/data"
 
 export function PayrollPageClient() {
-  const { state, setState, hydrated } = useMockStore<PayrollStore>(
-    STORAGE_KEYS.payroll,
+  const { user } = useAuth()
+  const canWrite = user?.role === "admin"
+  const { state, setState, hydrated } = useApiStore<PayrollStore>(
+    "/api/store/payroll",
     () => defaultPayrollStore,
   )
-  const { setState: setNotifs } = useMockStore<NotificationsStore>(
-    STORAGE_KEYS.notifications,
-    () => defaultNotificationsStore,
+  // The directory is the source of truth for who gets paid and how much.
+  const { state: employees } = useApiStore<Employee[]>("/api/store/employees", () => [])
+
+  const [runConfirmOpen, setRunConfirmOpen] = React.useState(false)
+
+  // Employees eligible for this run: active directory members with a salary
+  // who don't already have a payment row for this cycle.
+  const eligible = employees.filter(
+    (e) =>
+      e.status !== "inactive" &&
+      typeof e.salary === "number" &&
+      e.salary > 0 &&
+      !state.payments.some((p) => p.id === `pay-${e.id}`),
   )
-  const addNotification = (n: Partial<Notification> & { title: string; description: string }) => {
-    const notification = newNotification(n)
-    setNotifs((prev) => ({ items: [notification, ...prev.items] }))
-  }
+  const missingSalary = employees.filter(
+    (e) => e.status !== "inactive" && !(typeof e.salary === "number" && e.salary > 0),
+  )
+  const dueCount = state.payments.filter(
+    (p) => p.status === "pending" || p.status === "failed",
+  ).length
 
   const handleRunPayroll = () => {
-    const pendingCount = state.payments.filter((p) => p.status === "pending").length
-    if (pendingCount === 0) {
-      notify.info("No pending payments to process")
-      return
-    }
-    setState((prev) => ({
-      ...prev,
-      payments: prev.payments.map((p) =>
-        p.status === "pending" ? { ...p, status: "paid" as const } : p,
-      ),
-      lastRun: new Date().toISOString(),
+    // 1) Generate pending payments for newly eligible employees (stable ids
+    //    keyed on the employee id so re-runs update rather than duplicate).
+    const generated = eligible.map((e) => ({
+      id: `pay-${e.id}`,
+      initials: e.initials,
+      name: e.name,
+      role: e.role,
+      department: e.department,
+      gross: e.salary ?? 0,
+      deductions: 0,
+      status: "pending" as const,
     }))
-    notify.success("Payroll run complete", `${pendingCount} payment(s) processed`)
-    addNotification({ type: "payroll_ran", title: "Payroll processed", description: "Payroll has been processed for all employees", href: "/payroll" })
+    // 2) Process: mark every pending/failed payment as paid.
+    const processed = generated.length + dueCount
+    setState((prev) => {
+      const payments = [...prev.payments, ...generated].map((p) =>
+        p.status === "pending" || p.status === "failed" ? { ...p, status: "paid" as const } : p,
+      )
+      return { payments, lastRun: new Date().toISOString() }
+    })
+    const skippedNote =
+      missingSalary.length > 0
+        ? ` Skipped ${missingSalary.length} employee(s) without a salary — add one on the Employees page.`
+        : ""
+    notify.success(
+      "Payroll run complete",
+      `${processed} payment(s) processed (${formatMoney(
+        [...state.payments, ...generated]
+          .filter((p) => p.status !== "paid")
+          .reduce((s, p) => s + p.gross, 0),
+      )} gross).${skippedNote}`,
+    )
+
   }
+
+  React.useEffect(() => {
+    const off = onAction((id) => {
+      if (id === "run-payroll" && canWrite) setRunConfirmOpen(true)
+    })
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (canWrite && consumePendingAction("run-payroll")) setRunConfirmOpen(true)
+    return off
+  }, [canWrite])
 
   if (!hydrated) {
     return (
       <DashboardShell activeHref="/payroll" current="Payroll" accentCurrent>
-        <Skeleton className="h-12 w-full rounded-[14px]" />
-        <Skeleton className="h-[140px] w-full rounded-[18px]" />
+        <Skeleton className="h-12 w-full rounded-2xl" />
+        <Skeleton className="h-[140px] w-full rounded-2xl" />
         <div className="flex w-full items-start gap-5">
-          <Skeleton className="h-[200px] flex-1 rounded-[18px]" />
-          <Skeleton className="h-[200px] flex-1 rounded-[18px]" />
+          <Skeleton className="h-[200px] flex-1 rounded-2xl" />
+          <Skeleton className="h-[200px] flex-1 rounded-2xl" />
         </div>
-        <Skeleton className="h-[300px] w-full rounded-[18px]" />
+        <Skeleton className="h-[300px] w-full rounded-2xl" />
       </DashboardShell>
     )
   }
@@ -61,17 +107,64 @@ export function PayrollPageClient() {
   return (
     <DashboardShell activeHref="/payroll" current="Payroll" accentCurrent>
       <PayrollHeader
-        onExport={() => notify.success("Report exported")}
-        onRunPayroll={handleRunPayroll}
+        employeeCount={state.payments.length}
+        onExport={() => {
+          exportToCsv("payroll", state.payments, [
+            { key: "name", label: "Name" },
+            { key: "role", label: "Role" },
+            { key: "department", label: "Department" },
+            { key: "gross", label: "Gross" },
+            { key: "deductions", label: "Deductions" },
+            { key: "status", label: "Status" },
+          ])
+          notify.success("Payroll exported", `${state.payments.length} payments downloaded as CSV.`)
+        }}
+        onRunPayroll={canWrite ? () => setRunConfirmOpen(true) : undefined}
       />
-      <PayRunSummary payments={state.payments} />
+      <PayRunSummary payments={state.payments} lastRun={state.lastRun} />
       <div className="flex w-full flex-col gap-5 lg:flex-row lg:items-start">
         <CostByDepartment payments={state.payments} />
         <PayBreakdown payments={state.payments} />
       </div>
       <EmployeePayments
         payments={state.payments}
-        onViewAll={() => notify.info("View all payments")}
+        onUpdateStatus={
+          canWrite
+            ? (id, status) => {
+                const p = state.payments.find((x) => x.id === id)
+                setState((prev) => ({
+                  ...prev,
+                  payments: prev.payments.map((x) => (x.id === id ? { ...x, status } : x)),
+                }))
+                notify.success(
+                  status === "paid" ? "Payment marked as paid" : "Payment marked as failed",
+                  p ? `${p.name}'s payment updated.` : undefined,
+                )
+              }
+            : undefined
+        }
+      />
+      <ConfirmDialog
+        open={runConfirmOpen}
+        onOpenChange={setRunConfirmOpen}
+        title="Run payroll"
+        description={
+          state.payments.length === 0 && eligible.length === 0
+            ? missingSalary.length > 0
+              ? `No employee has a salary set yet. Add monthly salaries on the Employees page first (${missingSalary.length} active employee(s) missing one).`
+              : "There are no active employees in the directory yet."
+            : `Generate ${eligible.length} new payment(s) and process ${dueCount} pending. Employees are picked up from the directory with their monthly salary.${
+                missingSalary.length > 0
+                  ? ` ${missingSalary.length} active employee(s) have no salary and will be skipped.`
+                  : ""
+              }`
+        }
+        confirmLabel="Run payroll"
+        destructive
+        onConfirm={() => {
+          setRunConfirmOpen(false)
+          handleRunPayroll()
+        }}
       />
     </DashboardShell>
   )

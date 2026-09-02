@@ -1,3 +1,5 @@
+import { Check, ChevronRight, Trash2 } from "lucide-react"
+
 import { cn } from "@/lib/utils"
 import { phaseMeta } from "@/lib/data"
 import type { OnboardingTask, Phase } from "@/lib/data"
@@ -25,7 +27,8 @@ function buildPhaseData(tasks: OnboardingTask[]): PhaseGroup[] {
     const meta = phaseMeta[phase]
     const personMap = new Map<string, HireWithTasks>()
     for (const task of phaseTasks) {
-      const key = task.hireInit
+      // Key by name (not initials) so two hires sharing initials don't merge.
+      const key = task.hireName
       if (!personMap.has(key)) {
         personMap.set(key, {
           initials: task.hireInit,
@@ -50,25 +53,51 @@ function buildPhaseData(tasks: OnboardingTask[]): PhaseGroup[] {
 type OnboardingJourneyProps = {
   tasks?: OnboardingTask[]
   onToggleTask?: (id: string) => void
+  onAdvanceHire?: (hireName: string) => void
+  onDeleteTask?: (id: string) => void
 }
 
-export function OnboardingJourney({ tasks = [], onToggleTask }: OnboardingJourneyProps) {
+export function OnboardingJourney({
+  tasks = [],
+  onToggleTask,
+  onAdvanceHire,
+  onDeleteTask,
+}: OnboardingJourneyProps) {
   const phases = buildPhaseData(tasks)
   return (
-    <div className="flex flex-1 flex-col gap-4 rounded-[18px] border border-[#edeae3] bg-white p-6">
-      <h2 className="font-display inline-block text-[17px] font-semibold leading-normal text-[#1f2a26]">
+    <div className="flex flex-1 flex-col gap-4 rounded-2xl border border-border bg-card p-6">
+      <h2 className="text-h3">
         Onboarding journey
       </h2>
       <div className="flex flex-col">
         {phases.map((phase, idx) => (
-          <PhaseRow key={phase.number} phase={phase} last={idx === phases.length - 1} onToggleTask={onToggleTask} />
+          <PhaseRow
+            key={phase.number}
+            phase={phase}
+            last={idx === phases.length - 1}
+            onToggleTask={onToggleTask}
+            onAdvanceHire={onAdvanceHire}
+            onDeleteTask={onDeleteTask}
+          />
         ))}
       </div>
     </div>
   )
 }
 
-function PhaseRow({ phase, last, onToggleTask }: { phase: PhaseGroup; last: boolean; onToggleTask?: (id: string) => void }) {
+function PhaseRow({
+  phase,
+  last,
+  onToggleTask,
+  onAdvanceHire,
+  onDeleteTask,
+}: {
+  phase: PhaseGroup
+  last: boolean
+  onToggleTask?: (id: string) => void
+  onAdvanceHire?: (hireName: string) => void
+  onDeleteTask?: (id: string) => void
+}) {
   return (
     <div className="flex gap-4">
       <div className="flex w-7 shrink-0 flex-col items-center">
@@ -80,7 +109,7 @@ function PhaseRow({ phase, last, onToggleTask }: { phase: PhaseGroup; last: bool
         >
           <span
             className={cn(
-              "font-sans text-[11px] font-bold leading-none",
+              "font-sans text-[11px] font-semibold leading-none",
               phase.nodeText,
             )}
           >
@@ -88,21 +117,27 @@ function PhaseRow({ phase, last, onToggleTask }: { phase: PhaseGroup; last: bool
           </span>
         </div>
         {!last ? (
-          <div className="mx-0 mb-0 mt-1 flex min-h-14 w-0.5 flex-1 bg-[#edeae3]" />
+          <div className="mx-0 mb-0 mt-1 flex min-h-14 w-0.5 flex-1 bg-border" />
         ) : null}
       </div>
       <div className="flex flex-1 flex-col gap-2 px-0 pb-5 pt-0">
         <div className="flex items-center gap-2">
-          <span className="font-sans inline-block text-[13.5px] font-semibold leading-normal text-[#1f2a26]">
+          <span className="font-sans inline-block text-[13.5px] font-semibold leading-normal text-foreground">
             {phase.name}
           </span>
-          <span className="font-sans inline-block text-xs leading-normal text-[#8a948d]">
+          <span className="font-sans inline-block text-xs leading-normal text-muted-foreground">
             {phase.count}
           </span>
         </div>
         <div className="flex flex-wrap gap-2">
           {phase.people.map((person) => (
-            <PersonCard key={person.initials + person.name} person={person} onToggleTask={onToggleTask} />
+            <PersonCard
+              key={person.initials + person.name}
+              person={person}
+              onToggleTask={onToggleTask}
+              onAdvanceHire={onAdvanceHire}
+              onDeleteTask={onDeleteTask}
+            />
           ))}
         </div>
       </div>
@@ -113,16 +148,19 @@ function PhaseRow({ phase, last, onToggleTask }: { phase: PhaseGroup; last: bool
 type PersonCardProps = {
   person: HireWithTasks
   onToggleTask?: (id: string) => void
+  onAdvanceHire?: (hireName: string) => void
+  onDeleteTask?: (id: string) => void
 }
 
-function PersonCard({ person, onToggleTask }: PersonCardProps) {
+function PersonCard({ person, onToggleTask, onAdvanceHire, onDeleteTask }: PersonCardProps) {
   const doneCount = person.tasks.filter((t) => t.done).length
   const total = person.tasks.length
-  const tone = "text-[#2f6f61]"
-  const avatarBg = "bg-[#2f6f611a]"
-  const avatarText = "text-[#2f6f61]"
+  const tone = "text-primary"
+  const avatarBg = "bg-foreground/10"
+  const avatarText = "text-primary"
+  const atEnd = person.tasks.length > 0 && person.tasks.every((t) => t.phase === "ramped")
   return (
-    <div className="flex flex-col gap-1.5 rounded-[14px] border border-[#edeae3] bg-[#f6f4ef] p-2.5">
+    <div className="flex flex-col gap-1.5 rounded-2xl border border-border bg-muted p-2.5">
       <div className="flex items-center gap-1.5">
         <div
           className={cn(
@@ -132,7 +170,7 @@ function PersonCard({ person, onToggleTask }: PersonCardProps) {
         >
           <span
             className={cn(
-              "font-sans text-[9px] font-bold leading-none",
+              "font-sans text-[9px] font-semibold leading-none",
               avatarText,
             )}
           >
@@ -147,17 +185,28 @@ function PersonCard({ person, onToggleTask }: PersonCardProps) {
         >
           {person.name}
         </span>
-        <span className="font-sans inline-block text-[10.5px] leading-normal text-[#8a948d]">
+        <span className="font-sans inline-block text-[10.5px] leading-normal text-muted-foreground">
           {person.role}
         </span>
-        <span className="ml-auto font-sans text-[10px] text-[#8a948d]">
+        <span className="ml-auto font-sans text-[10px] text-muted-foreground">
           {doneCount}/{total}
         </span>
+        {onAdvanceHire && !atEnd ? (
+          <button
+            type="button"
+            title="Advance to next phase"
+            aria-label={`Advance ${person.name} to the next phase`}
+            onClick={() => onAdvanceHire(person.name)}
+            className="flex size-5 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-card hover:text-foreground"
+          >
+            <ChevronRight className="size-3.5" strokeWidth={2} />
+          </button>
+        ) : null}
       </div>
       {person.tasks.length > 0 ? (
         <div className="flex flex-col gap-1">
           {person.tasks.map((task) => (
-            <TaskCheck key={task.id} task={task} onToggle={onToggleTask} />
+            <TaskCheck key={task.id} task={task} onToggle={onToggleTask} onDelete={onDeleteTask} />
           ))}
         </div>
       ) : null}
@@ -168,37 +217,56 @@ function PersonCard({ person, onToggleTask }: PersonCardProps) {
 type TaskCheckProps = {
   task: OnboardingTask
   onToggle?: (id: string) => void
+  onDelete?: (id: string) => void
 }
 
-function TaskCheck({ task, onToggle }: TaskCheckProps) {
-  return (
-    <button
-      type="button"
-      onClick={() => onToggle?.(task.id)}
-      className="flex w-full items-center gap-1.5 rounded-lg px-1.5 py-1 text-left hover:bg-[#e8e3da]"
-    >
+function TaskCheck({ task, onToggle, onDelete }: TaskCheckProps) {
+  const content = (
+    <>
       <span
         className={cn(
-          "inline-flex size-3.5 shrink-0 cursor-pointer items-center justify-center rounded-full border transition-colors",
+          "inline-flex size-3.5 shrink-0 items-center justify-center rounded-full border transition-colors",
           task.done
-            ? "border-[#2e9160] bg-[#2e9160]"
-            : "border-[#c4c9c1] bg-white hover:border-[#2e9160]",
+            ? "border-primary bg-primary"
+            : "border-border bg-card hover:border-foreground",
         )}
       >
         {task.done ? (
-          <svg className="size-2.5 text-white" fill="none" viewBox="0 0 12 12" stroke="currentColor" strokeWidth={2}>
-            <path d="M2.5 6l2.5 2.5 4.5-5" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
+          <Check className="size-2.5 text-primary-foreground" strokeWidth={2.5} />
         ) : null}
       </span>
       <span
         className={cn(
           "font-sans text-[11px] leading-normal",
-          task.done ? "text-[#6b7770] line-through" : "text-[#42504a]",
+          task.done ? "text-secondary-foreground line-through" : "text-secondary-foreground",
         )}
       >
         {task.label}
       </span>
-    </button>
+    </>
+  )
+  if (!onToggle) {
+    return <div className="flex w-full items-center gap-1.5 rounded-lg px-1.5 py-1">{content}</div>
+  }
+  return (
+    <div className="group flex w-full items-center gap-1.5">
+      <button
+        type="button"
+        onClick={() => onToggle(task.id)}
+        className="flex min-w-0 flex-1 items-center gap-1.5 rounded-lg px-1.5 py-1 text-left hover:bg-card"
+      >
+        {content}
+      </button>
+      {onDelete ? (
+        <button
+          type="button"
+          aria-label={`Delete task ${task.label}`}
+          onClick={() => onDelete(task.id)}
+          className="flex size-5 shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-opacity hover:bg-card hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100"
+        >
+          <Trash2 className="size-3" strokeWidth={2} />
+        </button>
+      ) : null}
+    </div>
   )
 }

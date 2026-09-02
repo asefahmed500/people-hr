@@ -10,50 +10,81 @@ import { PerformanceSpotlight } from "@/components/performance/performance-spotl
 import { TeamLeaderboard } from "@/components/performance/team-leaderboard"
 import { EmployeePerformance } from "@/components/performance/employee-performance"
 import { ActionDialog } from "@/components/shared/dialog-parts"
-import { Field, TextArea, SelectField, useForm } from "@/components/shared/field"
+import { TextArea, SelectField, useForm } from "@/components/shared/field"
 import { Skeleton } from "@/components/ui/skeleton"
 import { notify } from "@/lib/toast"
-import { STORAGE_KEYS, defaultNotificationsStore, newNotification, type PerformanceStore, type Review, type ReviewStatus, defaultPerformanceStore, type NotificationsStore, type Notification } from "@/lib/data"
-import { useMockStore } from "@/hooks/use-mock-store"
+import { exportToCsv } from "@/lib/export"
+import { ConfirmDialog } from "@/components/shared/confirm-dialog"
+import {
+  type PerformanceStore,
+  type Review,
+  type ReviewStatus,
+  defaultPerformanceStore,
+  defaultEmployees,
+  type Employee,
+} from "@/lib/data"
+import { useApiStore } from "@/hooks/use-api-store"
+import { useAuth } from "@/hooks/use-auth"
 
 export function PerformancePageClient() {
-  const { state: store, setState, hydrated } = useMockStore<PerformanceStore>(
-    STORAGE_KEYS.performance,
+  const { state: store, setState, hydrated } = useApiStore<PerformanceStore>(
+    "/api/store/performance",
     () => defaultPerformanceStore,
   )
-  const { setState: setNotifs } = useMockStore<NotificationsStore>(
-    STORAGE_KEYS.notifications,
-    () => defaultNotificationsStore,
-  )
-  const addNotification = (n: Partial<Notification> & { title: string; description: string }) => {
-    const notification = newNotification(n)
-    setNotifs((prev) => ({ items: [notification, ...prev.items] }))
-  }
+  const { user } = useAuth()
+  // Reviews are written by managers/admins about their people. Employees get
+  // a read-only view (the server merge rejects employee review writes too).
+  const canWrite = user?.role === "admin" || user?.role === "manager"
+  const { state: employees } = useApiStore<Employee[]>("/api/store/employees", () => defaultEmployees)
 
   const [activeDept, setActiveDept] = React.useState("all")
   const [searchQuery, setSearchQuery] = React.useState("")
   const [reviewOpen, setReviewOpen] = React.useState(false)
+  const [deleteTarget, setDeleteTarget] = React.useState<Review | null>(null)
 
   const employeeOptions = React.useMemo(() => {
     const seen = new Set<string>()
-    return store.reviews
-      .filter((r) => {
-        const key = r.name.toLowerCase()
-        if (seen.has(key)) return false
-        seen.add(key)
-        return true
-      })
-      .map((r) => ({
+    const all: Array<{ value: string; label: string }> = []
+    for (const r of store.reviews) {
+      const key = r.name.toLowerCase()
+      if (seen.has(key)) continue
+      seen.add(key)
+      all.push({
         value: r.name.toLowerCase().replace(/\s+/g, "-"),
         label: `${r.name} - ${r.role}`,
-      }))
-  }, [store.reviews])
+      })
+    }
+    for (const e of employees) {
+      const key = e.name.toLowerCase()
+      if (seen.has(key)) continue
+      seen.add(key)
+      all.push({
+        value: e.name.toLowerCase().replace(/\s+/g, "-"),
+        label: `${e.name} - ${e.role}`,
+      })
+    }
+    return all
+  }, [store.reviews, employees])
 
   const reviewForm = useForm({
     employee: "",
     rating: "3",
     comments: "",
+    period: "",
   })
+
+  // Review cycles: current year's quarters.
+  const periodOptions = React.useMemo(() => {
+    const y = new Date().getFullYear()
+    return [
+      { value: `Q1 ${y}`, label: `Q1 ${y}` },
+      { value: `Q2 ${y}`, label: `Q2 ${y}` },
+      { value: `Q3 ${y}`, label: `Q3 ${y}` },
+      { value: `Q4 ${y}`, label: `Q4 ${y}` },
+      { value: `H1 ${y}`, label: `H1 ${y} (mid-year)` },
+      { value: `FY ${y}`, label: `FY ${y} (annual)` },
+    ]
+  }, [])
 
   function handleStartReview() {
     reviewForm.reset()
@@ -63,55 +94,70 @@ export function PerformancePageClient() {
   function handleSubmitReview() {
     const employeeKey = reviewForm.values.employee
     if (!employeeKey) {
-      notify.error("Please select an employee")
+      notify.error("Missing selection", "Please select an employee.")
       return
     }
     const existing = store.reviews.find(
       (r) => r.name.toLowerCase().replace(/\s+/g, "-") === employeeKey,
     )
-    if (!existing) {
+    const emp = employees.find(
+      (e) => e.name.toLowerCase().replace(/\s+/g, "-") === employeeKey,
+    )
+    if (!existing && !emp) {
       notify.error("Employee not found")
       return
     }
-    const rating = parseFloat(reviewForm.values.rating)
+    const rating = Math.min(5, Math.max(1, parseFloat(reviewForm.values.rating) || 3))
     let status: ReviewStatus = "meets"
     if (rating >= 4.5) status = "exceeds"
-    else if (rating >= 4) status = "meets"
-    else if (rating >= 3) status = "below"
+    else if (rating >= 3.5) status = "meets"
+    else if (rating >= 2.5) status = "below"
     else status = "needs"
 
+    const reviewedAt = new Date().toISOString().split("T")[0]
+    const source = existing ?? emp!
     const newReview: Review = {
-      id: `r-${Date.now()}`,
-      initials: existing.initials,
-      avatarBg: existing.avatarBg,
-      name: existing.name,
-      role: existing.role,
-      deptDot: existing.deptDot,
-      department: existing.department,
+      id: existing?.id ?? `r-${Math.random().toString(36).slice(2, 9)}`,
+      initials: source.initials,
+      avatarBg: existing?.avatarBg ?? "bg-foreground",
+      name: source.name,
+      role: source.role,
+      deptDot: existing?.deptDot ?? "bg-foreground",
+      department: source.department,
       reviewer: "You",
       rating,
       status,
+      comments: reviewForm.values.comments.trim() || undefined,
+      reviewedAt,
+      period: reviewForm.values.period || undefined,
     }
-    setState((prev) => ({
-      ...prev,
-      reviews: [...prev.reviews, newReview],
-    }))
-    notify.success("Review submitted")
-    addNotification({ type: "review_started", title: "Review started", description: `Review for ${existing.name} has been started`, href: "/performance" })
+    setState((prev) =>
+      existing
+        ? {
+            ...prev,
+            reviews: prev.reviews.map((r) => (r.id === existing.id ? newReview : r)),
+          }
+        : { ...prev, reviews: [newReview, ...prev.reviews] },
+    )
+    notify.success(
+      existing ? "Review submitted" : "Review created",
+      `Updated ${source.name}'s review.`,
+    )
+
     setReviewOpen(false)
   }
 
   if (!hydrated) {
     return (
       <DashboardShell activeHref="/performance" current="Performance" accentCurrent>
-        <Skeleton className="h-12 w-full rounded-[14px]" />
-        <Skeleton className="h-10 w-full rounded-[14px]" />
+        <Skeleton className="h-12 w-full rounded-2xl" />
+        <Skeleton className="h-10 w-full rounded-2xl" />
         <div className="flex w-full gap-5">
-          <Skeleton className="h-[180px] flex-1 rounded-[18px]" />
-          <Skeleton className="h-[180px] w-[300px] shrink-0 rounded-[18px]" />
+          <Skeleton className="h-[180px] flex-1 rounded-2xl" />
+          <Skeleton className="h-[180px] w-[300px] shrink-0 rounded-2xl" />
         </div>
-        <Skeleton className="h-[200px] w-full rounded-[18px]" />
-        <Skeleton className="h-[400px] w-full rounded-[18px]" />
+        <Skeleton className="h-[200px] w-full rounded-2xl" />
+        <Skeleton className="h-[400px] w-full rounded-2xl" />
       </DashboardShell>
     )
   }
@@ -119,9 +165,19 @@ export function PerformancePageClient() {
   return (
     <DashboardShell activeHref="/performance" current="Performance" accentCurrent>
       <PerformanceHeader
-        onPeriodChange={() => notify.info("Period changed")}
-        onExport={() => notify.success("Performance report exported")}
-        onStartReview={handleStartReview}
+        onExport={() => {
+          exportToCsv("performance-reviews", store.reviews, [
+            { key: "name", label: "Name" },
+            { key: "role", label: "Role" },
+            { key: "department", label: "Department" },
+            { key: "reviewer", label: "Reviewer" },
+            { key: "rating", label: "Rating" },
+            { key: "status", label: "Status" },
+          ])
+          notify.success("Performance exported", `${store.reviews.length} reviews downloaded as CSV.`)
+        }}
+        onStartReview={canWrite ? handleStartReview : undefined}
+        subtitle={`${new Date().toLocaleDateString("en-US", { weekday: "long", day: "numeric", month: "long", year: "numeric" })} · ${store.reviews.filter((r) => r.reviewedAt || r.status !== "needs").length} of ${store.reviews.length} reviews submitted`}
       />
       <RatingDistribution reviews={store.reviews} />
       <DepartmentFilterBar
@@ -129,17 +185,37 @@ export function PerformancePageClient() {
         onDeptChange={setActiveDept}
         reviews={store.reviews}
       />
-      <PerformanceSpotlight reviews={store.reviews} />
+      <PerformanceSpotlight reviews={store.reviews} teamScores={store.teamScores} />
       <TeamLeaderboard
         teamScores={store.teamScores}
-        onFullReport={() => notify.info("Opening full report")}
+        onFullReport={() =>
+          document.getElementById("employee-performance")?.scrollIntoView({ behavior: "smooth" })
+        }
       />
       <EmployeePerformance
         filterDept={activeDept}
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
-        onViewAll={() => notify.info("View all employees")}
         reviews={store.reviews}
+        onDelete={canWrite ? setDeleteTarget : undefined}
+      />
+      <ConfirmDialog
+        open={!!deleteTarget}
+        onOpenChange={(o) => { if (!o) setDeleteTarget(null) }}
+        title="Delete review"
+        description={deleteTarget ? `Delete the review for ${deleteTarget.name}? This can’t be undone.` : undefined}
+        confirmLabel="Delete"
+        destructive
+        onConfirm={() => {
+          if (deleteTarget) {
+            setState((prev) => ({
+              ...prev,
+              reviews: prev.reviews.filter((r) => r.id !== deleteTarget.id),
+            }))
+            notify.success("Review deleted", `${deleteTarget.name}'s review was removed.`)
+          }
+          setDeleteTarget(null)
+        }}
       />
       <ActionDialog
         open={reviewOpen}
@@ -156,13 +232,30 @@ export function PerformancePageClient() {
           options={employeeOptions}
           required
         />
-        <Field
-          label="Rating (1-5)"
-          type="number"
-          value={reviewForm.values.rating}
-          onChange={(v) => reviewForm.setValue("rating", v)}
-          required
-        />
+        <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
+          <SelectField
+            label="Rating"
+            value={reviewForm.values.rating}
+            onChange={(v) => reviewForm.setValue("rating", v)}
+            options={[
+              { value: "5", label: "5 · Outstanding" },
+              { value: "4.5", label: "4.5 · Exceeds" },
+              { value: "4", label: "4 · Strong" },
+              { value: "3.5", label: "3.5 · Meets+" },
+              { value: "3", label: "3 · Meets" },
+              { value: "2.5", label: "2.5 · Below+" },
+              { value: "2", label: "2 · Below" },
+              { value: "1", label: "1 · Needs improvement" },
+            ]}
+            required
+          />
+          <SelectField
+            label="Review period"
+            value={reviewForm.values.period}
+            onChange={(v) => reviewForm.setValue("period", v)}
+            options={periodOptions}
+          />
+        </div>
         <TextArea
           label="Comments"
           value={reviewForm.values.comments}

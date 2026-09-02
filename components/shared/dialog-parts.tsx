@@ -40,7 +40,7 @@ export function ActionDialog({
     if (e.key === "Enter" && !submitting) {
       const target = e.target as HTMLElement
       const tag = target.tagName
-      if (tag !== "TEXTAREA" && tag !== "BUTTON") {
+      if (tag !== "TEXTAREA" && tag !== "BUTTON" && tag !== "SELECT") {
         e.preventDefault()
         onSubmit()
       }
@@ -51,14 +51,14 @@ export function ActionDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         onKeyDown={handleKeyDown}
-        className="max-w-[480px] gap-5 rounded-[18px] border border-[#ece9e2] bg-white p-6"
+        className="max-w-[480px] gap-5 rounded-2xl border border-border bg-card p-6"
       >
         <DialogHeader>
-          <DialogTitle className="font-display text-[18px] font-semibold text-[#1f2a26]">
+          <DialogTitle className="text-h4">
             {title}
           </DialogTitle>
           {description ? (
-            <DialogDescription className="font-sans text-[12.5px] text-[#8a948d]">
+            <DialogDescription className="font-sans text-[12.5px] text-muted-foreground">
               {description}
             </DialogDescription>
           ) : null}
@@ -70,7 +70,7 @@ export function ActionDialog({
             variant="outline"
             disabled={submitting}
             onClick={() => onOpenChange(false)}
-            className="rounded-lg border border-[#e8ebe6] bg-white font-sans text-[13.5px] font-medium text-[#5b655e] hover:bg-[#faf9f6] disabled:opacity-50"
+            className="rounded-lg border border-border bg-card font-sans text-[13.5px] font-medium text-secondary-foreground hover:bg-muted disabled:opacity-50"
           >
             Cancel
           </Button>
@@ -79,11 +79,7 @@ export function ActionDialog({
             disabled={submitting}
             onClick={onSubmit}
             variant={submitVariant}
-            className={
-              submitVariant === "default"
-                ? "inline-flex items-center gap-1.5 rounded-lg bg-[#2f6f61] font-sans text-[13.5px] font-semibold text-white hover:bg-[#27614f] disabled:opacity-60"
-                : "inline-flex items-center gap-1.5 rounded-lg bg-[#c4553a] font-sans text-[13.5px] font-semibold text-white hover:bg-[#b8462f] disabled:opacity-60"
-            }
+            className={submitVariant === "default" ? "font-sans text-[13.5px] font-medium" : "inline-flex items-center gap-1.5 rounded-lg bg-foreground font-sans text-[13.5px] font-medium text-background hover:bg-foreground/90 disabled:opacity-60"}
           >
             {submitting ? <Loader2 className="size-4 animate-spin" /> : null}
             {submitLabel}

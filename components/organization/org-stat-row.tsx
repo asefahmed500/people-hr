@@ -1,7 +1,7 @@
 import { Building2, MapPin, Network, Workflow, type LucideIcon } from "lucide-react"
 
 import { cn } from "@/lib/utils"
-import type { Dept, Office, OrgNode } from "@/lib/data"
+import type { Dept, Office } from "@/lib/data"
 
 type Tone = "forest" | "mint" | "amber" | "green" | "neutral"
 
@@ -16,54 +16,59 @@ type Stat = {
 }
 
 const deltaTone: Record<Exclude<Tone, "neutral">, string> = {
-  forest: "bg-[#3bb2731f] text-[#2e9160]",
-  mint: "bg-[#3bb2731f] text-[#2e9160]",
-  amber: "bg-[#f4a26129] text-[#c67934]",
-  green: "bg-[#3bb2731f] text-[#2e9160]",
+  forest: "bg-foreground/10 text-secondary-foreground",
+  mint: "bg-foreground/10 text-secondary-foreground",
+  amber: "bg-foreground/10 text-secondary-foreground",
+  green: "bg-foreground/10 text-secondary-foreground",
 }
 
 type OrgStatRowProps = {
   departments?: Dept[]
   offices?: Office[]
-  orgChart?: OrgNode[]
 }
 
-export function OrgStatRow({ departments = [], offices = [], orgChart = [] }: OrgStatRowProps) {
+export function OrgStatRow({ departments = [], offices = [] }: OrgStatRowProps) {
   const deptCount = departments.length
   const totalTeams = departments.reduce((sum, d) => sum + d.teams, 0)
   const officeCount = offices.length
+  const peopleCount = departments.reduce((sum, d) => sum + d.people, 0)
+  const staffInOffices = offices.reduce((sum, o) => sum + o.count, 0)
+  // "Reports per manager" = people ÷ managers, approximated by team leads
+  // (sum of per-department team counts).
+  const reportsPerManager =
+    totalTeams > 0 ? (peopleCount / totalTeams).toFixed(1) : "0.0"
 
   const stats: Stat[] = [
     {
       icon: Building2,
-      iconBg: "bg-[#2f6f611a]",
-      iconColor: "text-[#2f6f61]",
-      delta: { text: "+2", tone: "green" },
+      iconBg: "bg-foreground/10",
+      iconColor: "text-primary",
+      delta: { text: `${peopleCount} people`, tone: "green" },
       value: String(deptCount),
       label: "Departments",
     },
     {
       icon: Network,
-      iconBg: "bg-[#64b6ac29]",
-      iconColor: "text-[#3e9488]",
-      delta: { text: "+3", tone: "green" },
+      iconBg: "bg-foreground/20",
+      iconColor: "text-secondary-foreground",
+      delta: { text: `${deptCount} depts`, tone: "green" },
       value: String(totalTeams),
       label: "Teams",
     },
     {
       icon: MapPin,
-      iconBg: "bg-[#f4a2612e]",
-      iconColor: "text-[#b96a2c]",
-      delta: { text: "+1", tone: "green" },
+      iconBg: "bg-foreground/20",
+      iconColor: "text-secondary-foreground",
+      delta: { text: `${staffInOffices} staff`, tone: "green" },
       value: String(officeCount),
       label: "Office locations",
     },
     {
       icon: Workflow,
-      iconBg: "bg-[#3bb27326]",
-      iconColor: "text-[#2e9160]",
+      iconBg: "bg-foreground/10",
+      iconColor: "text-secondary-foreground",
       deltaNeutral: "avg",
-      value: "8.4",
+      value: reportsPerManager,
       label: "Reports per manager",
     },
   ]
@@ -80,7 +85,7 @@ export function OrgStatRow({ departments = [], offices = [], orgChart = [] }: Or
 function StatCard({ stat }: { stat: Stat }) {
   const Icon = stat.icon
   return (
-    <div className="flex flex-1 flex-col gap-3 rounded-2xl border border-[#edeae3] bg-white p-5 shadow-[0px_2px_10px_rgba(47,111,97,0.05)]">
+    <div className="flex flex-1 flex-col gap-3 rounded-2xl border border-border bg-card p-5 shadow-card">
       <div className="flex items-center justify-between">
         <div
           className={cn(
@@ -100,16 +105,16 @@ function StatCard({ stat }: { stat: Stat }) {
             {stat.delta.text}
           </span>
         ) : stat.deltaNeutral ? (
-          <span className="rounded-full bg-[#f1efea] px-2 py-0.5 font-sans text-xs font-semibold leading-normal text-[#8a948d]">
+          <span className="rounded-full bg-muted px-2 py-0.5 font-sans text-xs font-semibold leading-normal text-muted-foreground">
             {stat.deltaNeutral}
           </span>
         ) : null}
       </div>
       <div className="flex flex-col gap-0.5">
-        <span className="font-display inline-block text-[28px] font-semibold leading-none text-[#1f2a26]">
+        <span className="text-stat">
           {stat.value}
         </span>
-        <span className="font-sans inline-block text-[12.5px] leading-normal text-[#8a948d]">
+        <span className="font-sans inline-block text-[12.5px] leading-normal text-muted-foreground">
           {stat.label}
         </span>
       </div>

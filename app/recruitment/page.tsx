@@ -1,7 +1,9 @@
 import { DashboardShell } from "@/components/dashboard/dashboard-shell"
+import { requirePageRole } from "@/lib/auth-guards"
 import { RecruitmentPageClient } from "./recruitment-page-client"
 
-export default function RecruitmentPage() {
+export default async function RecruitmentPage() {
+  await requirePageRole("admin")
   return (
     <DashboardShell activeHref="/recruitment" current="Recruitment" accentCurrent>
       <RecruitmentPageClient />

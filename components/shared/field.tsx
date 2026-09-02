@@ -9,9 +9,10 @@ type FieldProps = {
   value: string
   onChange: (value: string) => void
   placeholder?: string
-  type?: "text" | "email" | "date" | "number"
+  type?: "text" | "email" | "date" | "number" | "password"
   error?: string
   required?: boolean
+  disabled?: boolean
 }
 
 export function Field({
@@ -22,12 +23,13 @@ export function Field({
   type = "text",
   error,
   required,
+  disabled,
 }: FieldProps) {
   return (
     <label className="flex flex-col gap-[5px]">
-      <span className="font-sans text-xs font-medium leading-normal text-[#8a948d]">
+      <span className="font-sans text-xs font-medium leading-normal text-muted-foreground">
         {label}
-        {required ? <span className="text-[#c4553a]"> *</span> : null}
+        {required ? <span className="text-foreground"> *</span> : null}
       </span>
       <input
         type={type}
@@ -35,15 +37,16 @@ export function Field({
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         aria-invalid={!!error}
+        disabled={disabled}
         className={cn(
-          "h-10 w-full rounded-[10px] border bg-white px-3 py-2.5 font-sans text-[13.5px] leading-normal text-[#1f2a26] outline-none placeholder:text-[#a6aca3]",
+          "h-10 w-full rounded-lg border bg-card px-3 py-2.5 font-sans text-[13.5px] leading-normal text-foreground outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-60",
           error
-            ? "border-[#e76f51] focus:border-[#e76f51]"
-            : "border-[#e8ebe6] focus:border-[#2f6f61]",
+            ? "border-destructive focus:border-destructive"
+            : "border-border focus:border-primary",
         )}
       />
       {error ? (
-        <span className="font-sans text-[11px] text-[#c4553a]">{error}</span>
+        <span className="font-sans text-[11px] text-destructive">{error}</span>
       ) : null}
     </label>
   )
@@ -55,6 +58,8 @@ type SelectFieldProps = {
   onChange: (value: string) => void
   options: { value: string; label: string }[]
   required?: boolean
+  disabled?: boolean
+  error?: string
 }
 
 export function SelectField({
@@ -63,17 +68,24 @@ export function SelectField({
   onChange,
   options,
   required,
+  disabled,
+  error,
 }: SelectFieldProps) {
   return (
     <label className="flex flex-col gap-[5px]">
-      <span className="font-sans text-xs font-medium leading-normal text-[#8a948d]">
+      <span className="font-sans text-xs font-medium leading-normal text-muted-foreground">
         {label}
-        {required ? <span className="text-[#c4553a]"> *</span> : null}
+        {required ? <span className="text-foreground"> *</span> : null}
       </span>
       <select
         value={value}
+        disabled={disabled}
         onChange={(e) => onChange(e.target.value)}
-        className="h-10 w-full rounded-[10px] border border-[#e8ebe6] bg-white px-3 py-2.5 font-sans text-[13.5px] leading-normal text-[#1f2a26] outline-none focus:border-[#2f6f61]"
+        aria-invalid={!!error}
+        className={cn(
+          "h-10 w-full rounded-lg border bg-card px-3 py-2.5 font-sans text-[13.5px] leading-normal text-foreground outline-none focus:border-primary disabled:cursor-not-allowed disabled:opacity-60",
+          error ? "border-destructive" : "border-border",
+        )}
       >
         {options.map((opt) => (
           <option key={opt.value} value={opt.value}>
@@ -81,6 +93,9 @@ export function SelectField({
           </option>
         ))}
       </select>
+      {error ? (
+        <span className="font-sans text-[11px] text-destructive">{error}</span>
+      ) : null}
     </label>
   )
 }
@@ -102,7 +117,7 @@ export function TextArea({
 }: TextAreaProps) {
   return (
     <label className="flex flex-col gap-[5px]">
-      <span className="font-sans text-xs font-medium leading-normal text-[#8a948d]">
+      <span className="font-sans text-xs font-medium leading-normal text-muted-foreground">
         {label}
       </span>
       <textarea
@@ -110,7 +125,7 @@ export function TextArea({
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         rows={rows}
-        className="w-full rounded-[10px] border border-[#e8ebe6] bg-white px-3 py-2.5 font-sans text-[13.5px] leading-normal text-[#1f2a26] outline-none placeholder:text-[#a6aca3] focus:border-[#2f6f61]"
+        className="w-full rounded-lg border border-border bg-card px-3 py-2.5 font-sans text-[13.5px] leading-normal text-foreground outline-none placeholder:text-muted-foreground focus:border-primary"
       />
     </label>
   )

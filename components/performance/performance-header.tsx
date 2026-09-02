@@ -1,59 +1,58 @@
-import { ChevronDown, Download, Plus } from "lucide-react"
+import { Download, Plus } from "lucide-react"
+
+function currentQuarter(): string {
+  const now = new Date()
+  const q = Math.floor(now.getMonth() / 3) + 1
+  return `Q${q} ${now.getFullYear()}`
+}
 
 export function PerformanceHeader({
-  onPeriodChange,
   onExport,
   onStartReview,
+  subtitle,
 }: {
-  onPeriodChange?: () => void
   onExport?: () => void
   onStartReview?: () => void
+  subtitle?: string
 }) {
   return (
-    <div className="flex w-full items-start justify-between gap-6">
+    <div className="flex w-full flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
       <div className="flex flex-col gap-1.5">
-        <h1 className="font-display inline-block text-[28px] font-semibold leading-tight text-[#1f2a26]">
+        <h1 className="text-h1">
           Performance
         </h1>
-        <p className="font-sans inline-block text-[13.5px] leading-normal text-[#6b7770]">
-          Tuesday, 18 February 2025 · Q1 review cycle · 218 of 284 reviews
-          submitted
+        <p className="font-sans inline-block text-[13.5px] leading-normal text-secondary-foreground">
+          {subtitle ?? `${currentQuarter()} review cycle`}
         </p>
       </div>
       <div className="flex shrink-0 items-center gap-2.5">
-        <button
-          type="button"
-          onClick={onPeriodChange}
-          className="flex h-10 items-center gap-2 rounded-[11px] border border-[#e3ded4] bg-white px-4"
-        >
-          <span className="font-sans text-[13px] font-medium leading-normal text-[#42504a]">
-            Q1 2025
+        <span className="flex h-10 items-center rounded-lg border border-border bg-card px-4">
+          <span className="font-sans text-[13px] font-medium leading-normal text-secondary-foreground">
+            {currentQuarter()}
           </span>
-          <ChevronDown
-            className="size-[15px] rotate-90 text-[#8a948d]"
-            strokeWidth={2}
-          />
-        </button>
+        </span>
         <button
           type="button"
           onClick={onExport}
-          className="flex h-10 items-center gap-2 rounded-[11px] border border-[#e3ded4] bg-white px-4"
+          className="flex h-10 items-center gap-2 rounded-lg border border-border bg-card px-4 transition-colors hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
         >
-          <Download className="size-4 text-[#5b655e]" strokeWidth={2} />
-          <span className="font-sans text-[13px] font-medium leading-normal text-[#42504a]">
+          <Download className="size-4 text-secondary-foreground" strokeWidth={2} />
+          <span className="font-sans text-[13px] font-medium leading-normal text-secondary-foreground">
             Export
           </span>
         </button>
-        <button
-          type="button"
-          onClick={onStartReview}
-          className="flex h-10 items-center gap-2 rounded-[11px] bg-[#6d5ce7] px-4 shadow-[0px_6px_16px_rgba(109,92,231,0.24)]"
-        >
-          <Plus className="size-4 text-white" strokeWidth={2} />
-          <span className="font-sans text-[13px] font-semibold leading-normal text-white">
-            Start review
-          </span>
-        </button>
+        {onStartReview ? (
+          <button
+            type="button"
+            onClick={onStartReview}
+            className="flex h-10 items-center gap-2 rounded-lg border border-border bg-gradient-to-b from-white to-[#ececea] shadow-xs transition-colors hover:to-[#e2e2df]"
+          >
+            <Plus className="size-4 text-secondary-foreground" strokeWidth={2} />
+            <span className="font-sans text-[13px] font-medium leading-normal text-secondary-foreground">
+              Start review
+            </span>
+          </button>
+        ) : null}
       </div>
     </div>
   )

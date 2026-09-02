@@ -31,49 +31,49 @@ export function ProjectsKpiStrip({ tasks }: { tasks?: ProjectTask[] }) {
     {
       value: String(total),
       label: "Active projects",
-      valueColor: "text-[#2f6fd0]",
+      valueColor: "text-primary",
       trend: {
         text: `${delayed} delayed`,
-        bg: "bg-[#2f6fd010]",
-        text2: "text-[#2f6fd0]",
+        bg: "bg-foreground/5",
+        text2: "text-primary",
         icon: TrendingUp,
-        iconColor: "text-[#2f6fd0]",
+        iconColor: "text-primary",
       },
     },
     {
       value: String(onTrack),
       label: "On track",
-      valueColor: "text-[#2f6fd0]",
+      valueColor: "text-primary",
       trend: {
         text: `${total ? Math.round((onTrack / total) * 100) : 0}% of total`,
-        bg: "bg-[#2e916010]",
-        text2: "text-[#2e9160]",
+        bg: "bg-foreground/5",
+        text2: "text-secondary-foreground",
         icon: CheckCircle2,
-        iconColor: "text-[#2e9160]",
+        iconColor: "text-secondary-foreground",
       },
     },
     {
       value: `${avgProgress}%`,
       label: "Avg completion",
-      valueColor: "text-[#2f6fd0]",
+      valueColor: "text-primary",
       trend: {
         text: "from tasks",
-        bg: "bg-[#2f6fd010]",
-        text2: "text-[#2f6fd0]",
+        bg: "bg-foreground/5",
+        text2: "text-primary",
         icon: ArrowUpRight,
-        iconColor: "text-[#2f6fd0]",
+        iconColor: "text-primary",
       },
     },
     {
       value: String(atRisk + delayed),
       label: "At risk / delayed",
-      valueColor: "text-[#d98a2b]",
+      valueColor: "text-secondary-foreground",
       trend: {
         text: `${atRisk} at risk`,
-        bg: "bg-[#d0553f10]",
-        text2: "text-[#d0553f]",
+        bg: "bg-foreground/10",
+        text2: "text-foreground",
         icon: AlertCircle,
-        iconColor: "text-[#d0553f]",
+        iconColor: "text-foreground",
       },
     },
   ]
@@ -83,17 +83,17 @@ export function ProjectsKpiStrip({ tasks }: { tasks?: ProjectTask[] }) {
       {kpis.map((kpi) => (
         <div
           key={kpi.label}
-          className="flex flex-col gap-1 rounded-[14px] border border-[#e8ebe6] bg-white px-5 py-4"
+          className="flex flex-col gap-1 rounded-2xl border border-border bg-card px-5 py-4"
         >
           <span
             className={cn(
-              "font-display inline-block text-2xl font-bold leading-none",
+              "inline-block text-2xl font-semibold leading-none",
               kpi.valueColor,
             )}
           >
             {kpi.value}
           </span>
-          <span className="font-sans inline-block text-xs font-medium leading-normal text-[#8a948d]">
+          <span className="font-sans inline-block text-xs font-medium leading-normal text-muted-foreground">
             {kpi.label}
           </span>
           <span

@@ -6,13 +6,12 @@ import type { Dept } from "@/lib/data"
 
 type DepartmentsSectionProps = {
   departments?: Dept[]
-  onViewAll?: () => void
   onDeptAction?: (id: string, action: string) => void
 }
 
 const INITIAL_SHOW = 4
 
-export function DepartmentsSection({ departments = [], onViewAll, onDeptAction }: DepartmentsSectionProps) {
+export function DepartmentsSection({ departments = [], onDeptAction }: DepartmentsSectionProps) {
   const [showAll, setShowAll] = React.useState(false)
   const visible = showAll ? departments : departments.slice(0, INITIAL_SHOW)
 
@@ -20,10 +19,10 @@ export function DepartmentsSection({ departments = [], onViewAll, onDeptAction }
     <section className="flex w-full flex-col gap-4">
       <div className="flex items-center justify-between">
         <div className="flex flex-col gap-1">
-          <h2 className="font-display inline-block text-lg font-semibold leading-normal text-[#1f2a26]">
+          <h2 className="text-h3">
             Departments
           </h2>
-          <p className="font-sans inline-block text-[12.5px] leading-normal text-[#8a948d]">
+          <p className="font-sans inline-block text-[12.5px] leading-normal text-muted-foreground">
             {departments.length} departments · {departments.reduce((s, d) => s + d.teams, 0)} teams
           </p>
         </div>
@@ -33,16 +32,16 @@ export function DepartmentsSection({ departments = [], onViewAll, onDeptAction }
             onClick={() => setShowAll((v) => !v)}
             className="flex items-center gap-1.5"
           >
-            <span className="font-sans inline-block text-[13px] font-semibold leading-normal text-[#2f6f61]">
+            <span className="font-sans inline-block text-[13px] font-semibold leading-normal text-primary">
               {showAll ? "Show less" : "View all"}
             </span>
-            <ChevronRight className={cn("size-[15px] text-[#2f6f61] transition-transform", showAll && "rotate-90")} strokeWidth={2} />
+            <ChevronRight className={cn("size-[15px] text-primary transition-transform", showAll && "rotate-90")} strokeWidth={2} />
           </button>
         )}
       </div>
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {visible.map((dept) => (
-          <DeptCard key={dept.code} dept={dept} onAction={onDeptAction} />
+          <DeptCard key={dept.id} dept={dept} onAction={onDeptAction} />
         ))}
       </div>
     </section>
@@ -64,7 +63,7 @@ function DeptCard({ dept, onAction }: { dept: Dept; onAction?: (id: string, acti
   }, [open])
 
   return (
-    <div ref={ref} className="relative flex w-full flex-col gap-4 rounded-2xl border border-[#edeae3] bg-white p-5 shadow-[0px_2px_10px_rgba(47,111,97,0.05)]">
+    <div ref={ref} className="relative flex w-full flex-col gap-4 rounded-2xl border border-border bg-card p-5 shadow-card">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div
@@ -75,7 +74,7 @@ function DeptCard({ dept, onAction }: { dept: Dept; onAction?: (id: string, acti
           >
             <span
               className={cn(
-                "font-sans text-[13px] font-bold leading-normal",
+                "font-sans text-[13px] font-semibold leading-normal",
                 dept.iconText,
               )}
             >
@@ -83,10 +82,10 @@ function DeptCard({ dept, onAction }: { dept: Dept; onAction?: (id: string, acti
             </span>
           </div>
           <div className="flex flex-col gap-0.5">
-            <span className="font-sans inline-block text-[14.5px] font-semibold leading-normal text-[#1f2a26]">
+            <span className="font-sans inline-block text-[14.5px] font-semibold leading-normal text-foreground">
               {dept.name}
             </span>
-            <span className="font-sans inline-block text-[11.5px] leading-normal text-[#8a948d]">
+            <span className="font-sans inline-block text-[11.5px] leading-normal text-muted-foreground">
               {dept.sub}
             </span>
           </div>
@@ -95,32 +94,46 @@ function DeptCard({ dept, onAction }: { dept: Dept; onAction?: (id: string, acti
           <button
             type="button"
             aria-label={`More options for ${dept.name}`}
+            aria-haspopup="menu"
+            aria-expanded={open}
             onClick={() => setOpen((v) => !v)}
-            className="text-[#b0b7af]"
+            onKeyDown={(e) => {
+              if (e.key === "Escape" && open) {
+                e.stopPropagation()
+                setOpen(false)
+              }
+            }}
+            className="text-muted-foreground"
           >
             <Ellipsis className="size-4" strokeWidth={2} />
           </button>
           {open && (
-            <div className="absolute right-0 top-full z-50 mt-1 w-36 rounded-xl border border-[#edeae3] bg-white py-1 shadow-lg">
+            <div
+              role="menu"
+              onKeyDown={(e) => {
+                if (e.key === "Escape") setOpen(false)
+              }}
+              className="absolute right-0 top-full z-50 mt-1 w-36 rounded-xl border border-border bg-card py-1 shadow-lg"
+            >
               <button
                 type="button"
-                onClick={() => { setOpen(false); onAction?.(dept.code, "view") }}
-                className="flex w-full items-center gap-2 px-3 py-2 text-left font-sans text-[13px] text-[#42504a] hover:bg-[#faf9f6]"
+                onClick={() => { setOpen(false); onAction?.(dept.id, "view") }}
+                className="flex w-full items-center gap-2 px-3 py-2 text-left font-sans text-[13px] text-secondary-foreground hover:bg-muted"
               >
                 View
               </button>
               <button
                 type="button"
-                onClick={() => { setOpen(false); onAction?.(dept.code, "edit") }}
-                className="flex w-full items-center gap-2 px-3 py-2 text-left font-sans text-[13px] text-[#42504a] hover:bg-[#faf9f6]"
+                onClick={() => { setOpen(false); onAction?.(dept.id, "edit") }}
+                className="flex w-full items-center gap-2 px-3 py-2 text-left font-sans text-[13px] text-secondary-foreground hover:bg-muted"
               >
                 Edit
               </button>
-              <div className="mx-2 my-1 h-px bg-[#edeae3]" />
+              <div className="mx-2 my-1 h-px bg-border" />
               <button
                 type="button"
-                onClick={() => { setOpen(false); onAction?.(dept.code, "delete") }}
-                className="flex w-full items-center gap-2 px-3 py-2 text-left font-sans text-[13px] text-[#c4553a] hover:bg-[#faf9f6]"
+                onClick={() => { setOpen(false); onAction?.(dept.id, "delete") }}
+                className="flex w-full items-center gap-2 px-3 py-2 text-left font-sans text-[13px] text-foreground hover:bg-muted"
               >
                 <Trash2 className="size-3.5" strokeWidth={2} />
                 Delete
@@ -135,20 +148,20 @@ function DeptCard({ dept, onAction }: { dept: Dept; onAction?: (id: string, acti
         <Stat
           value={String(dept.open)}
           label="Open"
-          valueClass="text-[#b96a2c]"
+          valueClass="text-secondary-foreground"
         />
       </div>
-      <div className="flex items-center gap-2.5 border-t border-t-[#f1eee8] px-0 pb-0 pt-3">
-        <div className="flex size-[30px] items-center justify-center rounded-full bg-[#2f6f611f]">
-          <span className="font-sans text-[11px] font-bold leading-normal text-[#2f6f61]">
+      <div className="flex items-center gap-2.5 border-t border-t-border px-0 pb-0 pt-3">
+        <div className="flex size-[30px] items-center justify-center rounded-full bg-foreground/10">
+          <span className="font-sans text-[11px] font-semibold leading-normal text-primary">
             {dept.leadInit}
           </span>
         </div>
         <div className="flex flex-col">
-          <span className="font-sans inline-block text-[12.5px] font-semibold leading-normal text-[#42504a]">
+          <span className="font-sans inline-block text-[12.5px] font-semibold leading-normal text-secondary-foreground">
             {dept.leadName}
           </span>
-          <span className="font-sans inline-block text-[11px] leading-normal text-[#8a948d]">
+          <span className="font-sans inline-block text-[11px] leading-normal text-muted-foreground">
             {dept.leadRole}
           </span>
         </div>
@@ -170,13 +183,13 @@ function Stat({
     <div className="flex flex-col gap-0.5">
       <span
         className={cn(
-          "font-sans text-base font-bold text-[#1f2a26]",
+          "font-sans text-base font-semibold text-foreground",
           valueClass,
         )}
       >
         {value}
       </span>
-      <span className="font-sans inline-block text-[11px] leading-normal text-[#8a948d]">
+      <span className="font-sans inline-block text-[11px] leading-normal text-muted-foreground">
         {label}
       </span>
     </div>

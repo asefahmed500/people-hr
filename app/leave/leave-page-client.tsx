@@ -2,10 +2,22 @@
 
 import * as React from "react"
 
-import { STORAGE_KEYS, defaultLeaveStore, defaultNotificationsStore, leaveTypeLabel, newNotification, type LeaveRequest, type LeaveStore, type LeaveType, type NotificationsStore, type Notification } from "@/lib/data"
-import { useMockStore } from "@/hooks/use-mock-store"
-import { onAction } from "@/lib/command-actions"
+import {
+  defaultLeaveStore,
+  defaultEmployees,
+  leaveTypeLabel,
+  adjustBalance,
+  type LeaveRequest,
+  type LeaveStore,
+  type LeaveType,
+  type Employee,
+} from "@/lib/data"
+import { useApiStore } from "@/hooks/use-api-store"
+import { useAuth } from "@/hooks/use-auth"
+import { Skeleton } from "@/components/ui/skeleton"
+import { onAction, consumePendingAction } from "@/lib/command-actions"
 import { notify } from "@/lib/toast"
+import { exportToCsv } from "@/lib/export"
 import { cn } from "@/lib/utils"
 import { z } from "zod"
 import {
@@ -28,60 +40,81 @@ const requestSchema = z.object({
   startDate: z.string().min(1, "Pick a start date"),
   endDate: z.string().min(1, "Pick an end date"),
   reason: z.string().min(2, "Add a brief reason"),
-}).refine((d) => d.endDate >= d.startDate, {
+  halfDay: z.boolean(),
+}).refine((d) => (d.halfDay ? true : d.endDate >= d.startDate), {
   path: ["endDate"],
   message: "End date must be on or after the start date",
 })
 
 const pillStyles: Record<LeaveType, { bg: string; text: string; label: string }> = {
-  vac: { bg: "bg-[#c14d6d1a]", text: "text-[#c14d6d]", label: "Vac" },
-  sick: { bg: "bg-[#64748b1a]", text: "text-[#64748b]", label: "Sick" },
-  pers: { bg: "bg-[#d98a2b1a]", text: "text-[#d98a2b]", label: "Pers" },
-  par: { bg: "bg-[#42504a1a]", text: "text-[#42504a]", label: "Par" },
+  vac: { bg: "bg-primary/10", text: "text-primary", label: "Vac" },
+  sick: { bg: "bg-secondary-foreground/10", text: "text-secondary-foreground", label: "Sick" },
+  pers: { bg: "bg-muted-foreground/10", text: "text-muted-foreground", label: "Pers" },
+  par: { bg: "bg-foreground/10", text: "text-foreground", label: "Par" },
+}
+
+const typeDot: Record<LeaveType, string> = {
+  vac: "bg-primary",
+  sick: "bg-secondary-foreground",
+  pers: "bg-muted-foreground",
+  par: "bg-foreground",
 }
 
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 
 export function LeavePageClient() {
-  const { state: store, setState: setStore } = useMockStore<LeaveStore>(
-    STORAGE_KEYS.leave,
+  const { state: store, setState: setStore, hydrated: leaveHydrated } = useApiStore<LeaveStore>(
+    "/api/store/leave",
     () => defaultLeaveStore,
   )
-  const { setState: setNotifs } = useMockStore<NotificationsStore>(
-    STORAGE_KEYS.notifications,
-    () => defaultNotificationsStore,
+  const { setState: setEmployees, hydrated: employeesHydrated } = useApiStore<Employee[]>(
+    "/api/store/employees",
+    () => defaultEmployees,
   )
-  const addNotification = (n: Partial<Notification> & { title: string; description: string }) => {
-    const notification = newNotification(n)
-    setNotifs((prev) => ({ items: [notification, ...prev.items] }))
-  }
+  const { user } = useAuth()
+  // Managers without a department are self-scoped on the server, so they get
+  // the employee controls (edit/cancel), not approve/decline.
+  const canManage =
+    user?.role === "admin" || (user?.role === "manager" && !!user?.department)
+  const hydrated = leaveHydrated && employeesHydrated
   const [monthOffset, setMonthOffset] = React.useState(0)
   const [daySheetDate, setDaySheetDate] = React.useState<string | null>(null)
   const [requestOpen, setRequestOpen] = React.useState(false)
+  const [editingRequest, setEditingRequest] = React.useState<LeaveRequest | null>(null)
 
-  React.useEffect(
-    () =>
-      onAction((id) => {
-        if (id === "request-leave") setRequestOpen(true)
-      }),
-    [],
-  )
+  const requester = {
+    id: user?.id ?? "e-asef",
+    name: user?.name ?? "Asef Ahmed",
+    initials: user?.initials ?? "AA",
+  }
 
-  const base = new Date(2025, 1, 18)
-  const monthDate = new Date(2025, 1 + monthOffset, 1)
+  React.useEffect(() => {
+    const off = onAction((id) => {
+      if (id === "request-leave") setRequestOpen(true)
+    })
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (consumePendingAction("request-leave")) setRequestOpen(true)
+    return off
+  }, [])
+
+  const now = new Date()
+  const baseYear = now.getFullYear()
+  const baseMonth = now.getMonth()
+  const monthDate = new Date(baseYear, baseMonth + monthOffset, 1)
   const monthLabel = monthDate.toLocaleDateString("en-US", {
     month: "long",
     year: "numeric",
   })
+  const monthPrefix = toISO(monthDate).slice(0, 7)
 
   const firstWeekday = (monthDate.getDay() + 6) % 7
-  const daysInMonth = new Date(2025, 2 + monthOffset, 0).getDate()
-  const todayISO = toISO(base)
+  const daysInMonth = new Date(baseYear, baseMonth + monthOffset + 1, 0).getDate()
+  const todayISO = toISO(now)
 
   const cells: { day: number | null; iso: string | null }[] = []
   for (let i = 0; i < firstWeekday; i += 1) cells.push({ day: null, iso: null })
   for (let d = 1; d <= daysInMonth; d += 1) {
-    const iso = toISO(new Date(2025, 1 + monthOffset, d))
+    const iso = toISO(new Date(baseYear, baseMonth + monthOffset, d))
     cells.push({ day: d, iso })
   }
   while (cells.length % 7 !== 0) cells.push({ day: null, iso: null })
@@ -92,47 +125,109 @@ export function LeavePageClient() {
     )
 
   const onApprove = (id: string) => {
+    const req = store.requests.find((r) => r.id === id)
+    if (!req || req.status !== "pending") return
     setStore((prev) => ({
       ...prev,
       requests: prev.requests.map((r) =>
         r.id === id ? { ...r, status: "approved" as const } : r,
       ),
+      // Deduct from the balance only when actually approved.
+      balances: adjustBalance(prev.balances, req, req.days),
     }))
-    notify.success("Leave approved")
-    const req = store.requests.find((r) => r.id === id)
-    if (req) addNotification({ type: "leave_approved", title: "Leave approved", description: `${req.employeeName}'s leave approved`, href: "/leave" })
+    // Only mark the employee "on leave" if the approved window covers today —
+    // approving a past or future-dated request must not flip the status forever.
+    if (todayISO >= req.startDate && todayISO <= req.endDate) {
+      setEmployees((prev) =>
+        prev.map((e) => (e.id === req.employeeId ? { ...e, status: "leave" as const } : e)),
+      )
+    }
+    notify.success("Leave approved", `Approved ${req.employeeName}'s ${req.days}-day request.`)
+
   }
 
   const onDecline = (id: string) => {
+    const req = store.requests.find((r) => r.id === id)
+    if (!req || req.status !== "pending") return
     setStore((prev) => ({
       ...prev,
       requests: prev.requests.map((r) =>
         r.id === id ? { ...r, status: "declined" as const } : r,
       ),
     }))
-    notify.info("Leave declined")
-    const req = store.requests.find((r) => r.id === id)
-    if (req) addNotification({ type: "leave_declined", title: "Leave declined", description: `${req.employeeName}'s leave declined` })
+    notify.info("Leave declined", `Declined ${req.employeeName}'s request.`)
+
   }
 
   const pending = store.requests.filter((r) => r.status === "pending")
+
+  const isOwn = (req: LeaveRequest) =>
+    req.employeeId === requester.id || req.employeeName === requester.name
+
+  const handleCancelRequest = (id: string) => {
+    const req = store.requests.find((r) => r.id === id)
+    if (!req || req.status !== "pending" || !isOwn(req)) return
+    setStore((prev) => ({
+      ...prev,
+      requests: prev.requests.filter((r) => r.id !== id),
+    }))
+    notify.info("Request cancelled", `Removed ${req.employeeName}'s ${req.days}-day request.`)
+
+  }
+
+  const handleSubmitEdit = (updated: LeaveRequest) => {
+    setStore((prev) => ({
+      ...prev,
+      requests: prev.requests.map((r) => (r.id === updated.id ? updated : r)),
+    }))
+    notify.success("Request updated", `${updated.employeeName}: ${updated.days} day(s)`)
+    setEditingRequest(null)
+  }
+
   const dayRequests = daySheetDate ? requestsForDay(daySheetDate) : []
+
+  if (!hydrated) {
+    return (
+      <>
+        <Skeleton className="h-12 w-full rounded-2xl" />
+        <Skeleton className="h-20 w-full rounded-2xl" />
+        <Skeleton className="h-[420px] w-full rounded-2xl" />
+      </>
+    )
+  }
 
   return (
     <>
-      <LeaveHeader onRequestClick={() => setRequestOpen(true)} monthLabel={monthLabel} />
+      <LeaveHeader
+        onRequestClick={() => setRequestOpen(true)}
+        monthLabel={monthLabel}
+        dateLabel={`${now.toLocaleDateString("en-US", { weekday: "long", day: "numeric", month: "long", year: "numeric" })} · Time-off requests, balances and coverage across all teams`}
+        onExport={() => {
+          exportToCsv("leave-requests", store.requests, [
+            { key: "employeeName", label: "Employee" },
+            { key: "type", label: "Type" },
+            { key: "status", label: "Status" },
+            { key: "startDate", label: "Start" },
+            { key: "endDate", label: "End" },
+            { key: "days", label: "Days" },
+          ])
+          notify.success("Leave exported", `${store.requests.length} requests downloaded as CSV.`)
+        }}
+      />
       <LeaveKpiStrip
-        onLeaveToday={store.requests.filter((r) => inRange(r, todayISO)).length}
+        onLeaveToday={store.requests.filter((r) => r.status === "approved" && inRange(r, todayISO)).length}
         pending={pending.length}
-        approvedFeb={store.requests.filter((r) => r.status === "approved").length}
-        sickToday={store.requests.filter((r) => r.type === "sick" && inRange(r, todayISO)).length}
+        approvedThisMonth={store.requests.filter(
+          (r) => r.status === "approved" && r.startDate.startsWith(monthPrefix),
+        ).length}
+        sickToday={store.requests.filter((r) => r.status === "approved" && r.type === "sick" && inRange(r, todayISO)).length}
       />
 
       <div className="flex flex-col gap-5 lg:flex-row lg:items-start">
-        <div className="flex flex-1 flex-col gap-4 overflow-clip rounded-[18px] border border-[#ece9e2] bg-white p-4 sm:p-6">
+        <div className="flex flex-1 flex-col gap-4 overflow-clip rounded-2xl border border-border bg-card p-4 sm:p-6">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
-              <span className="font-display inline-block text-[17px] font-semibold leading-normal text-[#1f2a26]">
+              <span className="text-h3">
                 {monthLabel}
               </span>
               <div className="flex items-center gap-1">
@@ -140,32 +235,25 @@ export function LeavePageClient() {
                   type="button"
                   aria-label="Previous month"
                   onClick={() => setMonthOffset((m) => m - 1)}
-                  className="flex size-7 items-center justify-center rounded-lg border border-[#edeae3] bg-white"
+                  className="flex size-7 items-center justify-center rounded-lg border border-border bg-card"
                 >
-                  <ChevronLeft className="size-4 text-[#6b7770]" strokeWidth={2} />
+                  <ChevronLeft className="size-4 text-secondary-foreground" strokeWidth={2} />
                 </button>
                 <button
                   type="button"
                   aria-label="Next month"
                   onClick={() => setMonthOffset((m) => m + 1)}
-                  className="flex size-7 items-center justify-center rounded-lg border border-[#edeae3] bg-white"
+                  className="flex size-7 items-center justify-center rounded-lg border border-border bg-card"
                 >
-                  <ChevronRight className="size-4 text-[#6b7770]" strokeWidth={2} />
+                  <ChevronRight className="size-4 text-secondary-foreground" strokeWidth={2} />
                 </button>
               </div>
             </div>
             <div className="flex items-center gap-4">
-              {(["vac", "sick", "pers"] as LeaveType[]).map((t) => (
+              {(["vac", "sick", "pers", "par"] as LeaveType[]).map((t) => (
                 <div key={t} className="flex items-center gap-1.5">
-                  <span
-                    className={cn(
-                      "size-2 shrink-0 rounded-full",
-                      t === "vac" && "bg-[#c14d6d]",
-                      t === "sick" && "bg-[#64748b]",
-                      t === "pers" && "bg-[#d98a2b]",
-                    )}
-                  />
-                  <span className="font-sans text-[11px] leading-normal text-[#6b7770]">
+                  <span className={cn("size-2 shrink-0 rounded-full", typeDot[t])} />
+                  <span className="font-sans text-[11px] leading-normal text-secondary-foreground">
                     {leaveTypeLabel[t]}
                   </span>
                 </div>
@@ -176,7 +264,7 @@ export function LeavePageClient() {
           <div className="grid grid-cols-7 gap-1">
             {WEEKDAYS.map((day) => (
               <div key={day} className="flex justify-center">
-                <span className="font-sans text-[10px] font-semibold uppercase leading-normal tracking-[0.25px] text-[#8a948d]">
+                <span className="font-sans text-[10px] font-semibold uppercase leading-normal tracking-[0.25px] text-muted-foreground">
                   {day}
                 </span>
               </div>
@@ -186,7 +274,7 @@ export function LeavePageClient() {
                 return (
                   <div
                     key={idx}
-                    className="min-h-[64px] rounded-[10px] border border-[#f1eee8] bg-[#faf9f6] p-[5px]"
+                    className="min-h-[64px] rounded-lg border border-border bg-muted p-[5px]"
                   />
                 )
               }
@@ -198,16 +286,16 @@ export function LeavePageClient() {
                   type="button"
                   onClick={() => setDaySheetDate(cell.iso)}
                   className={cn(
-                    "relative flex min-h-[64px] flex-col gap-[3px] rounded-[10px] border p-[5px] text-left",
+                    "relative flex min-h-[64px] flex-col gap-[3px] rounded-lg border p-[5px] text-left",
                     isToday
-                      ? "border-[#c14d6d] bg-[#c14d6d1a]"
-                      : "border-[#f1eee8] bg-white hover:border-[#e3ded4]",
+                      ? "border-primary bg-foreground/10"
+                      : "border-border bg-card hover:border-border",
                   )}
                 >
                   <span
                     className={cn(
                       "font-sans text-[11px] font-medium leading-normal",
-                      isToday ? "font-semibold text-[#c14d6d]" : "text-[#8a948d]",
+                      isToday ? "font-semibold text-secondary-foreground" : "text-muted-foreground",
                     )}
                   >
                     {cell.day}
@@ -234,7 +322,7 @@ export function LeavePageClient() {
                     )
                   })}
                   {dayReqs.length > 2 ? (
-                    <span className="font-sans text-[9px] font-semibold text-[#8a948d]">
+                    <span className="font-sans text-[9px] font-semibold text-muted-foreground">
                       +{dayReqs.length - 2} more
                     </span>
                   ) : null}
@@ -246,30 +334,46 @@ export function LeavePageClient() {
 
         <div className="flex w-full flex-col gap-5 lg:w-[340px] lg:shrink-0">
           <PendingRequests
-            requests={store.requests}
-            onApprove={onApprove}
-            onDecline={onDecline}
+            requests={pending}
+            onApprove={canManage ? onApprove : undefined}
+            onDecline={canManage ? onDecline : undefined}
+            onCancel={
+              canManage
+                ? undefined
+                : (id) => {
+                    const r = store.requests.find((x) => x.id === id)
+                    if (r && isOwn(r)) handleCancelRequest(id)
+                  }
+            }
+            onEdit={
+              canManage
+                ? undefined
+                : (id) => {
+                    const r = store.requests.find((x) => x.id === id)
+                    if (r && isOwn(r) && r.status === "pending") setEditingRequest(r)
+                  }
+            }
           />
-          <BalanceByType balances={store.balances["e-asef"]} />
+          <BalanceByType balances={store.balances[requester.id]} />
         </div>
       </div>
 
       <Sheet open={!!daySheetDate} onOpenChange={(o) => !o && setDaySheetDate(null)}>
         <SheetContent
           side="right"
-          className="w-full gap-4 border-l border-[#ece9e2] bg-white p-6 sm:max-w-[420px]"
+          className="w-full gap-4 border-l border-border bg-card p-6 sm:max-w-[420px]"
         >
           <SheetHeader>
-            <SheetTitle className="font-display text-[18px] font-semibold text-[#1f2a26]">
+            <SheetTitle className="text-h4">
               {daySheetDate
-                ? new Date(daySheetDate).toLocaleDateString("en-US", {
+                ? parseISODate(daySheetDate).toLocaleDateString("en-US", {
                     weekday: "long",
                     month: "long",
                     day: "numeric",
                   })
                 : ""}
             </SheetTitle>
-            <SheetDescription className="font-sans text-[12.5px] text-[#8a948d]">
+            <SheetDescription className="font-sans text-[12.5px] text-muted-foreground">
               {dayRequests.length === 0
                 ? "No leave scheduled."
                 : `${dayRequests.length} on leave.`}
@@ -277,7 +381,7 @@ export function LeavePageClient() {
           </SheetHeader>
           <div className="flex flex-col gap-2.5">
             {dayRequests.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-[#edeae3] bg-[#faf9f6] px-4 py-6 text-center font-sans text-[12.5px] text-[#8a948d]">
+              <div className="rounded-xl border border-dashed border-border bg-muted px-4 py-6 text-center font-sans text-[12.5px] text-muted-foreground">
                 Quiet day. Nothing scheduled.
               </div>
             ) : (
@@ -286,18 +390,18 @@ export function LeavePageClient() {
                 return (
                   <div
                     key={r.id}
-                    className="flex items-center gap-3 rounded-xl border border-[#edeae3] bg-[#faf9f6] p-3"
+                    className="flex items-center gap-3 rounded-xl border border-border bg-muted p-3"
                   >
-                    <div className="flex size-8 items-center justify-center rounded-full bg-[#2f6f611a]">
-                      <span className="font-sans text-[11px] font-semibold text-[#2f6f61]">
+                    <div className="flex size-8 items-center justify-center rounded-full bg-foreground/10">
+                      <span className="font-sans text-[11px] font-semibold text-primary">
                         {r.initials}
                       </span>
                     </div>
                     <div className="flex min-w-0 flex-1 flex-col">
-                      <span className="font-sans text-[12.5px] font-semibold text-[#1f2a26]">
+                      <span className="font-sans text-[12.5px] font-semibold text-foreground">
                         {r.employeeName}
                       </span>
-                      <span className="font-sans text-[11px] text-[#8a948d]">
+                      <span className="font-sans text-[11px] text-muted-foreground">
                         {leaveTypeLabel[r.type]} · {r.reason}
                       </span>
                     </div>
@@ -321,30 +425,26 @@ export function LeavePageClient() {
       <RequestLeaveDialog
         open={requestOpen}
         onOpenChange={setRequestOpen}
+        requester={requester}
+        balances={store.balances[requester.id]}
+        existing={store.requests}
         onSubmit={(req) => {
-          setStore((prev) => {
-            const typeKey: Record<string, "annual" | "sick" | "personal" | "parental"> = {
-              vac: "annual",
-              sick: "sick",
-              pers: "personal",
-              par: "parental",
-            }
-            const key = typeKey[req.type]
-            const userBal = prev.balances["e-asef"]
-            return {
-              ...prev,
-              requests: [req, ...prev.requests],
-              balances: {
-                ...prev.balances,
-                "e-asef": userBal
-                  ? { ...userBal, [key]: { ...userBal[key], used: userBal[key].used + req.days } }
-                  : userBal,
-              },
-            }
-          })
+          setStore((prev) => ({
+            ...prev,
+            requests: [req, ...prev.requests],
+          }))
           notify.success("Leave requested", `${req.employeeName}: ${req.days} day(s)`)
-          addNotification({ type: "leave_requested", title: "Leave requested", description: `${req.employeeName} requested ${req.days} day(s) of ${leaveTypeLabel[req.type]}`, href: "/leave" })
+
         }}
+      />
+      <RequestLeaveDialog
+        open={!!editingRequest}
+        onOpenChange={(o) => !o && setEditingRequest(null)}
+        requester={requester}
+        initial={editingRequest ?? undefined}
+        balances={store.balances[requester.id]}
+        existing={store.requests}
+        onSubmit={handleSubmitEdit}
       />
     </>
   )
@@ -353,19 +453,53 @@ export function LeavePageClient() {
 function RequestLeaveDialog({
   open,
   onOpenChange,
+  requester,
   onSubmit,
+  initial,
+  balances,
+  existing = [],
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
+  requester: { id: string; name: string; initials: string }
   onSubmit: (req: LeaveRequest) => void
+  initial?: LeaveRequest
+  balances?: { [key in "annual" | "sick" | "personal" | "parental"]: { used: number; total: number } }
+  existing?: LeaveRequest[]
 }) {
+  const isEdit = !!initial
   const [submitting, setSubmitting] = React.useState(false)
+  const [tomorrow] = React.useState(() => toISO(new Date(Date.now() + 86400_000)))
+  const [plusTwo] = React.useState(() => toISO(new Date(Date.now() + 3 * 86400_000)))
   const form = useForm({
-    type: "vac",
-    startDate: "2025-03-10",
-    endDate: "2025-03-12",
-    reason: "",
+    type: initial ? (initial.type as string) : "vac",
+    startDate: initial?.startDate ?? tomorrow,
+    endDate: initial?.endDate ?? plusTwo,
+    reason: initial?.reason ?? "",
+    halfDay: initial?.halfDay ?? false,
   })
+  const halfDay = form.values.halfDay
+
+  // Always-mounted dialog: re-sync the form every time it opens so edits
+  // pre-fill the selected request and cancelled drafts don't leak back in.
+  React.useEffect(() => {
+    if (!open) return
+    form.reset({
+      type: initial ? (initial.type as string) : "vac",
+      startDate: initial?.startDate ?? tomorrow,
+      endDate: initial?.endDate ?? plusTwo,
+      reason: initial?.reason ?? "",
+      halfDay: initial?.halfDay ?? false,
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open])
+
+  // Live balance hint for the selected type.
+  const bucket =
+    ({ vac: "annual", sick: "sick", pers: "personal", par: "parental" } as const)[
+      form.values.type as LeaveType
+    ] ?? "annual"
+  const remaining = balances ? (balances[bucket]?.total ?? 0) - (balances[bucket]?.used ?? 0) : null
 
   const onConfirm = () => {
     const parsed = requestSchema.safeParse(form.values)
@@ -378,31 +512,61 @@ function RequestLeaveDialog({
       form.setErrors(fieldErrors as never)
       return
     }
+    const days = parsed.data.halfDay
+      ? 0.5
+      : (new Date(parsed.data.endDate).getTime() -
+            new Date(parsed.data.startDate).getTime()) /
+            86400_000 +
+          1
+    if (days > (remaining ?? days)) {
+      notify.error(
+        "Not enough balance",
+        `You have ${remaining} ${bucket} day${remaining === 1 ? "" : "s"} remaining.`,
+      )
+      return
+    }
+    // Overlap guard against the signer's other live requests.
+    const overlaps = existing.some(
+      (r) =>
+        r.id !== initial?.id &&
+        r.employeeId === requester.id &&
+        r.status !== "declined" &&
+        parsed.data.startDate <= r.endDate &&
+        r.startDate <= (parsed.data.halfDay ? parsed.data.startDate : parsed.data.endDate),
+    )
+    if (overlaps) {
+      notify.error("Overlapping dates", "You already have a request that covers these dates.")
+      form.setErrors({ startDate: "Overlaps an existing request" } as never)
+      return
+    }
     setSubmitting(true)
     try {
-      const days =
-        (new Date(parsed.data.endDate).getTime() -
-          new Date(parsed.data.startDate).getTime()) /
-          86400_000 +
-        1
-      onSubmit({
-        id: `lr-${Math.random().toString(36).slice(2, 9)}`,
-        employeeId: "e-asef",
-        employeeName: "Asef Ahmed",
-        initials: "AA",
-        type: parsed.data.type as LeaveType,
-        status: "pending",
-        startDate: parsed.data.startDate,
-        endDate: parsed.data.endDate,
-        days,
-        reason: parsed.data.reason,
-      })
-      form.reset({
-        type: "vac",
-        startDate: "2025-03-10",
-        endDate: "2025-03-12",
-        reason: "",
-      })
+      const endDate = parsed.data.halfDay ? parsed.data.startDate : parsed.data.endDate
+      onSubmit(
+        isEdit && initial
+          ? {
+              ...initial,
+              type: parsed.data.type as LeaveType,
+              startDate: parsed.data.startDate,
+              endDate,
+              days,
+              reason: parsed.data.reason,
+              halfDay: parsed.data.halfDay || undefined,
+            }
+          : {
+              id: `lr-${Math.random().toString(36).slice(2, 9)}`,
+              employeeId: requester.id,
+              employeeName: requester.name,
+              initials: requester.initials,
+              type: parsed.data.type as LeaveType,
+              status: "pending",
+              startDate: parsed.data.startDate,
+              endDate,
+              days,
+              reason: parsed.data.reason,
+              halfDay: parsed.data.halfDay || undefined,
+            },
+      )
       onOpenChange(false)
     } finally {
       setSubmitting(false)
@@ -413,9 +577,13 @@ function RequestLeaveDialog({
     <ActionDialog
       open={open}
       onOpenChange={onOpenChange}
-      title="Request leave"
-      description="Your request will be sent to your manager for approval."
-      submitLabel="Submit request"
+      title={isEdit ? "Edit leave request" : "Request leave"}
+      description={
+        isEdit
+          ? "Update the details of your pending request."
+          : "Your request will be sent to your manager for approval."
+      }
+      submitLabel={isEdit ? "Save changes" : "Submit request"}
       submitting={submitting}
       onSubmit={onConfirm}
     >
@@ -432,25 +600,56 @@ function RequestLeaveDialog({
           ]}
           required
         />
-        <div className="grid grid-cols-2 gap-3.5">
-          <Field
-            label="Start"
-            type="date"
-            value={form.values.startDate}
-            onChange={(v) => form.setValue("startDate", v)}
-            required
-            error={form.errors.startDate}
-          />
-          <Field
-            label="End"
-            type="date"
-            value={form.values.endDate}
-            onChange={(v) => form.setValue("endDate", v)}
-            required
-            error={form.errors.endDate}
-          />
-        </div>
+        {remaining !== null ? (
+          <label className="flex flex-col gap-[5px]">
+            <span className="font-sans text-xs font-medium leading-normal text-muted-foreground">
+              Remaining balance
+            </span>
+            <span className="flex h-10 items-center rounded-lg border border-border bg-muted px-3 font-sans text-[13.5px] text-secondary-foreground">
+              {remaining} {bucket} day{remaining === 1 ? "" : "s"}
+            </span>
+          </label>
+        ) : (
+          <div />
+        )}
       </div>
+      <div className="grid grid-cols-2 gap-3.5">
+        <Field
+          label="Start"
+          type="date"
+          value={form.values.startDate}
+          onChange={(v) => {
+            form.setValue("startDate", v)
+            if (halfDay) form.setValue("endDate", v)
+          }}
+          required
+          error={form.errors.startDate}
+        />
+        <Field
+          label="End"
+          type="date"
+          value={halfDay ? form.values.startDate : form.values.endDate}
+          onChange={(v) => form.setValue("endDate", v)}
+          required={!halfDay}
+          disabled={halfDay}
+          error={form.errors.endDate}
+        />
+      </div>
+      <label className="flex w-fit cursor-pointer items-center gap-2">
+        <input
+          type="checkbox"
+          checked={halfDay}
+          onChange={(e) => {
+            const checked = e.target.checked
+            form.setValue("halfDay", checked)
+            if (checked) form.setValue("endDate", form.values.startDate)
+          }}
+          className="size-4 rounded border-border accent-foreground"
+        />
+        <span className="font-sans text-[13px] text-secondary-foreground">
+          Half day (0.5 days)
+        </span>
+      </label>
       <TextArea
         label="Reason"
         value={form.values.reason}
@@ -466,6 +665,13 @@ function toISO(d: Date) {
   const m = String(d.getMonth() + 1).padStart(2, "0")
   const day = String(d.getDate()).padStart(2, "0")
   return `${y}-${m}-${day}`
+}
+
+// "YYYY-MM-DD" must be parsed as LOCAL time, not UTC, or the day shifts by one
+// in negative-offset timezones.
+function parseISODate(iso: string): Date {
+  const [y, m, d] = iso.split("-").map(Number)
+  return new Date(y, (m ?? 1) - 1, d ?? 1)
 }
 
 function inRange(r: LeaveRequest, iso: string) {

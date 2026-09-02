@@ -1,43 +1,45 @@
-import { ChevronDown, Plus } from "lucide-react"
+import { Plus } from "lucide-react"
+
+function currentQuarter(): string {
+  const now = new Date()
+  const q = Math.floor(now.getMonth() / 3) + 1
+  return `Q${q} ${now.getFullYear()}`
+}
 
 export function GoalsHeader({
-  onPeriodChange,
   onNewGoal,
 }: {
-  onPeriodChange?: () => void
   onNewGoal?: () => void
 }) {
+  const period = currentQuarter()
   return (
-    <div className="flex w-full items-center justify-between gap-6">
+    <div className="flex w-full flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
       <div className="flex flex-col gap-1">
-        <h1 className="font-sans inline-block text-[28px] font-semibold leading-tight text-[#1f2a26]">
+        <h1 className="text-h1">
           Goals
         </h1>
-        <p className="font-sans inline-block text-[13.5px] leading-normal text-[#8a948d]">
-          Company objectives and key results · Q1 2025 cycle
+        <p className="font-sans inline-block text-[13.5px] leading-normal text-muted-foreground">
+          Company objectives and key results · {period} cycle
         </p>
       </div>
       <div className="flex items-center gap-2.5">
-        <button
-          type="button"
-          onClick={onPeriodChange}
-          className="flex items-center gap-2 rounded-lg border border-[#e8ebe6] bg-white px-3 py-2"
-        >
-          <span className="font-sans text-[13px] font-medium leading-normal text-[#42504a]">
-            Q1 2025
+        <span className="flex items-center rounded-lg border border-border bg-card px-3 py-2">
+          <span className="font-sans text-[13px] font-medium leading-normal text-secondary-foreground">
+            {period}
           </span>
-          <ChevronDown className="size-3.5 text-[#8a948d]" strokeWidth={2} />
-        </button>
-        <button
-          type="button"
-          onClick={onNewGoal}
-          className="flex items-center gap-1.5 rounded-lg bg-[#2f6f61] px-3.5 py-2"
-        >
-          <Plus className="size-3.5 text-white" strokeWidth={2} />
-          <span className="font-sans text-[13px] font-semibold leading-normal text-white">
-            New goal
-          </span>
-        </button>
+        </span>
+        {onNewGoal ? (
+          <button
+            type="button"
+            onClick={onNewGoal}
+            className="flex items-center gap-1.5 rounded-lg gap-1.5 rounded-lg px-3.5 py-2 border border-border bg-gradient-to-b from-white to-[#ececea] shadow-xs transition-colors hover:to-[#e2e2df]"
+          >
+            <Plus className="size-3.5 text-secondary-foreground" strokeWidth={2} />
+            <span className="font-sans text-[13px] font-medium leading-normal text-secondary-foreground">
+              New goal
+            </span>
+          </button>
+        ) : null}
       </div>
     </div>
   )

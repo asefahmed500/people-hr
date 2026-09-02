@@ -1,14 +1,10 @@
 export type ID = string
 
-export type Department =
-  | "Engineering"
-  | "Design"
-  | "Product"
-  | "Sales"
-  | "Marketing"
-  | "People"
-  | "Research"
-  | "Finance"
+export const DEPARTMENTS = [
+  "Engineering", "Design", "Product", "Sales", "Marketing", "People", "Research", "Finance",
+] as const
+
+export type Department = (typeof DEPARTMENTS)[number]
 
 export type LeaveType = "vac" | "sick" | "pers" | "par"
 

@@ -2,11 +2,13 @@
 
 import * as React from "react"
 import { useRouter } from "next/navigation"
+import { Check, X } from "lucide-react"
 
 import {
-  STORAGE_KEYS,
   type LeaveRequest,
   type LeaveStore,
+  defaultLeaveStore,
+  adjustBalance,
   type Employee,
   defaultEmployees,
   type RecruitmentStore,
@@ -15,13 +17,13 @@ import {
   defaultCheckIns,
   type ProjectsStore,
   defaultProjectsStore,
-  defaultNotificationsStore,
-  newNotification,
-  type NotificationsStore,
-  type Notification,
+  type OrganizationStore,
+  defaultOrganizationStore,
 } from "@/lib/data"
-import { useMockStore } from "@/hooks/use-mock-store"
+import { useApiStore } from "@/hooks/use-api-store"
+import { useAuth } from "@/hooks/use-auth"
 import { notify } from "@/lib/toast"
+import { Skeleton } from "@/components/ui/skeleton"
 import { GreetingBanner } from "@/components/dashboard/greeting-banner"
 import { KpiRow } from "@/components/dashboard/kpi-row"
 import { HeadcountChart } from "@/components/dashboard/headcount-chart"
@@ -32,86 +34,123 @@ import { RecruitmentPipeline } from "@/components/dashboard/recruitment-pipeline
 
 export function DashboardPageClient() {
   const router = useRouter()
+  const { user } = useAuth()
+  const todayISO = toISO(new Date())
 
-  const { state: leaveStore, setState: setLeaveStore } = useMockStore<LeaveStore>(
-    STORAGE_KEYS.leave,
-    () => ({
-      requests: [],
-      balances: {},
-    }),
+  const { state: leaveStore, setState: setLeaveStore, hydrated: leaveHydrated } = useApiStore<LeaveStore>(
+    "/api/store/leave",
+    () => defaultLeaveStore,
   )
 
-  const { state: employees } = useMockStore<Employee[]>(
-    STORAGE_KEYS.employees,
+  const { state: employees, setState: setEmployees, hydrated: employeesHydrated } = useApiStore<Employee[]>(
+    "/api/store/employees",
     () => defaultEmployees,
   )
 
-  const { state: recruitment } = useMockStore<RecruitmentStore>(
-    STORAGE_KEYS.recruitment,
+  const { state: recruitment, hydrated: recruitmentHydrated } = useApiStore<RecruitmentStore>(
+    "/api/store/recruitment",
     () => defaultRecruitmentStore,
   )
 
-  const { state: attendance } = useMockStore<AttendanceStore>(
-    STORAGE_KEYS.attendance,
+  const { state: attendance, hydrated: attendanceHydrated } = useApiStore<AttendanceStore>(
+    "/api/store/attendance",
     () => ({ checkIns: defaultCheckIns }),
   )
 
-  const { state: projects } = useMockStore<ProjectsStore>(
-    STORAGE_KEYS.projects,
+  const { state: projects, hydrated: projectsHydrated } = useApiStore<ProjectsStore>(
+    "/api/store/projects",
     () => defaultProjectsStore,
   )
 
-  const { setState: setNotifs } = useMockStore<NotificationsStore>(
-    STORAGE_KEYS.notifications,
-    () => defaultNotificationsStore,
+  const { state: organization, hydrated: organizationHydrated } = useApiStore<OrganizationStore>(
+    "/api/store/organization",
+    () => defaultOrganizationStore,
   )
-  const addNotification = (n: Partial<Notification> & { title: string; description: string }) => {
-    const notification = newNotification(n)
-    setNotifs((prev) => ({ items: [notification, ...prev.items] }))
-  }
+
+  const hydrated =
+    leaveHydrated && employeesHydrated && recruitmentHydrated && attendanceHydrated && projectsHydrated && organizationHydrated
+
+  const canManageLeave = user?.role === "admin" || user?.role === "manager"
 
   const pending = leaveStore.requests.filter((r) => r.status === "pending")
 
   const onApprove = (id: string) => {
+    const req = leaveStore.requests.find((r) => r.id === id)
+    if (!req || req.status !== "pending") return
     setLeaveStore((prev) => ({
       ...prev,
       requests: prev.requests.map((r) =>
         r.id === id ? { ...r, status: "approved" } : r,
       ),
+      balances: adjustBalance(prev.balances, req, req.days),
     }))
-    const req = leaveStore.requests.find((r) => r.id === id)
-    notify.success("Leave approved", req ? `Approved ${req.employeeName}'s request.` : undefined)
-    if (req) addNotification({ type: "leave_approved", title: "Leave approved", description: `${req.employeeName}'s leave approved`, href: "/leave" })
+    // Only mark "on leave" when the approved window actually covers today —
+    // never permanently.
+    if (todayISO >= req.startDate && todayISO <= req.endDate) {
+      setEmployees((prev) =>
+        prev.map((e) => (e.id === req.employeeId ? { ...e, status: "leave" as const } : e)),
+      )
+    }
+    notify.success("Leave approved", `Approved ${req.employeeName}'s ${req.days}-day request.`)
+
   }
 
   const onDecline = (id: string) => {
+    const req = leaveStore.requests.find((r) => r.id === id)
+    if (!req || req.status !== "pending") return
     setLeaveStore((prev) => ({
       ...prev,
       requests: prev.requests.map((r) =>
         r.id === id ? { ...r, status: "declined" } : r,
       ),
     }))
-    const req = leaveStore.requests.find((r) => r.id === id)
-    notify.info("Leave declined", req ? `Declined ${req.employeeName}'s request.` : undefined)
-    if (req) addNotification({ type: "leave_declined", title: "Leave declined", description: `${req.employeeName}'s leave declined` })
+    notify.info("Leave declined", `Declined ${req.employeeName}'s request.`)
+
   }
 
   const onViewAllHires = () => router.push("/employees")
   const onOpenBoard = () => router.push("/recruitment")
   const onOpenAssistant = () => router.push("/assistant")
 
+  if (!hydrated) {
+    return (
+      <div className="flex flex-col gap-4 sm:gap-6">
+        <Skeleton className="h-20 w-full rounded-2xl" />
+        <Skeleton className="h-24 w-full rounded-2xl" />
+        <Skeleton className="h-[300px] w-full rounded-2xl" />
+        <div className="grid w-full grid-cols-1 gap-6 lg:grid-cols-3">
+          <Skeleton className="h-48 rounded-2xl" />
+          <Skeleton className="h-48 rounded-2xl" />
+          <Skeleton className="h-48 rounded-2xl" />
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="flex flex-col gap-4 sm:gap-6">
-      <GreetingBanner employeeCount={employees.length} />
+      <GreetingBanner
+        employeeCount={canManageLeave ? employees.length : undefined}
+        pendingLeave={pending.length}
+        // Department counts come from the organization module, which is
+        // admin-only — managers would otherwise render "0 departments".
+        departmentCount={user?.role === "admin" ? organization.departments.length : undefined}
+      />
       <KpiRow
         employees={employees}
+        attendance={attendance}
         pendingLeave={pending.length}
         openRoles={recruitment.openings.length}
-        projectsCount={projects.tasks.length}
+        interviews={recruitment.candidates.filter((c) => c.stage === "interview").length}
       />
       <div className="flex w-full flex-col gap-6 xl:h-[392px] xl:flex-row">
         <HeadcountChart employees={employees} />
-        <InsightsPanel onOpenAssistant={onOpenAssistant} />
+        <InsightsPanel
+          onOpenAssistant={onOpenAssistant}
+          employees={employees}
+          projects={projects.tasks}
+          candidates={recruitment.candidates}
+        />
       </div>
       <div className="grid w-full grid-cols-1 gap-6 lg:grid-cols-3">
         <AttendanceCard attendance={attendance} employees={employees} />
@@ -119,90 +158,90 @@ export function DashboardPageClient() {
           pending={pending}
           onApprove={onApprove}
           onDecline={onDecline}
+          canManage={canManageLeave}
         />
-        <RecentHires employees={employees} onViewAll={onViewAllHires} />
+        <RecentHires employees={employees} onViewAll={canManageLeave ? onViewAllHires : undefined} />
       </div>
-      <RecruitmentPipeline candidates={recruitment.candidates} openings={recruitment.openings} onOpenBoard={onOpenBoard} />
+      {user?.role === "admin" ? (
+        <RecruitmentPipeline candidates={recruitment.candidates} openings={recruitment.openings} onOpenBoard={onOpenBoard} />
+      ) : null}
     </div>
   )
+}
+
+function toISO(d: Date) {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, "0")
+  const day = String(d.getDate()).padStart(2, "0")
+  return `${y}-${m}-${day}`
 }
 
 function LeaveRequestsCard({
   pending,
   onApprove,
   onDecline,
+  canManage,
 }: {
   pending: LeaveRequest[]
   onApprove: (id: string) => void
   onDecline: (id: string) => void
+  canManage: boolean
 }) {
   return (
-    <div className="flex flex-col gap-3.5 rounded-[18px] border border-[#ece9e2] bg-white p-[22px] shadow-[0px_1px_3px_rgba(31,42,38,0.04),0px_8px_24px_rgba(31,42,38,0.03)]">
+    <div className="flex flex-col gap-3.5 rounded-2xl border border-border bg-card p-[22px] shadow-card">
       <div className="flex items-center justify-between">
-        <h3 className="font-sans inline-block text-[15px] font-semibold leading-normal text-[#1f2a26]">
+        <h3 className="font-sans inline-block text-[15px] font-semibold leading-normal text-foreground">
           Leave requests
         </h3>
-        <span className="inline-block rounded-full bg-[#f4a26129] px-2 py-[3px] font-sans text-[11px] font-semibold leading-normal text-[#d98842]">
+        <span className="inline-block rounded-full bg-foreground/10 px-2 py-[3px] font-sans text-[11px] font-semibold leading-normal text-secondary-foreground">
           {pending.length} pending
         </span>
       </div>
       {pending.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-[#edeae3] bg-[#faf9f6] px-4 py-6 text-center font-sans text-[12.5px] text-[#8a948d]">
+        <div className="rounded-xl border border-dashed border-border bg-muted px-4 py-6 text-center font-sans text-[12.5px] text-muted-foreground">
           No pending requests. You’re all caught up.
         </div>
       ) : (
         <div className="flex flex-col gap-2.5">
           {pending.slice(0, 4).map((req) => (
             <div key={req.id} className="flex items-center gap-[11px]">
-              <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-[#2f6f611a]">
-                <span className="font-sans text-[11px] font-semibold text-[#2f6f61]">
+              <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-foreground/10">
+                <span className="font-sans text-[11px] font-semibold text-primary">
                   {req.initials}
                 </span>
               </div>
               <div className="flex min-w-0 flex-1 flex-col">
-                <span className="font-sans text-[13px] font-semibold leading-normal text-[#1f2a26]">
+                <span className="font-sans text-[13px] font-semibold leading-normal text-foreground">
                   {req.employeeName}
                 </span>
-                <span className="font-sans text-[11.5px] leading-normal text-[#8a948d]">
+                <span className="font-sans text-[11.5px] leading-normal text-muted-foreground">
                   {req.days} day{req.days === 1 ? "" : "s"}
                 </span>
               </div>
-              <button
-                type="button"
-                aria-label={`Approve ${req.employeeName}`}
-                onClick={() => onApprove(req.id)}
-                className="flex size-[30px] shrink-0 items-center justify-center rounded-[9px] bg-[#3bb2731f] text-[#2e9160] hover:bg-[#3bb2732e]"
-              >
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth={2}
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  className="size-[15px]"
-                >
-                  <path d="M5 12l5 5l10 -10" />
-                </svg>
-              </button>
-              <button
-                type="button"
-                aria-label={`Decline ${req.employeeName}`}
-                onClick={() => onDecline(req.id)}
-                className="flex size-[30px] shrink-0 items-center justify-center rounded-[9px] bg-[#e76f511f] text-[#c4553a] hover:bg-[#e76f512e]"
-              >
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth={2}
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  className="size-[15px]"
-                >
-                  <path d="M18 6L6 18M6 6l12 12" />
-                </svg>
-              </button>
+              {canManage ? (
+                <>
+                  <button
+                    type="button"
+                    aria-label={`Approve ${req.employeeName}`}
+                    onClick={() => onApprove(req.id)}
+                    className="flex size-[30px] shrink-0 items-center justify-center rounded-lg bg-foreground/10 text-secondary-foreground hover:bg-foreground/20"
+                  >
+                    <Check className="size-[15px]" strokeWidth={2} />
+                  </button>
+                  <button
+                    type="button"
+                    aria-label={`Decline ${req.employeeName}`}
+                    onClick={() => onDecline(req.id)}
+                    className="flex size-[30px] shrink-0 items-center justify-center rounded-lg bg-foreground/10 text-foreground hover:bg-foreground/20"
+                  >
+                    <X className="size-[15px]" strokeWidth={2} />
+                  </button>
+                </>
+              ) : (
+                <span className="inline-block shrink-0 rounded-full bg-muted px-2.5 py-1 font-sans text-[11px] font-semibold leading-normal text-muted-foreground">
+                  Awaiting approval
+                </span>
+              )}
             </div>
           ))}
         </div>

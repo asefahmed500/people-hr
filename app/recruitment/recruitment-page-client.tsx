@@ -1,10 +1,12 @@
 "use client"
 
 import * as React from "react"
+import { z } from "zod"
 
 import {
   DndContext,
   DragOverlay,
+  KeyboardSensor,
   PointerSensor,
   closestCorners,
   useSensor,
@@ -14,26 +16,34 @@ import {
   type DragEndEvent,
   type DragStartEvent,
 } from "@dnd-kit/core"
-import { ChevronRight, Ellipsis, Plus } from "lucide-react"
+import { sortableKeyboardCoordinates } from "@dnd-kit/sortable"
+import { Ellipsis } from "lucide-react"
 
 import {
-  STORAGE_KEYS,
   defaultRecruitmentStore,
-  defaultNotificationsStore,
-  newNotification,
+  defaultEmployees,
+  defaultBalances,
+  defaultLeaveStore,
+  newEmployee,
+  DEPARTMENTS,
   stageMeta,
   stageOrder,
   type Candidate,
   type CandidateStage,
+  type Opening,
   type RecruitmentStore,
-  type NotificationsStore,
-  type Notification,
+  type Employee,
+  type LeaveStore,
 } from "@/lib/data"
-import { useMockStore } from "@/hooks/use-mock-store"
-import { onAction } from "@/lib/command-actions"
+import { useApiStore } from "@/hooks/use-api-store"
+import { useAuth } from "@/hooks/use-auth"
+import { Skeleton } from "@/components/ui/skeleton"
+import { onAction, consumePendingAction } from "@/lib/command-actions"
 import { notify } from "@/lib/toast"
+import { exportToCsv } from "@/lib/export"
 import { cn } from "@/lib/utils"
 import { ActionDialog } from "@/components/shared/dialog-parts"
+import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { Field, SelectField, useForm } from "@/components/shared/field"
 import { RecruitmentHeader } from "@/components/recruitment/recruitment-header"
 import { RecruitmentKpiStrip } from "@/components/recruitment/recruitment-kpi-strip"
@@ -44,91 +54,194 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 
 export function RecruitmentPageClient() {
-  const { state: store, setState: setStore } = useMockStore<RecruitmentStore>(
-    STORAGE_KEYS.recruitment,
+  const { user } = useAuth()
+  const canWrite = user?.role === "admin"
+  const { state: store, setState: setStore, hydrated: recruitmentHydrated } = useApiStore<RecruitmentStore>(
+    "/api/store/recruitment",
     () => defaultRecruitmentStore,
   )
-  const { setState: setNotifs } = useMockStore<NotificationsStore>(
-    STORAGE_KEYS.notifications,
-    () => defaultNotificationsStore,
-  )
-  const addNotification = (n: Partial<Notification> & { title: string; description: string }) => {
-    const notification = newNotification(n)
-    setNotifs((prev) => ({ items: [notification, ...prev.items] }))
-  }
+  const { state: employees, setState: setEmployees, hydrated: employeesHydrated } = useApiStore<Employee[]>("/api/store/employees", () => defaultEmployees)
+  const { setState: setLeave, hydrated: leaveHydrated } = useApiStore<LeaveStore>("/api/store/leave", () => defaultLeaveStore)
+  const hydrated = recruitmentHydrated && employeesHydrated && leaveHydrated
   const [postOpen, setPostOpen] = React.useState(false)
+  const [candidateOpen, setCandidateOpen] = React.useState(false)
+  const [editingCandidate, setEditingCandidate] = React.useState<Candidate | null>(null)
+  const [closingOpening, setClosingOpening] = React.useState<Opening | null>(null)
   const [activeId, setActiveId] = React.useState<string | null>(null)
+  const [roleFilter, setRoleFilter] = React.useState("all")
+  const [removeTarget, setRemoveTarget] = React.useState<Candidate | null>(null)
 
-  React.useEffect(
-    () =>
-      onAction((id) => {
-        if (id === "post-job") setPostOpen(true)
-      }),
-    [],
-  )
+  React.useEffect(() => {
+    const off = onAction((id) => {
+      if (id === "post-job" && canWrite) setPostOpen(true)
+    })
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (canWrite && consumePendingAction("post-job")) setPostOpen(true)
+    return off
+  }, [canWrite])
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   )
 
   const onDragStart = (e: DragStartEvent) => {
+    if (!canWrite) return
     setActiveId(String(e.active.id))
   }
 
   const onDragEnd = (e: DragEndEvent) => {
+    if (!canWrite) return
     setActiveId(null)
     const { active, over } = e
     if (!over) return
     const overStage = String(over.id) as CandidateStage
     if (!stageOrder.includes(overStage)) return
-    setStore((prev) => ({
-      ...prev,
-      candidates: prev.candidates.map((c) =>
-        c.id === String(active.id) ? { ...c, stage: overStage } : c,
-      ),
-    }))
-    const c = store.candidates.find((x) => x.id === String(active.id))
-    if (c) {
-      notify.success(`${c.name} → ${stageMeta[overStage].label}`)
-      addNotification({ type: "candidate_moved", title: "Candidate moved", description: `${c.name} moved to ${stageMeta[overStage].label}`, href: "/recruitment" })
-    }
+    // Route through moveTo so dropping a candidate on "hired" runs the same
+    // side-effects as the dropdown (employee + leave balance + notification).
+    moveTo(String(active.id), overStage)
   }
 
   const moveTo = (candidateId: string, stage: CandidateStage) => {
+    const c = store.candidates.find((x) => x.id === candidateId)
     setStore((prev) => ({
       ...prev,
-      candidates: prev.candidates.map((c) =>
-        c.id === candidateId ? { ...c, stage } : c,
+      candidates: prev.candidates.map((x) =>
+        x.id === candidateId ? { ...x, stage } : x,
       ),
     }))
+    if (c) {
+      notify.success(`${c.name} → ${stageMeta[stage].label}`)
+      // Hired candidates become employees in the directory + get a leave balance.
+      if (stage === "hired") {
+        // Guard against re-hiring someone who is already hired, and against
+        // creating a duplicate directory row for an existing employee.
+        const alreadyHired = store.candidates.some(
+          (x) => x.id === candidateId && x.stage === "hired",
+        )
+        if (!alreadyHired) {
+          const emp = newEmployee({
+            name: c.name,
+            // No email is known at hire time — leave it empty rather than
+            // fabricating one. It can be filled in via the Employees page.
+            email: "",
+            department: c.department as Employee["department"],
+            role: c.role,
+            location: "Remote",
+            status: "active",
+          })
+          const duplicate = employees.some(
+            (e) => e.name === emp.name || (!!emp.email && e.email === emp.email),
+          )
+          if (!duplicate) {
+            setEmployees((prev) =>
+              prev.some((e) => e.name === emp.name || (!!emp.email && e.email === emp.email))
+                ? prev
+                : [emp, ...prev],
+            )
+            // The balance is keyed by the new employee's id — only seed it
+            // when the directory row was actually added, otherwise a re-hire
+            // of a deduped name would leave an orphan balance entry behind.
+            setLeave((prev) => ({
+              ...prev,
+              balances: { ...prev.balances, [emp.id]: defaultBalances },
+            }))
+            notify.success("Added to directory", `${c.name} is now an employee.`)
+
+          }
+        }
+      }
+    }
+  }
+
+  const removeCandidate = (candidateId: string) => {
     const c = store.candidates.find((x) => x.id === candidateId)
-    if (c) notify.success(`${c.name} → ${stageMeta[stage].label}`)
+    setStore((prev) => ({
+      ...prev,
+      candidates: prev.candidates.filter((x) => x.id !== candidateId),
+    }))
+    if (c) notify.success("Candidate removed", `${c.name} removed from the pipeline.`)
   }
 
   const activeCandidate = store.candidates.find((c) => c.id === activeId) ?? null
+  const roleOptions = React.useMemo(() => {
+    const roles = Array.from(new Set(store.candidates.map((c) => c.role)))
+    return [
+      { value: "all", label: "All roles" },
+      ...roles.map((r) => ({ value: r, label: r })),
+    ]
+  }, [store.candidates])
+
+  const visibleCandidates = React.useMemo(
+    () =>
+      roleFilter === "all"
+        ? store.candidates
+        : store.candidates.filter((c) => c.role === roleFilter),
+    [store.candidates, roleFilter],
+  )
+
+  const handleExport = () => {
+    exportToCsv("recruitment-pipeline", visibleCandidates, [
+      { key: "name", label: "Name" },
+      { key: "role", label: "Role" },
+      { key: "department", label: "Department" },
+      { key: "stage", label: "Stage" },
+      { key: "appliedAt", label: "Applied" },
+    ])
+    notify.success("Pipeline exported", `${visibleCandidates.length} candidates downloaded as CSV.`)
+  }
+
+  if (!hydrated) {
+    return (
+      <>
+        <Skeleton className="h-12 w-full rounded-2xl" />
+        <Skeleton className="h-20 w-full rounded-2xl" />
+        <Skeleton className="h-[420px] w-full rounded-2xl" />
+      </>
+    )
+  }
 
   return (
     <>
       <RecruitmentHeader
-        onPostClick={() => setPostOpen(true)}
-        onFilterRoles={() => notify.info("Filter by role")}
+        onPostClick={canWrite ? () => setPostOpen(true) : undefined}
+        onAddCandidate={
+          canWrite
+            ? () => {
+                setEditingCandidate(null)
+                setCandidateOpen(true)
+              }
+            : undefined
+        }
+        roleFilter={roleFilter}
+        onRoleFilterChange={setRoleFilter}
+        roleOptions={roleOptions}
+        onExport={handleExport}
       />
       <RecruitmentKpiStrip
         openRoles={store.openings.length}
         candidates={store.candidates.length}
         interviews={store.candidates.filter((c) => c.stage === "interview").length}
-        aged={store.candidates.filter((c) => {
-          const v = c.appliedAt
-          return v.includes("w") || (v.includes("d") && parseInt(v) > 7)
-        }).length}
+        aged={store.openings.filter((o) => o.postedDaysAgo > 45).length}
       />
       <PipelineFunnelCard candidates={store.candidates} />
       <div className="flex flex-col gap-5 lg:flex-row lg:items-start">
-        <OpenRolesByDept openings={store.openings} />
+        <OpenRolesByDept
+            openings={store.openings}
+            onCloseOpening={
+              canWrite
+                ? (id) => {
+                    const o = store.openings.find((x) => x.id === id)
+                    setClosingOpening(o ?? null)
+                  }
+                : undefined
+            }
+          />
         <div className="flex w-full flex-col gap-5 lg:w-[300px] lg:shrink-0">
           <ConversionRateCard
             rate={
@@ -145,7 +258,7 @@ export function RecruitmentPageClient() {
       </div>
 
       <div className="flex flex-col gap-4">
-        <h2 className="font-display inline-block text-[17px] font-semibold leading-normal text-[#1f2a26]">
+        <h2 className="text-h3">
           Candidate board
         </h2>
         <DndContext
@@ -155,12 +268,31 @@ export function RecruitmentPageClient() {
           onDragEnd={onDragEnd}
         >
           <div className="flex gap-3.5 overflow-x-auto pb-2">
-            {stageOrder.map((stage) => (
+                        {stageOrder.map((stage) => (
               <KanbanColumn
                 key={stage}
                 stage={stage}
-                candidates={store.candidates.filter((c) => c.stage === stage)}
-                onMove={moveTo}
+                candidates={visibleCandidates.filter((c) => c.stage === stage)}
+                onMove={canWrite ? moveTo : undefined}
+                onEdit={
+                  canWrite
+                    ? (id) => {
+                        const c = store.candidates.find((x) => x.id === id)
+                        if (c) {
+                          setEditingCandidate(c)
+                          setCandidateOpen(true)
+                        }
+                      }
+                    : undefined
+                }
+                onDelete={
+                  canWrite
+                    ? (id) => {
+                        const c = store.candidates.find((x) => x.id === id)
+                        setRemoveTarget(c ?? null)
+                      }
+                    : undefined
+                }
               />
             ))}
           </div>
@@ -193,7 +325,71 @@ export function RecruitmentPageClient() {
             ],
           }))
           notify.success(`Job posted: ${title}`)
-          addNotification({ type: "project_created", title: "Job posted", description: `${title} posted in ${department}`, href: "/recruitment" })
+
+        }}
+      />
+      <ConfirmDialog
+        open={!!removeTarget}
+        onOpenChange={(o) => !o && setRemoveTarget(null)}
+        title="Remove candidate"
+        description={
+          removeTarget
+            ? `Remove ${removeTarget.name} from the ${removeTarget.role} pipeline? This can’t be undone.`
+            : undefined
+        }
+        confirmLabel="Remove"
+        destructive
+        onConfirm={() => {
+          if (removeTarget) removeCandidate(removeTarget.id)
+          setRemoveTarget(null)
+        }}
+      />
+      <CandidateDialog
+        open={candidateOpen}
+        onOpenChange={(o) => {
+          setCandidateOpen(o)
+          if (!o) setEditingCandidate(null)
+        }}
+        candidate={editingCandidate ?? undefined}
+        onSave={(candidate) => {
+          if (editingCandidate) {
+            setStore((prev) => ({
+              ...prev,
+              candidates: prev.candidates.map((c) =>
+                c.id === editingCandidate.id ? candidate : c,
+              ),
+            }))
+            notify.success("Candidate updated", `${candidate.name} details saved.`)
+          } else {
+            setStore((prev) => ({
+              ...prev,
+              candidates: [{ ...candidate, stage: "applied" as const }, ...prev.candidates],
+            }))
+            notify.success("Candidate added", `${candidate.name} added to the pipeline.`)
+
+          }
+        }}
+      />
+      <ConfirmDialog
+        open={!!closingOpening}
+        onOpenChange={(o) => !o && setClosingOpening(null)}
+        title="Close opening"
+        description={
+          closingOpening
+            ? `Close the “${closingOpening.title}” opening? It will be removed from the board.`
+            : undefined
+        }
+        confirmLabel="Close opening"
+        destructive
+        onConfirm={() => {
+          if (closingOpening) {
+            setStore((prev) => ({
+              ...prev,
+              openings: prev.openings.filter((o) => o.id !== closingOpening.id),
+            }))
+            notify.success("Opening closed", `“${closingOpening.title}” was removed.`)
+          }
+          setClosingOpening(null)
         }}
       />
     </>
@@ -204,10 +400,14 @@ function KanbanColumn({
   stage,
   candidates,
   onMove,
+  onEdit,
+  onDelete,
 }: {
   stage: CandidateStage
   candidates: Candidate[]
-  onMove: (id: string, stage: CandidateStage) => void
+  onMove?: (id: string, stage: CandidateStage) => void
+  onEdit?: (id: string) => void
+  onDelete?: (id: string) => void
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: stage })
   const meta = stageMeta[stage]
@@ -216,22 +416,22 @@ function KanbanColumn({
       ref={setNodeRef}
       data-stage={stage}
       className={cn(
-        "flex min-w-[230px] flex-1 flex-col gap-2.5 rounded-[14px] border p-3.5 transition-colors",
-        isOver ? "border-[#2f6f61] bg-[#f0faf7]" : "border-[#efede6] bg-[#f8f7f4]",
+        "flex min-w-[230px] flex-1 flex-col gap-2.5 rounded-2xl border p-3.5 transition-colors",
+        isOver ? "border-primary bg-muted" : "border-border bg-muted",
       )}
     >
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-[7px]">
           <span className={`size-2 rounded-full ${meta.dot}`} />
-          <span className="font-sans text-[12.5px] font-semibold leading-normal text-[#1f2a26]">
+          <span className="font-sans text-[12.5px] font-semibold leading-normal text-foreground">
             {meta.label}
           </span>
         </div>
-        <span className="font-sans text-xs font-semibold leading-normal text-[#8a948d]">
+        <span className="font-sans text-xs font-semibold leading-normal text-muted-foreground">
           {candidates.length}
         </span>
       </div>
-      <div className="flex h-[5px] w-full overflow-clip rounded-full bg-[#eae7e0]">
+      <div className="flex h-[5px] w-full overflow-clip rounded-full bg-muted">
         <div
           className={cn("h-full rounded-full", meta.fill)}
           style={{
@@ -243,15 +443,15 @@ function KanbanColumn({
         {candidates.length === 0 ? (
           <div
             className={cn(
-              "rounded-[10px] border border-dashed bg-white p-3 text-center font-sans text-[11px] text-[#8a948d]",
-              isOver ? "border-[#2f6f61]" : "border-[#edeae3]",
+              "rounded-lg border border-dashed bg-card p-3 text-center font-sans text-[11px] text-muted-foreground",
+              isOver ? "border-primary" : "border-border",
             )}
           >
             Drop candidates here
           </div>
         ) : null}
         {candidates.map((c) => (
-          <DraggableCandidate key={c.id} candidate={c} onMove={onMove} />
+          <DraggableCandidate key={c.id} candidate={c} onMove={onMove} onEdit={onEdit} onDelete={onDelete} />
         ))}
       </div>
     </div>
@@ -261,17 +461,21 @@ function KanbanColumn({
 function DraggableCandidate({
   candidate,
   onMove,
+  onEdit,
+  onDelete,
 }: {
   candidate: Candidate
-  onMove: (id: string, stage: CandidateStage) => void
+  onMove?: (id: string, stage: CandidateStage) => void
+  onEdit?: (id: string) => void
+  onDelete?: (id: string) => void
 }) {
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: candidate.id })
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: candidate.id, disabled: !onMove })
   const style = transform
     ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` }
     : undefined
   return (
     <div ref={setNodeRef} {...listeners} {...attributes} style={style} className={cn(isDragging && "opacity-50")}>
-      <CandidateCard candidate={candidate} onMove={onMove} />
+      <CandidateCard candidate={candidate} onMove={onMove} onEdit={onEdit} onDelete={onDelete} />
     </div>
   )
 }
@@ -279,13 +483,17 @@ function DraggableCandidate({
 function CandidateCard({
   candidate,
   onMove,
+  onEdit,
+  onDelete,
 }: {
   candidate: Candidate
   onMove?: (id: string, stage: CandidateStage) => void
+  onEdit?: (id: string) => void
+  onDelete?: (id: string) => void
 }) {
   const meta = stageMeta[candidate.stage]
   return (
-    <div className="flex items-center gap-2 rounded-[10px] border border-[#efede6] bg-white p-2">
+    <div className="flex items-center gap-2 rounded-lg border border-border bg-card p-2">
       <div
         className={cn(
           "flex size-6 shrink-0 items-center justify-center rounded-full",
@@ -294,7 +502,7 @@ function CandidateCard({
       >
         <span
           className={cn(
-            "font-sans text-[10px] font-bold leading-normal",
+            "font-sans text-[10px] font-semibold leading-normal",
             meta.avatarText,
           )}
         >
@@ -302,20 +510,20 @@ function CandidateCard({
         </span>
       </div>
       <div className="flex min-w-0 flex-1 flex-col">
-        <span className="inline-block overflow-clip font-sans text-[11px] font-semibold leading-[1.2] text-[#1f2a26] [text-overflow:ellipsis]">
+        <span className="inline-block overflow-clip font-sans text-[11px] font-semibold leading-[1.2] text-foreground [text-overflow:ellipsis]">
           {candidate.name}
         </span>
-        <span className="inline-block overflow-clip font-sans text-[9.5px] leading-[1.2] text-[#a6aca3] [text-overflow:ellipsis]">
+        <span className="inline-block overflow-clip font-sans text-[9.5px] leading-[1.2] text-muted-foreground [text-overflow:ellipsis]">
           {candidate.role}
         </span>
       </div>
-      {onMove ? (
+      {onMove || onEdit || onDelete ? (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button
               type="button"
               aria-label={`Move ${candidate.name}`}
-              className="flex size-6 shrink-0 items-center justify-center rounded-md text-[#b0b7af] hover:bg-[#faf9f6]"
+              className="flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted"
             >
               <Ellipsis className="size-3.5" strokeWidth={2} />
             </button>
@@ -326,11 +534,27 @@ function CandidateCard({
               .map((s) => (
                 <DropdownMenuItem
                   key={s}
-                  onClick={() => onMove(candidate.id, s)}
+                  onClick={() => onMove?.(candidate.id, s)}
                 >
                   Move to {stageMeta[s].label}
                 </DropdownMenuItem>
               ))}
+            {onEdit ? (
+              <DropdownMenuItem onClick={() => onEdit(candidate.id)}>
+                Edit details
+              </DropdownMenuItem>
+            ) : null}
+            {onDelete ? (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  className="text-destructive focus:text-destructive"
+                  onClick={() => onDelete(candidate.id)}
+                >
+                  Remove candidate
+                </DropdownMenuItem>
+              </>
+            ) : null}
           </DropdownMenuContent>
         </DropdownMenu>
       ) : null}
@@ -338,7 +562,141 @@ function CandidateCard({
   )
 }
 
-const DEPARTMENTS = ["Engineering", "Design", "Product", "Sales", "Marketing", "People", "Research", "Finance"]
+const candidateFormSchema = z.object({
+  name: z.string().min(2, "Name is required"),
+  role: z.string().min(2, "Role is required"),
+})
+
+function CandidateDialog({
+  open,
+  onOpenChange,
+  candidate,
+  onSave,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  candidate?: Candidate
+  onSave: (candidate: Candidate) => void
+}) {
+  const isEdit = !!candidate
+  const [submitting, setSubmitting] = React.useState(false)
+  const form = useForm({
+    name: candidate?.name ?? "",
+    role: candidate?.role ?? "",
+    department: candidate?.department ?? "Engineering",
+    stage: candidate ? (candidate.stage as string) : "applied",
+    source: "careers-page",
+  })
+
+  // Always-mounted dialog: re-sync the form every time it opens so edits
+  // pre-fill the selected candidate and cancelled drafts don't leak back in.
+  React.useEffect(() => {
+    if (!open) return
+    form.reset({
+      name: candidate?.name ?? "",
+      role: candidate?.role ?? "",
+      department: candidate?.department ?? "Engineering",
+      stage: candidate ? (candidate.stage as string) : "applied",
+      source: "careers-page",
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open])
+  const onSubmit = () => {
+    const parsed = candidateFormSchema.safeParse(form.values)
+    if (!parsed.success) {
+      const errs: Record<string, string> = {}
+      for (const issue of parsed.error.issues) {
+        const key = issue.path[0] as string
+        if (!errs[key]) errs[key] = issue.message
+      }
+      form.setErrors(errs as never)
+      return
+    }
+    setSubmitting(true)
+    try {
+      onSave({
+        id: candidate?.id ?? `c-${Math.random().toString(36).slice(2, 9)}`,
+        name: parsed.data.name.trim(),
+        initials: candidate?.initials ?? parsed.data.name.trim().split(/\s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase(),
+        role: parsed.data.role.trim(),
+        department: form.values.department,
+        appliedAt: candidate?.appliedAt ?? "Today",
+        stage: (isEdit ? form.values.stage : "applied") as Candidate["stage"],
+      })
+      onOpenChange(false)
+    } finally {
+      setSubmitting(false)
+    }
+  }
+  return (
+    <ActionDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={isEdit ? "Edit candidate" : "Add candidate"}
+      description={isEdit ? `Update ${candidate?.name}'s details.` : "Add a candidate to the pipeline."}
+      submitLabel={isEdit ? "Save changes" : "Add candidate"}
+      submitting={submitting}
+      onSubmit={onSubmit}
+    >
+      <Field
+        label="Full name"
+        value={form.values.name}
+        onChange={(v) => form.setValue("name", v)}
+        placeholder="e.g. Riley Chen"
+        required
+        error={form.errors.name}
+      />
+      <Field
+        label="Role applied for"
+        value={form.values.role}
+        onChange={(v) => form.setValue("role", v)}
+        placeholder="e.g. Data Analyst"
+        required
+        error={form.errors.role}
+      />
+      <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
+        <SelectField
+          label="Department"
+          value={form.values.department}
+          onChange={(v) => form.setValue("department", v)}
+          options={DEPARTMENTS.map((d) => ({ value: d, label: d }))}
+          required
+        />
+        {isEdit ? (
+          <SelectField
+            label="Stage"
+            value={form.values.stage}
+            onChange={(v) => form.setValue("stage", v)}
+            options={[
+              { value: "applied", label: "Applied" },
+              { value: "screening", label: "Screening" },
+              { value: "interview", label: "Interview" },
+              { value: "offer", label: "Offer" },
+              { value: "hired", label: "Hired" },
+            ]}
+          />
+        ) : (
+          <SelectField
+            label="Source"
+            value={form.values.source}
+            onChange={(v) => form.setValue("source", v)}
+            options={[
+              { value: "careers-page", label: "Careers page" },
+              { value: "referral", label: "Referral" },
+              { value: "linkedin", label: "LinkedIn" },
+              { value: "agency", label: "Agency" },
+            ]}
+          />
+        )}
+      </div>
+    </ActionDialog>
+  )
+}
+
+const postJobSchema = z.object({
+  title: z.string().min(2, "Job title is required"),
+  location: z.string().min(2, "Location is required"),
+})
 
 function PostJobDialog({
   open,
@@ -355,15 +713,26 @@ function PostJobDialog({
     department: "Engineering",
     location: "Remote",
   })
+
+  React.useEffect(() => {
+    if (!open) return
+    form.reset({ title: "", department: "Engineering", location: "Remote" })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open])
   const onSubmit = () => {
-    if (!form.values.title.trim()) {
-      form.setErrors({ title: "Title is required" })
+    const parsed = postJobSchema.safeParse(form.values)
+    if (!parsed.success) {
+      const errs: Record<string, string> = {}
+      for (const issue of parsed.error.issues) {
+        const key = issue.path[0] as string
+        if (!errs[key]) errs[key] = issue.message
+      }
+      form.setErrors(errs as never)
       return
     }
     setSubmitting(true)
     try {
-      onAdd(form.values.title, form.values.department, form.values.location)
-      form.reset({ title: "", department: "Engineering", location: "Remote" })
+      onAdd(parsed.data.title, form.values.department, parsed.data.location)
       onOpenChange(false)
     } finally {
       setSubmitting(false)

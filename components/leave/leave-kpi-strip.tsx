@@ -7,19 +7,19 @@ type Metric = {
 export function LeaveKpiStrip({
   onLeaveToday,
   pending,
-  approvedFeb,
+  approvedThisMonth,
   sickToday,
 }: {
   onLeaveToday: number
   pending: number
-  approvedFeb: number
+  approvedThisMonth: number
   sickToday: number
 }) {
   const metrics: Metric[] = [
-    { value: onLeaveToday, label: "On leave today", valueColor: "text-[#c14d6d]" },
-    { value: pending, label: "Pending approval", valueColor: "text-[#d98a2b]" },
-    { value: approvedFeb, label: "Approved in Feb", valueColor: "text-[#c14d6d]" },
-    { value: sickToday, label: "Sick today", valueColor: "text-[#64748b]" },
+    { value: onLeaveToday, label: "On leave today", valueColor: "text-secondary-foreground" },
+    { value: pending, label: "Pending approval", valueColor: "text-secondary-foreground" },
+    { value: approvedThisMonth, label: "Approved this month", valueColor: "text-secondary-foreground" },
+    { value: sickToday, label: "Sick today", valueColor: "text-muted-foreground" },
   ]
 
   return (
@@ -27,14 +27,14 @@ export function LeaveKpiStrip({
       {metrics.map((metric) => (
         <div
           key={metric.label}
-          className="flex flex-col gap-1 rounded-[18px] border border-[#edeae3] bg-white px-5 py-4"
+          className="flex flex-col gap-1 rounded-2xl border border-border bg-card px-5 py-4"
         >
           <span
-            className={`font-display inline-block text-[28px] font-semibold leading-none ${metric.valueColor}`}
+            className={`inline-block text-[28px] font-semibold leading-none ${metric.valueColor}`}
           >
             {metric.value}
           </span>
-          <span className="font-sans inline-block text-[12px] leading-normal text-[#8a948d]">
+          <span className="font-sans inline-block text-[12px] leading-normal text-muted-foreground">
             {metric.label}
           </span>
         </div>

@@ -7,16 +7,16 @@ import { WorkforceTrendCard } from "@/components/analytics/workforce-trend-card"
 import { WorkforceBreakdown } from "@/components/analytics/workforce-breakdown"
 import { Skeleton } from "@/components/ui/skeleton"
 import { notify } from "@/lib/toast"
-import { useMockStore } from "@/hooks/use-mock-store"
+import { exportToCsv } from "@/lib/export"
+import { useApiStore } from "@/hooks/use-api-store"
 import {
-  STORAGE_KEYS,
   type AnalyticsStore,
   defaultAnalyticsStore,
 } from "@/lib/data"
 
 export function AnalyticsPageClient() {
-  const { state, hydrated } = useMockStore<AnalyticsStore>(
-    STORAGE_KEYS.analytics,
+  const { state, hydrated } = useApiStore<AnalyticsStore>(
+    "/api/store/analytics",
     () => defaultAnalyticsStore,
   )
 
@@ -25,14 +25,14 @@ export function AnalyticsPageClient() {
       <DashboardShell activeHref="/analytics" current="Analytics" accentCurrent>
         <Skeleton className="h-8 w-[200px] rounded-lg" />
         <div className="mt-4 flex gap-4">
-          <Skeleton className="h-24 flex-1 rounded-[14px]" />
-          <Skeleton className="h-24 flex-1 rounded-[14px]" />
-          <Skeleton className="h-24 flex-1 rounded-[14px]" />
-          <Skeleton className="h-24 flex-1 rounded-[14px]" />
+          <Skeleton className="h-24 flex-1 rounded-2xl" />
+          <Skeleton className="h-24 flex-1 rounded-2xl" />
+          <Skeleton className="h-24 flex-1 rounded-2xl" />
+          <Skeleton className="h-24 flex-1 rounded-2xl" />
         </div>
         <div className="mt-5 flex gap-5">
-          <Skeleton className="h-[320px] flex-1 rounded-[18px]" />
-          <Skeleton className="h-[320px] w-[440px] rounded-[18px]" />
+          <Skeleton className="h-[320px] flex-1 rounded-2xl" />
+          <Skeleton className="h-[320px] w-[440px] rounded-2xl" />
         </div>
       </DashboardShell>
     )
@@ -41,8 +41,14 @@ export function AnalyticsPageClient() {
   return (
     <DashboardShell activeHref="/analytics" current="Analytics" accentCurrent>
       <AnalyticsHeader
-        onPeriodChange={() => notify.info("Period changed to Last 30 days")}
-        onExport={() => notify.success("Analytics exported")}
+        onExport={() => {
+          exportToCsv("analytics-workforce", state.byDept, [
+            { key: "label", label: "Department" },
+            { key: "count", label: "Headcount" },
+            { key: "pct", label: "Share %" },
+          ])
+          notify.success("Analytics exported", "Workforce breakdown downloaded as CSV.")
+        }}
       />
       <AnalyticsKpiStrip
         headcount={state.headcount}
@@ -57,7 +63,9 @@ export function AnalyticsPageClient() {
       <div className="flex flex-col gap-5 lg:flex-row lg:items-start">
         <WorkforceTrendCard
           monthlyTrend={state.monthlyTrend}
-          onOpenReport={() => notify.info("Opening full workforce report")}
+          onOpenReport={() =>
+            document.getElementById("analytics-breakdown")?.scrollIntoView({ behavior: "smooth" })
+          }
         />
         <WorkforceBreakdown
           byDept={state.byDept}

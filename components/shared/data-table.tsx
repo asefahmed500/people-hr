@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { ChevronDown, Ellipsis, Search } from "lucide-react"
+import { ChevronDown, ChevronLeft, ChevronRight, Ellipsis, Search } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import {
@@ -107,26 +107,27 @@ export function DataTable<T>({
   const paged = filtered.slice((safePage - 1) * pageSize, safePage * pageSize)
 
   React.useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setPage(1)
   }, [query, activeChip, sortId])
 
   const activeSort = sortOptions?.find((s) => s.id === sortId)
 
   return (
-    <div className="flex w-full flex-col overflow-clip rounded-[18px] border border-[#ece9e2] bg-white shadow-[0px_1px_3px_rgba(31,42,38,0.04),0px_8px_24px_rgba(31,42,38,0.03)]">
-      <div className="flex flex-col gap-3 border-b border-b-[#edeae3] px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
+    <div className="flex w-full flex-col overflow-clip rounded-2xl border border-border bg-card shadow-card">
+      <div className="flex flex-col gap-3 border-b border-b-border px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-          <div className="flex h-10 w-full items-center gap-2 rounded-xl bg-[#f5f3ee] px-3.5 sm:w-[264px]">
-            <Search className="size-4 shrink-0 text-[#a2aaa3]" strokeWidth={2} />
+          <div className="flex h-10 w-full items-center gap-2 rounded-xl bg-muted px-3.5 sm:w-[264px]">
+            <Search className="size-4 shrink-0 text-muted-foreground" strokeWidth={2} />
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder={searchPlaceholder}
-              className="flex-1 bg-transparent font-sans text-[13px] leading-normal text-[#1f2a26] outline-none placeholder:text-[#9aa39c]"
+              className="flex-1 bg-transparent font-sans text-[13px] leading-normal text-foreground outline-none placeholder:text-muted-foreground"
             />
           </div>
           {filterChips && filterChips.length > 0 ? (
-            <div className="flex items-center gap-1 overflow-x-auto rounded-[11px] bg-[#f1efea] p-1">
+            <div className="flex items-center gap-1 overflow-x-auto rounded-lg bg-muted p-1">
               {filterChips.map((chip) => {
                 const count = rows.filter(chip.matcher).length
                 const isActive = chip.id === activeChip
@@ -137,20 +138,20 @@ export function DataTable<T>({
                     onClick={() => setActiveChip(chip.id)}
                     className={cn(
                       "flex h-8 shrink-0 items-center gap-1.5 rounded-lg px-3 py-0",
-                      isActive ? "bg-white shadow-sm" : "",
+                      isActive ? "bg-card shadow-sm" : "",
                     )}
                   >
                     <span
                       className={cn(
                         "font-sans text-[12.5px] leading-normal",
                         isActive
-                          ? "font-semibold text-[#1f2a26]"
-                          : "font-medium text-[#6b7770]",
+                          ? "font-semibold text-foreground"
+                          : "font-medium text-secondary-foreground",
                       )}
                     >
                       {chip.label}
                     </span>
-                    <span className="font-sans text-[11.5px] font-medium leading-normal text-[#8a948d]">
+                    <span className="font-sans text-[11.5px] font-medium leading-normal text-muted-foreground">
                       {count}
                     </span>
                   </button>
@@ -164,12 +165,12 @@ export function DataTable<T>({
             <DropdownMenuTrigger asChild>
               <button
                 type="button"
-                className="flex h-[38px] items-center gap-2 self-start rounded-[10px] border border-[#e7e4dd] bg-white px-3.5 sm:self-auto"
+                className="flex h-[38px] items-center gap-2 self-start rounded-lg border border-border bg-card px-3.5 sm:self-auto"
               >
-                <span className="font-sans text-[13px] font-medium leading-normal text-[#42504a]">
+                <span className="font-sans text-[13px] font-medium leading-normal text-secondary-foreground">
                   {activeSort ? activeSort.label : "Sort"}
                 </span>
-                <ChevronDown className="size-3.5 text-[#8a948d]" strokeWidth={2} />
+                <ChevronDown className="size-3.5 text-muted-foreground" strokeWidth={2} />
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
@@ -177,7 +178,7 @@ export function DataTable<T>({
                 <DropdownMenuItem
                   key={opt.id}
                   onClick={() => setSortId(opt.id)}
-                  className={cn(opt.id === sortId && "bg-[#f6f4ef]")}
+                  className={cn(opt.id === sortId && "bg-muted")}
                 >
                   {opt.label}
                 </DropdownMenuItem>
@@ -190,12 +191,12 @@ export function DataTable<T>({
         ) : null}
       </div>
 
-      <div className="hidden items-center border-b border-b-[#edeae3] bg-[#faf9f6] px-6 py-3 md:flex">
+      <div className="hidden items-center border-b border-b-border bg-muted px-6 py-3 md:flex">
         {columns.map((c) => (
           <div
             key={c.key}
             className={cn(
-              "font-sans text-[11px] font-semibold uppercase leading-normal tracking-[0.6px] text-[#8a948d]",
+              "font-sans text-[11px] font-semibold uppercase leading-normal tracking-[0.6px] text-muted-foreground",
               c.className ?? "min-w-0 flex-1",
             )}
           >
@@ -207,7 +208,7 @@ export function DataTable<T>({
 
       <div className="hidden md:flex md:flex-col">
         {paged.length === 0 ? (
-          <div className="px-6 py-10 text-center font-sans text-[13px] text-[#8a948d]">
+          <div className="px-6 py-10 text-center font-sans text-[13px] text-muted-foreground">
             {emptyLabel}
           </div>
         ) : null}
@@ -215,8 +216,8 @@ export function DataTable<T>({
           <div
             key={getRowId(row)}
             className={cn(
-              "flex items-center border-b border-b-[#f2efe9] px-6 py-3.5 transition-colors",
-              onRowClick && "cursor-pointer hover:bg-[#faf9f6]",
+              "flex items-center border-b border-b-border px-6 py-3.5 transition-colors",
+              onRowClick && "cursor-pointer hover:bg-muted",
             )}
             onClick={onRowClick ? () => onRowClick(row) : undefined}
           >
@@ -236,7 +237,7 @@ export function DataTable<T>({
 
       <div className="flex flex-col gap-2 p-4 md:hidden">
         {paged.length === 0 ? (
-          <div className="py-8 text-center font-sans text-[13px] text-[#8a948d]">
+          <div className="py-8 text-center font-sans text-[13px] text-muted-foreground">
             {emptyLabel}
           </div>
         ) : null}
@@ -244,8 +245,8 @@ export function DataTable<T>({
           <div
             key={getRowId(row)}
             className={cn(
-              "rounded-xl border border-[#edeae3] bg-[#faf9f6] p-4",
-              onRowClick && "cursor-pointer active:bg-[#f1eee8]",
+              "rounded-xl border border-border bg-muted p-4",
+              onRowClick && "cursor-pointer active:bg-muted",
             )}
             onClick={onRowClick ? () => onRowClick(row) : undefined}
           >
@@ -254,7 +255,7 @@ export function DataTable<T>({
                 key={c.key}
                 className="flex items-center justify-between gap-2 py-0.5"
               >
-                <span className="font-sans text-[11px] uppercase tracking-[0.4px] text-[#a6aca3]">
+                <span className="font-sans text-[11px] uppercase tracking-[0.4px] text-muted-foreground">
                   {c.header}
                 </span>
                 <span className="min-w-0 flex-1 text-right">
@@ -271,8 +272,8 @@ export function DataTable<T>({
         ))}
       </div>
 
-      <div className="flex flex-col items-center justify-between gap-3 border-t border-t-[#edeae3] bg-[#faf9f6] px-6 py-4 sm:flex-row">
-        <span className="font-sans text-[13px] leading-normal text-[#6b7770]">
+      <div className="flex flex-col items-center justify-between gap-3 border-t border-t-border bg-muted px-6 py-4 sm:flex-row">
+        <span className="font-sans text-[13px] leading-normal text-secondary-foreground">
           Showing {filtered.length === 0 ? 0 : (safePage - 1) * pageSize + 1}–
           {Math.min(safePage * pageSize, filtered.length)} of {filtered.length}
         </span>
@@ -282,31 +283,36 @@ export function DataTable<T>({
             onClick={() => setPage((p) => Math.max(1, p - 1))}
             ariaLabel="Previous page"
           >
-            <ChevronLeft />
+            <PaginationChevronLeft />
           </PagerButton>
-          {Array.from({ length: pageCount }).slice(0, 5).map((_, i) => {
-            const pageNum = i + 1
-            return (
+          {(() => {
+            const maxButtons = 5
+            let start = Math.max(1, safePage - 2)
+            const end = Math.min(pageCount, start + maxButtons - 1)
+            start = Math.max(1, end - maxButtons + 1)
+            const pages: number[] = []
+            for (let p = start; p <= end; p++) pages.push(p)
+            return pages.map((pageNum) => (
               <button
                 key={pageNum}
                 type="button"
                 onClick={() => setPage(pageNum)}
                 className={cn(
-                  "flex size-[34px] items-center justify-center rounded-[9px] border border-[#e7e4dd] bg-white font-sans text-[13px] font-medium leading-normal text-[#42504a]",
+                  "flex size-[34px] items-center justify-center rounded-lg border border-border bg-card font-sans text-[13px] font-medium leading-normal text-secondary-foreground",
                   pageNum === safePage &&
-                    "border-0 bg-[#2f6f61] font-semibold text-white",
+                    "border-0 bg-primary font-medium text-primary-foreground",
                 )}
               >
                 {pageNum}
               </button>
-            )
-          })}
+            ))
+          })()}
           <PagerButton
             disabled={safePage === pageCount}
             onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
             ariaLabel="Next page"
           >
-            <ChevronRight />
+            <PaginationChevronRight />
           </PagerButton>
         </div>
       </div>
@@ -327,10 +333,10 @@ function RowMenu<T>({
         <button
           type="button"
           aria-label="Row actions"
-          className="flex size-[30px] items-center justify-center rounded-[9px] bg-[#f3f1ec] hover:bg-[#edeae3]"
+          className="flex size-[30px] items-center justify-center rounded-lg bg-muted hover:bg-muted"
           onClick={(e) => e.stopPropagation()}
         >
-          <Ellipsis className="size-4 text-[#8a948d]" strokeWidth={2} />
+          <Ellipsis className="size-4 text-muted-foreground" strokeWidth={2} />
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
@@ -341,7 +347,7 @@ function RowMenu<T>({
               e.stopPropagation()
               item.onSelect(row)
             }}
-            className={cn(item.danger && "text-[#c4553a] focus:text-[#c4553a]")}
+            className={cn(item.danger && "text-destructive focus:text-destructive")}
           >
             {item.label}
           </DropdownMenuItem>
@@ -368,41 +374,17 @@ function PagerButton({
       aria-label={ariaLabel}
       disabled={disabled}
       onClick={onClick}
-      className="flex size-[34px] items-center justify-center rounded-[9px] border border-[#e7e4dd] bg-white text-[#8a948d] disabled:opacity-50"
+      className="flex size-[34px] items-center justify-center rounded-lg border border-border bg-card text-muted-foreground disabled:opacity-50"
     >
       {children}
     </button>
   )
 }
 
-function ChevronLeft() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className="size-4 text-[#5b655e]"
-    >
-      <path d="M15 6l-6 6l6 6" />
-    </svg>
-  )
+function PaginationChevronLeft() {
+  return <ChevronLeft className="size-4 text-secondary-foreground" strokeWidth={2} />
 }
 
-function ChevronRight() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className="size-4 text-[#5b655e]"
-    >
-      <path d="M9 6l6 6l-6 6" />
-    </svg>
-  )
+function PaginationChevronRight() {
+  return <ChevronRight className="size-4 text-secondary-foreground" strokeWidth={2} />
 }

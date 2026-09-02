@@ -18,15 +18,25 @@ export function AttendanceCard({
   employees?: Employee[]
 }) {
   const checkIns = attendance?.checkIns ?? []
-  const total = employees?.length ?? (checkIns.length || 1)
+  const employeesList = employees ?? []
+  const total = employeesList.length || checkIns.length || 1
 
-  const onTime = checkIns.filter((c) => c.status === "on-time").length
-  const late = checkIns.filter((c) => c.status === "late").length
-  const remote = checkIns.filter((c) => c.status === "remote").length
-  const onLeave =
-    employees?.filter((e) => e.status === "leave").length ?? 0
-  const present = onTime + late
-  const absent = total - present - remote - onLeave
+  const onLeave = new Set(
+    employeesList.filter((e) => e.status === "leave").map((e) => e.name),
+  )
+  const checkinByName = new Map(checkIns.map((c) => [c.name, c.status]))
+  const present = employeesList.filter((e) => {
+    const s = checkinByName.get(e.name)
+    return !onLeave.has(e.name) && (s === "on-time" || s === "late")
+  }).length
+  const remote = employeesList.filter((e) => {
+    const s = checkinByName.get(e.name)
+    return !onLeave.has(e.name) && s === "remote"
+  }).length
+  const absent = Math.max(
+    0,
+    total - present - remote - onLeave.size,
+  )
 
   const rows: Row[] = [
     {
@@ -34,34 +44,34 @@ export function AttendanceCard({
       count: String(present),
       pct: `${Math.round((present / total) * 100)}%`,
       fillPct: Math.round((present / total) * 100),
-      fill: "bg-[#2f6f61]",
+      fill: "bg-primary",
     },
     {
       label: "Remote",
       count: String(remote),
       pct: `${Math.round((remote / total) * 100)}%`,
       fillPct: Math.round((remote / total) * 100),
-      fill: "bg-[#64b6ac]",
+      fill: "bg-secondary-foreground",
     },
     {
       label: "On leave",
-      count: String(onLeave),
-      pct: `${Math.round((onLeave / total) * 100)}%`,
-      fillPct: Math.round((onLeave / total) * 100),
-      fill: "bg-[#f4a261]",
+      count: String(onLeave.size),
+      pct: `${Math.round((onLeave.size / total) * 100)}%`,
+      fillPct: Math.round((onLeave.size / total) * 100),
+      fill: "bg-muted-foreground",
     },
     {
       label: "Absent",
       count: String(absent),
       pct: `${Math.round((absent / total) * 100)}%`,
       fillPct: Math.round((absent / total) * 100),
-      fill: "bg-[#e76f51]",
+      fill: "bg-foreground",
     },
   ]
 
   return (
-    <div className="flex flex-1 flex-col gap-4 rounded-[18px] border border-[#ece9e2] bg-white p-[22px] shadow-[0px_1px_3px_rgba(31,42,38,0.04),0px_8px_24px_rgba(31,42,38,0.03)]">
-      <h3 className="font-sans inline-block text-[15px] font-semibold leading-normal text-[#1f2a26]">
+    <div className="flex flex-1 flex-col gap-4 rounded-2xl border border-border bg-card p-[22px] shadow-card">
+      <h3 className="font-sans inline-block text-[15px] font-semibold leading-normal text-foreground">
         Today’s attendance
       </h3>
       <div className="flex flex-col gap-3.5">
@@ -77,17 +87,17 @@ function AttendanceRow({ row }: { row: Row }) {
   return (
     <div className="flex flex-col gap-1.5">
       <div className="flex items-center justify-between">
-        <span className="font-sans inline-block text-[12.5px] font-medium leading-normal text-[#5b655e]">
+        <span className="font-sans inline-block text-[12.5px] font-medium leading-normal text-secondary-foreground">
           {row.label}
         </span>
-        <span className="inline-block font-sans text-[12.5px] font-semibold leading-normal text-[#1f2a26]">
+        <span className="inline-block font-sans text-[12.5px] font-semibold leading-normal text-foreground">
           {row.count}
-          <span className="ml-[3.125px] font-normal text-[#a6aca3]">
+          <span className="ml-[3.125px] font-normal text-muted-foreground">
             · {row.pct}
           </span>
         </span>
       </div>
-      <div className="flex h-2 w-full overflow-clip rounded-full bg-[#f1efe9]">
+      <div className="flex h-2 w-full overflow-clip rounded-full bg-muted">
         <div
           className={`h-full rounded-full ${row.fill}`}
           style={{ width: `${row.fillPct}%` }}

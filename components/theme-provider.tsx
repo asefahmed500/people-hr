@@ -38,6 +38,7 @@ export function ThemeProvider({
 
   React.useEffect(() => {
     const stored = getStoredTheme(storageKey, defaultTheme)
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setThemeState(stored)
     applyTheme(stored)
   }, [storageKey, defaultTheme])

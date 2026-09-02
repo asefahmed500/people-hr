@@ -1,5 +1,4 @@
 import {
-  Globe,
   LayoutDashboard,
   Users,
   Network,
@@ -12,8 +11,10 @@ import {
   Target,
   Wallet,
   FileText,
+  FileSignature,
+  Megaphone,
   ChartNoAxesColumn,
-  Sparkles,
+  BotMessageSquare,
   Settings,
   type LucideIcon,
 } from "lucide-react"
@@ -21,42 +22,27 @@ import {
 export type NavItem = {
   label: string
   icon: LucideIcon
-
-
-
-
-
-
-  
   href: string
   badge?: { text: string; tone: "muted" | "accent" }
+  roles?: string[] // visible to these roles (undefined = all)
 }
 
 export const navItems: NavItem[] = [
-  { label: "Landing page", icon: Globe, href: "/landing" },
-  { label: "Dashboard", icon: LayoutDashboard, href: "/" },
-  { label: "Employees", icon: Users, href: "/employees" },
-  { label: "Organization", icon: Network, href: "/organization" },
+  { label: "Dashboard", icon: LayoutDashboard, href: "/dashboard" },
+  { label: "Employees", icon: Users, href: "/employees", roles: ["admin", "manager"] },
+  { label: "Organization", icon: Network, href: "/organization", roles: ["admin"] },
   { label: "Attendance", icon: CalendarClock, href: "/attendance" },
   { label: "Leave", icon: PlaneTakeoff, href: "/leave" },
-  {
-    label: "Recruitment",
-    icon: UserSearch,
-    href: "/recruitment",
-    badge: { text: "27", tone: "muted" },
-  },
-  { label: "Onboarding", icon: Rocket, href: "/onboarding" },
+  { label: "Recruitment", icon: UserSearch, href: "/recruitment", roles: ["admin"] },
+  { label: "Onboarding", icon: Rocket, href: "/onboarding", roles: ["admin", "manager"] },
   { label: "Projects", icon: FolderKanban, href: "/projects" },
   { label: "Performance", icon: TrendingUp, href: "/performance" },
   { label: "Goals", icon: Target, href: "/goals" },
-  { label: "Payroll", icon: Wallet, href: "/payroll" },
-  { label: "Reports", icon: FileText, href: "/reports" },
-  { label: "Analytics", icon: ChartNoAxesColumn, href: "/analytics" },
-  {
-    label: "AI Assistant",
-    icon: Sparkles,
-    href: "/assistant",
-    badge: { text: "New", tone: "accent" },
-  },
+  { label: "Payroll", icon: Wallet, href: "/payroll", roles: ["admin"] },
+  { label: "Reports", icon: FileText, href: "/reports", roles: ["admin"] },
+  { label: "Documents", icon: FileSignature, href: "/documents", roles: ["admin"] },
+  { label: "Analytics", icon: ChartNoAxesColumn, href: "/analytics", roles: ["admin"] },
+  { label: "AI Assistant", icon: BotMessageSquare, href: "/assistant" },
+  { label: "Announcements", icon: Megaphone, href: "/announcements" },
   { label: "Settings", icon: Settings, href: "/settings" },
 ]

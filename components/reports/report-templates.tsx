@@ -4,10 +4,10 @@ import { cn } from "@/lib/utils"
 import type { ReportTemplate } from "@/lib/data"
 
 const TEMPLATE_COLORS: { iconBg: string; iconColor: string }[] = [
-  { iconBg: "bg-[#2f6f611a]", iconColor: "text-[#2f6f61]" },
-  { iconBg: "bg-[#64b6ac24]", iconColor: "text-[#3e9488]" },
-  { iconBg: "bg-[#f4a26129]", iconColor: "text-[#d98842]" },
-  { iconBg: "bg-[#3bb27326]", iconColor: "text-[#2e9160]" },
+  { iconBg: "bg-foreground/10", iconColor: "text-primary" },
+  { iconBg: "bg-foreground/10", iconColor: "text-secondary-foreground" },
+  { iconBg: "bg-foreground/10", iconColor: "text-secondary-foreground" },
+  { iconBg: "bg-foreground/10", iconColor: "text-secondary-foreground" },
 ]
 
 type ReportTemplatesProps = {
@@ -21,15 +21,15 @@ export function ReportTemplates({ onSelect, templates }: ReportTemplatesProps) {
     <section className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
         <div className="flex flex-col gap-1">
-          <h2 className="font-display inline-block text-[17px] font-semibold leading-normal text-[#1f2a26]">
+          <h2 className="text-h3">
             Templates
           </h2>
-          <p className="font-sans inline-block text-[12.5px] leading-normal text-[#8a948d]">
+          <p className="font-sans inline-block text-[12.5px] leading-normal text-muted-foreground">
             Start from a saved template or schedule
           </p>
         </div>
       </div>
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {items.map((template, idx) => (
           <TemplateCard
             key={template.id}
@@ -48,7 +48,7 @@ function TemplateCard({ template, colors, onSelect }: { template: ReportTemplate
     <button
       type="button"
       onClick={() => onSelect?.(template.title)}
-      className="flex flex-col gap-3 rounded-[18px] border border-[#edeae3] bg-white p-5 text-left shadow-[0px_2px_10px_rgba(47,111,97,0.05)] transition-shadow hover:shadow-[0px_4px_14px_rgba(47,111,97,0.08)]"
+      className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-5 text-left shadow-card transition-shadow hover:shadow-card"
     >
       <div
         className={cn(
@@ -59,14 +59,14 @@ function TemplateCard({ template, colors, onSelect }: { template: ReportTemplate
         <FileText className={cn("size-5", colors.iconColor)} strokeWidth={2} />
       </div>
       <div className="flex flex-col gap-1">
-        <span className="font-sans inline-block text-[14px] font-semibold leading-tight text-[#1f2a26]">
+        <span className="font-sans inline-block text-[14px] font-semibold leading-tight text-foreground">
           {template.title}
         </span>
-        <span className="font-sans inline-block text-[12px] leading-normal text-[#8a948d]">
+        <span className="font-sans inline-block text-[12px] leading-normal text-muted-foreground">
           {template.desc}
         </span>
       </div>
-      <span className="mt-1 flex items-center gap-1 font-sans text-[12px] font-semibold leading-normal text-[#2f6f61]">
+      <span className="mt-1 flex items-center gap-1 font-sans text-[12px] font-semibold leading-normal text-primary">
         Build
         <ArrowRight className="size-3.5" strokeWidth={2} />
       </span>

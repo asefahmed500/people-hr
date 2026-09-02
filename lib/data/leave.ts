@@ -11,6 +11,8 @@ export type LeaveRequest = {
   endDate: string
   days: number
   reason: string
+  /** True for a single half-day request (days = 0.5). */
+  halfDay?: boolean
 }
 
 export type Balances = {
@@ -25,67 +27,17 @@ export type LeaveStore = {
   balances: Record<ID, Balances>
 }
 
+/** Standard entitlement granted to every new account on first read. */
 export const defaultBalances: Balances = {
-  annual: { used: 15, total: 24 },
-  sick: { used: 6, total: 25 },
-  personal: { used: 2, total: 5 },
-  parental: { used: 90, total: 150 },
+  annual: { used: 0, total: 24 },
+  sick: { used: 0, total: 25 },
+  personal: { used: 0, total: 5 },
+  parental: { used: 0, total: 150 },
 }
 
 export const defaultLeaveStore: LeaveStore = {
-  requests: [
-    {
-      id: "lr-1",
-      employeeId: "e-sofia",
-      employeeName: "Sofia Alvarez",
-      initials: "SA",
-      type: "vac",
-      status: "approved",
-      startDate: "2025-02-24",
-      endDate: "2025-02-28",
-      days: 5,
-      reason: "Family vacation",
-    },
-    {
-      id: "lr-2",
-      employeeId: "e-marcus",
-      employeeName: "Marcus Bailey",
-      initials: "MB",
-      type: "pers",
-      status: "pending",
-      startDate: "2025-02-21",
-      endDate: "2025-02-21",
-      days: 1,
-      reason: "Personal errand",
-    },
-    {
-      id: "lr-3",
-      employeeId: "e-priya",
-      employeeName: "Priya Nair",
-      initials: "PN",
-      type: "vac",
-      status: "pending",
-      startDate: "2025-03-03",
-      endDate: "2025-03-12",
-      days: 8,
-      reason: "Wedding",
-    },
-    {
-      id: "lr-4",
-      employeeId: "e-hana",
-      employeeName: "Hana Lindqvist",
-      initials: "HL",
-      type: "sick",
-      status: "declined",
-      startDate: "2025-02-17",
-      endDate: "2025-02-19",
-      days: 3,
-      reason: "Flu",
-    },
-  ],
-  balances: {
-    "e-asef": defaultBalances,
-  },
+  requests: [],
+  balances: {},
 }
 
 export const leaveTypeLabel: Record<LeaveType, string> = {
@@ -93,4 +45,26 @@ export const leaveTypeLabel: Record<LeaveType, string> = {
   sick: "Sick",
   pers: "Personal",
   par: "Parental",
+}
+
+const typeBalanceKey: Record<LeaveType, "annual" | "sick" | "personal" | "parental"> = {
+  vac: "annual",
+  sick: "sick",
+  pers: "personal",
+  par: "parental",
+}
+
+/** Adjust a leave balance by a signed day delta (shared by leave page + dashboard). */
+export function adjustBalance(
+  balances: Record<ID, Balances>,
+  req: LeaveRequest,
+  deltaDays: number,
+): Record<ID, Balances> {
+  const key = typeBalanceKey[req.type]
+  const current = balances[req.employeeId] ?? defaultBalances
+  const used = Math.max(0, current[key].used + deltaDays)
+  return {
+    ...balances,
+    [req.employeeId]: { ...current, [key]: { ...current[key], used } },
+  }
 }

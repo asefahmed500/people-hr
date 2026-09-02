@@ -15,11 +15,11 @@ export function GoalsKpiStrip({
     : 0
 
   const kpis = [
-    { value: String(activeGoals), label: "Active goals", valueColor: "text-[#2f6f61]" },
-    { value: String(onTrack), label: "On track", valueColor: "text-[#1f2a26]" },
-    { value: String(atRisk), label: "At risk", valueColor: "text-[#d98a2b]" },
-    { value: String(completed), label: "Completed", valueColor: "text-[#2e9160]" },
-    { value: `${avgProgress}%`, label: "Avg progress", valueColor: "text-[#1f2a26]" },
+    { value: String(activeGoals), label: "Active goals", valueColor: "text-primary" },
+    { value: String(onTrack), label: "On track", valueColor: "text-foreground" },
+    { value: String(atRisk), label: "At risk", valueColor: "text-secondary-foreground" },
+    { value: String(completed), label: "Completed", valueColor: "text-secondary-foreground" },
+    { value: `${avgProgress}%`, label: "Avg progress", valueColor: "text-foreground" },
   ]
 
   return (
@@ -27,17 +27,17 @@ export function GoalsKpiStrip({
       {kpis.map((kpi) => (
         <div
           key={kpi.label}
-          className="flex flex-col gap-1 rounded-[18px] border border-[#edeae3] bg-white px-5 py-4 shadow-[0px_2px_10px_rgba(47,111,97,0.05)]"
+          className="flex flex-col gap-1 rounded-2xl border border-border bg-card px-5 py-4 shadow-card"
         >
           <span
             className={cn(
-              "font-display inline-block text-[26px] font-semibold leading-none",
+              "inline-block text-[26px] font-semibold leading-none",
               kpi.valueColor,
             )}
           >
             {kpi.value}
           </span>
-          <span className="font-sans inline-block text-[11.5px] leading-normal text-[#8a948d]">
+          <span className="font-sans inline-block text-[11.5px] leading-normal text-muted-foreground">
             {kpi.label}
           </span>
         </div>

@@ -7,10 +7,13 @@ import { TodayStatusCard } from "@/components/attendance/today-status-card"
 import { AttendanceKpis } from "@/components/attendance/attendance-kpis"
 import { DeptHeatCard } from "@/components/attendance/dept-heat-card"
 import { LiveCheckins } from "@/components/attendance/live-checkins"
-import type { Checkin } from "@/components/attendance/live-checkins"
+import { FaceCheckinCard } from "@/components/attendance/face-checkin-card"
+import { FaceRegistrationsCard } from "@/components/attendance/face-registrations-card"
 import { ActionDialog } from "@/components/shared/dialog-parts"
-import { Field, SelectField } from "@/components/shared/field"
+import { ConfirmDialog } from "@/components/shared/confirm-dialog"
+import { SelectField } from "@/components/shared/field"
 import { Skeleton } from "@/components/ui/skeleton"
+import { Pencil, Trash2 } from "lucide-react"
 import {
   Sheet,
   SheetContent,
@@ -18,47 +21,85 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet"
-import { useMockStore } from "@/hooks/use-mock-store"
-import { STORAGE_KEYS, defaultCheckIns, defaultNotificationsStore, newNotification, type NotificationsStore, type Notification } from "@/lib/data"
-import type { AttendanceStore, CheckIn } from "@/lib/data"
+import { useApiStore } from "@/hooks/use-api-store"
+import { useAuth } from "@/hooks/use-auth"
+import { defaultCheckIns, defaultEmployees, type AttendanceStore, type CheckIn, type Employee } from "@/lib/data"
 import { notify } from "@/lib/toast"
+import { exportToCsv } from "@/lib/export"
 import { cn } from "@/lib/utils"
 
 export function AttendancePageClient() {
-  const { state, setState, hydrated } = useMockStore<AttendanceStore>(
-    STORAGE_KEYS.attendance,
+  const { state, setState, refresh, hydrated: attendanceHydrated } = useApiStore<AttendanceStore>(
+    "/api/store/attendance",
     () => ({ checkIns: defaultCheckIns }),
   )
-  const { setState: setNotifs } = useMockStore<NotificationsStore>(
-    STORAGE_KEYS.notifications,
-    () => defaultNotificationsStore,
+  const { state: employees, hydrated: employeesHydrated } = useApiStore<Employee[]>(
+    "/api/store/employees",
+    () => defaultEmployees,
   )
-  const addNotification = (n: Partial<Notification> & { title: string; description: string }) => {
-    const notification = newNotification(n)
-    setNotifs((prev) => ({ items: [notification, ...prev.items] }))
-  }
+  const { user } = useAuth()
+  const canWrite = !!user
+  const canMarkAnyone = user?.role === "admin" || user?.role === "manager"
+  const hydrated = attendanceHydrated && employeesHydrated
   const [markOpen, setMarkOpen] = useState(false)
-  const [markDate, setMarkDate] = useState("")
   const [markStatus, setMarkStatus] = useState("on-time")
-  const [selectedCheckin, setSelectedCheckin] = useState<Checkin | null>(null)
+  const [selectedCheckin, setSelectedCheckin] = useState<CheckIn | null>(null)
+  const [editCheckin, setEditCheckin] = useState<CheckIn | null>(null)
+  const [deleteCheckin, setDeleteCheckin] = useState<CheckIn | null>(null)
+  const [editStatus, setEditStatus] = useState("on-time")
+
+  const todayIso = () => new Date().toISOString().slice(0, 10)
+  const nowTime = () =>
+    new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false })
+
+  // Self-service clock-in: one check-in per person per day.
+  const myCheckinToday =
+    user && user.name
+      ? state.checkIns.find((c) => c.name === user.name && c.date === todayIso())
+      : undefined
+
+  function clockIn(name: string, dept: string, initials: string) {
+    const status: CheckIn["status"] = nowTime() <= "09:30" ? "on-time" : "late"
+    setState((prev) => ({
+      checkIns: [
+        {
+          id: `ci-${Date.now()}`,
+          initials,
+          name,
+          dept,
+          time: nowTime(),
+          status,
+          date: todayIso(),
+        },
+        ...prev.checkIns,
+      ],
+    }))
+    notify.success(`Clocked in at ${nowTime()}`, `Have a great day — recorded as ${status.replace("-", " ")}.`)
+
+  }
+
+  const defaultEmployeeId = user
+    ? (employees.find((e) => e.name === user.name)?.id ?? employees[0]?.id)
+    : employees[0]?.id
+  const [markEmployeeId, setMarkEmployeeId] = useState<string>("")
 
   if (!hydrated) {
     return (
       <DashboardShell activeHref="/attendance" current="Attendance" accentCurrent>
         <div className="flex w-full items-start gap-6">
-          <Skeleton className="h-[400px] w-[380px] shrink-0 rounded-[18px]" />
+          <Skeleton className="h-[400px] w-[380px] shrink-0 rounded-2xl" />
           <div className="flex min-w-0 flex-1 flex-col gap-5">
             <div className="flex gap-5">
               {Array.from({ length: 4 }).map((_, i) => (
-                <Skeleton key={i} className="h-[130px] flex-1 rounded-[18px]" />
+                <Skeleton key={i} className="h-[130px] flex-1 rounded-2xl" />
               ))}
             </div>
-            <Skeleton className="h-[180px] rounded-[18px]" />
+            <Skeleton className="h-[180px] rounded-2xl" />
           </div>
         </div>
         <div className="mt-5 flex flex-col gap-3">
           {Array.from({ length: 4 }).map((_, i) => (
-            <Skeleton key={i} className="h-[58px] rounded-[18px]" />
+            <Skeleton key={i} className="h-[58px] rounded-2xl" />
           ))}
         </div>
       </DashboardShell>
@@ -68,25 +109,70 @@ export function AttendancePageClient() {
   return (
     <DashboardShell activeHref="/attendance" current="Attendance" accentCurrent>
       <AttendanceHeader
-        onThisWeek={() => notify.info("Week view")}
-        onExport={() => notify.success("Attendance exported")}
-        onMarkAttendance={() => setMarkOpen(true)}
+        onExport={() => {
+          exportToCsv("attendance", state.checkIns, [
+            { key: "name", label: "Name" },
+            { key: "dept", label: "Department" },
+            { key: "time", label: "Check-in time" },
+            { key: "status", label: "Status" },
+          ])
+          notify.success("Attendance exported", `${state.checkIns.length} check-ins downloaded as CSV.`)
+        }}
+        onClockIn={
+          // Free self clock-in stays available to admins/managers only —
+          // employees check in through the face scanner below (identity is
+          // verified server-side against their approved face registration).
+          canMarkAnyone && user?.name
+            ? () => {
+                if (myCheckinToday) {
+                  notify.info("Already checked in", `You clocked in today at ${myCheckinToday.time}.`)
+                  return
+                }
+                const emp = employees.find((e) => e.name === user.name)
+                clockIn(
+                  user.name,
+                  emp?.department ?? user.department ?? "People",
+                  emp?.initials ??
+                    (user.name ?? "ME")
+                      .split(/\s+/)
+                      .map((p) => p[0])
+                      .slice(0, 2)
+                      .join("")
+                      .toUpperCase(),
+                )
+              }
+            : undefined
+        }
+        clockedInTime={myCheckinToday?.time ?? null}
+        onMarkAttendance={
+          canWrite
+            ? () => {
+                setMarkEmployeeId((v) => v || defaultEmployeeId || "")
+                setMarkOpen(true)
+              }
+            : undefined
+        }
       />
       <div className="flex w-full items-start gap-6">
-        <TodayStatusCard />
+        <TodayStatusCard checkIns={state.checkIns} />
         <div className="flex min-w-0 flex-1 flex-col gap-5">
-          <AttendanceKpis />
-          <DeptHeatCard />
+          <AttendanceKpis checkIns={state.checkIns} />
+          <DeptHeatCard checkIns={state.checkIns} />
         </div>
       </div>
+      <FaceCheckinCard
+        alreadyCheckedInTime={myCheckinToday?.time ?? null}
+        onCheckedIn={() => void refresh()}
+      />
       <LiveCheckins checkIns={state.checkIns} onSelect={setSelectedCheckin} />
+      {user?.role === "admin" ? <FaceRegistrationsCard onChanged={() => void refresh()} /> : null}
       <Sheet open={!!selectedCheckin} onOpenChange={(o) => !o && setSelectedCheckin(null)}>
-        <SheetContent side="right" className="w-full gap-5 border-l border-[#ece9e2] bg-white p-6 sm:max-w-[400px]">
+        <SheetContent side="right" className="w-full gap-5 border-l border-border bg-card p-6 sm:max-w-[400px]">
           <SheetHeader>
-            <SheetTitle className="font-display text-[18px] font-semibold text-[#1f2a26]">
+            <SheetTitle className="text-h4">
               Employee details
             </SheetTitle>
-            <SheetDescription className="font-sans text-[12.5px] text-[#8a948d]">
+            <SheetDescription className="font-sans text-[12.5px] text-muted-foreground">
               Check-in information
             </SheetDescription>
           </SheetHeader>
@@ -95,43 +181,66 @@ export function AttendancePageClient() {
               <div className="flex items-center gap-4">
                 <div
                   className={cn(
-                    "flex size-14 shrink-0 items-center justify-center rounded-full text-base font-bold",
-                    selectedCheckin.status === "on-time" && "bg-[#2f6f611a] text-[#2f6f61]",
-                    selectedCheckin.status === "late" && "bg-[#b96a2c1a] text-[#b96a2c]",
-                    selectedCheckin.status === "remote" && "bg-[#3e94881a] text-[#3e9488]",
+                    "flex size-14 shrink-0 items-center justify-center rounded-full text-base font-semibold",
+                    selectedCheckin.status === "on-time" && "bg-foreground/10 text-primary",
+                    selectedCheckin.status === "late" && "bg-foreground/10 text-secondary-foreground",
+                    selectedCheckin.status === "remote" && "bg-foreground/10 text-muted-foreground",
                   )}
                 >
                   {selectedCheckin.initials}
                 </div>
                 <div className="flex flex-col">
-                  <span className="font-sans text-[17px] font-semibold leading-tight text-[#1f2a26]">
+                  <span className="font-sans text-[17px] font-semibold leading-tight text-foreground">
                     {selectedCheckin.name}
                   </span>
-                  <span className="font-sans text-[13px] leading-normal text-[#8a948d]">
+                  <span className="font-sans text-[13px] leading-normal text-muted-foreground">
                     {selectedCheckin.dept}
                   </span>
                 </div>
               </div>
 
-              <div className="flex flex-col gap-3 rounded-xl border border-[#edeae3] bg-[#faf9f6] p-4">
+              <div className="flex flex-col gap-3 rounded-xl border border-border bg-muted p-4">
                 <div className="flex items-center justify-between">
-                  <span className="font-sans text-[12px] font-medium text-[#8a948d]">Check-in time</span>
-                  <span className="font-sans text-[13px] font-semibold text-[#1f2a26]">{selectedCheckin.time}</span>
+                  <span className="font-sans text-[12px] font-medium text-muted-foreground">Check-in time</span>
+                  <span className="font-sans text-[13px] font-semibold text-foreground">{selectedCheckin.time}</span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="font-sans text-[12px] font-medium text-[#8a948d]">Status</span>
+                  <span className="font-sans text-[12px] font-medium text-muted-foreground">Status</span>
                   <span
                     className={cn(
                       "rounded-full px-2.5 py-0.5 font-sans text-[11px] font-semibold",
-                      selectedCheckin.status === "on-time" && "bg-[#2e91601a] text-[#2e9160]",
-                      selectedCheckin.status === "late" && "bg-[#b96a2c1a] text-[#b96a2c]",
-                      selectedCheckin.status === "remote" && "bg-[#3e94881a] text-[#3e9488]",
+                      selectedCheckin.status === "on-time" && "bg-primary/10 text-primary",
+                      selectedCheckin.status === "late" && "bg-secondary-foreground/10 text-secondary-foreground",
+                      selectedCheckin.status === "remote" && "bg-muted-foreground/10 text-muted-foreground",
                     )}
                   >
                     {selectedCheckin.status === "on-time" ? "On time" : selectedCheckin.status === "late" ? "Late" : "Remote"}
                   </span>
                 </div>
               </div>
+              {canWrite ? (
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditStatus(selectedCheckin.status)
+                      setEditCheckin(selectedCheckin)
+                    }}
+                    className="flex h-9 flex-1 items-center justify-center gap-2 rounded-lg border border-border bg-card font-sans text-[12.5px] font-medium text-secondary-foreground hover:bg-muted"
+                  >
+                    <Pencil className="size-3.5" strokeWidth={2} />
+                    Edit
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDeleteCheckin(selectedCheckin)}
+                    className="flex h-9 flex-1 items-center justify-center gap-2 rounded-lg border border-border bg-card font-sans text-[12.5px] font-medium text-foreground hover:bg-muted"
+                  >
+                    <Trash2 className="size-3.5" strokeWidth={2} />
+                    Delete
+                  </button>
+                </div>
+              ) : null}
             </div>
           ) : null}
         </SheetContent>
@@ -139,31 +248,47 @@ export function AttendancePageClient() {
 
       <ActionDialog
         open={markOpen}
-        onOpenChange={setMarkOpen}
+        onOpenChange={(o) => {
+          setMarkOpen(o)
+          if (!o) setMarkEmployeeId("")
+        }}
         title="Mark attendance"
         submitLabel="Save"
         onSubmit={() => {
+          const emp = employees.find((e) => e.id === markEmployeeId)
+          if (!emp) {
+            notify.error("Select an employee", "Pick a person to mark attendance for.")
+            return
+          }
           setState((prev) => ({
             checkIns: [
               {
                 id: `ci-${Date.now()}`,
-                initials: "AA",
-                name: "Asef Ahmed",
-                dept: "Engineering",
+                initials: emp.initials,
+                name: emp.name,
+                dept: emp.department,
                 time: new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false }),
                 status: markStatus as CheckIn["status"],
+                date: todayIso(),
               },
               ...prev.checkIns,
             ],
           }))
-          notify.success(`Attendance marked for ${markDate || "today"} as ${markStatus.replace("-", " ")}`)
-          addNotification({ type: "employee_added", title: "Attendance marked", description: `Asef Ahmed checked in as ${markStatus.replace("-", " ")}` })
+          notify.success(`Attendance marked`, `${emp.name} checked in as ${markStatus.replace("-", " ")}.`)
+
           setMarkOpen(false)
-          setMarkDate("")
+          setMarkEmployeeId("")
           setMarkStatus("on-time")
         }}
       >
-        <Field label="Date" type="date" value={markDate} onChange={setMarkDate} required />
+        <SelectField
+          label="Employee"
+          value={markEmployeeId}
+          onChange={setMarkEmployeeId}
+          options={employees.map((e) => ({ value: e.id, label: `${e.name} · ${e.department}` }))}
+          disabled={!canMarkAnyone}
+          required
+        />
         <SelectField
           label="Status"
           value={markStatus}
@@ -176,6 +301,57 @@ export function AttendancePageClient() {
           required
         />
       </ActionDialog>
+
+      <ActionDialog
+        open={!!editCheckin}
+        onOpenChange={(o) => { if (!o) setEditCheckin(null) }}
+        title="Edit check-in"
+        description={editCheckin ? `Update ${editCheckin.name}'s check-in status.` : ""}
+        submitLabel="Save"
+        onSubmit={() => {
+          if (!editCheckin) return
+          setState((prev) => ({
+            checkIns: prev.checkIns.map((c) =>
+              c.id === editCheckin.id ? { ...c, status: editStatus as CheckIn["status"] } : c,
+            ),
+          }))
+          notify.success("Check-in updated", `${editCheckin.name} marked as ${editStatus.replace("-", " ")}.`)
+
+          setEditCheckin(null)
+        }}
+      >
+        <SelectField
+          label="Status"
+          value={editStatus}
+          onChange={setEditStatus}
+          options={[
+            { value: "on-time", label: "On time" },
+            { value: "late", label: "Late" },
+            { value: "remote", label: "Remote" },
+          ]}
+          required
+        />
+      </ActionDialog>
+
+      <ConfirmDialog
+        open={!!deleteCheckin}
+        onOpenChange={(o) => { if (!o) setDeleteCheckin(null) }}
+        title="Delete check-in"
+        description={deleteCheckin ? `Remove ${deleteCheckin.name}'s check-in? This can’t be undone.` : undefined}
+        confirmLabel="Delete"
+        destructive
+        onConfirm={() => {
+          if (deleteCheckin) {
+            setState((prev) => ({
+              checkIns: prev.checkIns.filter((c) => c.id !== deleteCheckin.id),
+            }))
+            notify.success("Check-in deleted", `${deleteCheckin.name}'s check-in removed.`)
+
+            setSelectedCheckin(null)
+          }
+          setDeleteCheckin(null)
+        }}
+      />
     </DashboardShell>
   )
 }

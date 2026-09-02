@@ -1,78 +1,89 @@
 "use client"
 
+import * as React from "react"
+
 import { cn } from "@/lib/utils"
-
-type Status = "on-time" | "late" | "remote"
-
-export type Checkin = {
-  initials: string
-  name: string
-  dept: string
-  time: string
-  status: Status
-}
+import type { CheckIn, CheckInStatus } from "@/lib/data"
 
 const statuses: Record<
-  Status,
+  CheckInStatus,
   { label: string; pillBg: string; pillText: string; avatarBg: string; avatarText: string }
 > = {
   "on-time": {
     label: "On time",
-    pillBg: "bg-[#2e91601a]",
-    pillText: "text-[#2e9160]",
-    avatarBg: "bg-[#2f6f611a]",
-    avatarText: "text-[#2f6f61]",
+    pillBg: "bg-primary/10",
+    pillText: "text-primary",
+    avatarBg: "bg-foreground/10",
+    avatarText: "text-primary",
   },
   late: {
     label: "Late",
-    pillBg: "bg-[#b96a2c1a]",
-    pillText: "text-[#b96a2c]",
-    avatarBg: "bg-[#b96a2c1a]",
-    avatarText: "text-[#b96a2c]",
+    pillBg: "bg-secondary-foreground/10",
+    pillText: "text-secondary-foreground",
+    avatarBg: "bg-foreground/10",
+    avatarText: "text-secondary-foreground",
   },
   remote: {
     label: "Remote",
-    pillBg: "bg-[#3e94881a]",
-    pillText: "text-[#3e9488]",
-    avatarBg: "bg-[#3e94881a]",
-    avatarText: "text-[#3e9488]",
+    pillBg: "bg-muted-foreground/10",
+    pillText: "text-muted-foreground",
+    avatarBg: "bg-foreground/10",
+    avatarText: "text-muted-foreground",
   },
 }
 
-const defaultCheckins: Checkin[] = [
-  { initials: "SA", name: "Sofia Alvarez", dept: "Design", time: "08:32", status: "on-time" },
-  { initials: "DO", name: "Daniel Okafor", dept: "Engineering", time: "08:45", status: "on-time" },
-  { initials: "MB", name: "Marcus Bailey", dept: "Sales", time: "09:14", status: "late" },
-  { initials: "PN", name: "Priya Nair", dept: "Engineering", time: "08:05", status: "remote" },
-  { initials: "LF", name: "Lena Fischer", dept: "People", time: "08:58", status: "on-time" },
-  { initials: "HL", name: "Hana Lindqvist", dept: "Product", time: "09:22", status: "late" },
-]
-
 type LiveCheckinsProps = {
-  checkIns?: Checkin[]
-  onSelect?: (checkin: Checkin) => void
+  checkIns?: CheckIn[]
+  onSelect?: (checkin: CheckIn) => void
+}
+
+function nowLabel() {
+  return new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true })
 }
 
 export function LiveCheckins({ checkIns, onSelect }: LiveCheckinsProps) {
-  const items = checkIns ?? defaultCheckins
+  const [updatedLabel, setUpdatedLabel] = React.useState(() => nowLabel())
+  React.useEffect(() => {
+    const t = setInterval(() => setUpdatedLabel(nowLabel()), 60_000)
+    return () => clearInterval(t)
+  }, [])
+
+  const items = checkIns ?? []
   return (
-    <div className="flex w-full flex-col overflow-clip rounded-[18px] border border-[#edeae3] bg-white">
-      <div className="flex items-center justify-between border-b border-b-[#edeae3] px-6 py-5">
+    <div className="flex w-full flex-col overflow-clip rounded-2xl border border-border bg-card">
+      <div className="flex items-center justify-between border-b border-b-border px-6 py-5">
         <div className="flex items-center gap-3">
-          <span className="size-2.5 shrink-0 rounded-full bg-[#2e9160]" />
-          <h2 className="font-sans inline-block text-sm font-semibold text-[#1f2a26]">
+          <span className="size-2.5 shrink-0 rounded-full bg-primary" />
+          <h2 className="font-sans inline-block text-sm font-semibold text-foreground">
             Live check-ins
           </h2>
+          <span className="rounded-full bg-foreground/10 px-2 py-[3px] font-sans text-[10px] font-semibold leading-normal text-secondary-foreground">
+            {items.length}
+          </span>
         </div>
-        <span className="font-sans inline-block text-xs text-[#8a948d]">
-          Updated 09:24 AM
+        <span className="font-sans inline-block text-xs text-muted-foreground">
+          {updatedLabel ? `Updated ${updatedLabel}` : "Updating…"}
         </span>
       </div>
-      <div className="flex flex-col">
-        {items.map((checkin, idx) => (
-          <CheckinRow key={checkin.initials + checkin.time} checkin={checkin} last={idx === items.length - 1} onSelect={onSelect} />
-        ))}
-      </div>
+      {items.length === 0 ? (
+        <div className="px-6 py-10 text-center">
+          <p className="font-sans text-[13px] font-medium text-foreground">No check-ins yet</p>
+          <p className="mt-1 font-sans text-[12px] text-muted-foreground">
+            Mark attendance to see today’s live list here.
+          </p>
+        </div>
+      ) : (
+        <div className="flex flex-col">
+          {items.map((checkin, idx) => (
+            <CheckinRow
+              key={checkin.id ?? checkin.initials + checkin.time}
+              checkin={checkin}
+              last={idx === items.length - 1}
+              onSelect={onSelect}
+            />
+          ))}
+        </div>
+      )}
     </div>
   )
 }
@@ -82,21 +93,21 @@ function CheckinRow({
   last,
   onSelect,
 }: {
-  checkin: Checkin
+  checkin: CheckIn
   last: boolean
-  onSelect?: (checkin: Checkin) => void
+  onSelect?: (checkin: CheckIn) => void
 }) {
   const s = statuses[checkin.status]
   return (
     <div
       onClick={onSelect ? () => onSelect(checkin) : undefined}
-      onKeyDown={onSelect ? (e) => { if (e.key === "Enter") onSelect(checkin) } : undefined}
+      onKeyDown={onSelect ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSelect(checkin) } } : undefined}
       tabIndex={onSelect ? 0 : undefined}
       role={onSelect ? "button" : undefined}
       className={cn(
         "flex items-center gap-4 px-6 py-3.5 transition-colors",
-        !last && "border-b border-b-[#f1eee8]",
-        onSelect && "cursor-pointer hover:bg-[#faf9f6]",
+        !last && "border-b border-b-border",
+        onSelect && "cursor-pointer hover:bg-muted",
       )}
     >
       <div
@@ -115,14 +126,14 @@ function CheckinRow({
         </span>
       </div>
       <div className="flex min-w-0 flex-1 flex-col">
-        <span className="font-sans inline-block text-sm font-semibold text-[#1f2a26]">
+        <span className="font-sans inline-block text-sm font-semibold text-foreground">
           {checkin.name}
         </span>
-        <span className="font-sans inline-block text-xs text-[#8a948d]">
+        <span className="font-sans inline-block text-xs text-muted-foreground">
           {checkin.dept}
         </span>
       </div>
-      <span className="shrink-0 font-sans text-xs text-[#6b7770]">
+      <span className="shrink-0 font-sans text-xs text-secondary-foreground">
         {checkin.time}
       </span>
       <span
