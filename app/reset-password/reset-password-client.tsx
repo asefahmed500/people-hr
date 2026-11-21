@@ -7,6 +7,7 @@ import { ArrowRight } from "lucide-react"
 import { z } from "zod"
 
 import { AuthInput } from "@/components/auth/auth-input"
+import { Button } from "@/components/ui/button"
 import { apiRequest } from "@/lib/api-client"
 import { notify } from "@/lib/toast"
 
@@ -97,14 +98,10 @@ export function ResetPasswordClient() {
               {error}
             </div>
           ) : null}
-          <button
-            type="submit"
-            disabled={submitting}
-            className="mt-1 flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-primary font-sans text-[15px] font-medium text-primary-foreground shadow-card transition-colors hover:bg-primary/90 disabled:opacity-60"
-          >
+          <Button type="submit" disabled={submitting} className="mt-1 w-full">
             Set new password
-            <ArrowRight className="size-[17px]" strokeWidth={2} />
-          </button>
+            <ArrowRight className="size-4" strokeWidth={2} aria-hidden="true" />
+          </Button>
         </form>
 
         <div className="mt-8 flex items-center justify-center gap-1.5">

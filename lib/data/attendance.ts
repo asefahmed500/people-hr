@@ -8,6 +8,8 @@ export type CheckInStatus = "on-time" | "late" | "remote"
 
 export type CheckIn = {
   id: ID
+  /** Account that owns this check-in (legacy rows only have a display name). */
+  userId?: string
   initials: string
   name: string
   dept: string

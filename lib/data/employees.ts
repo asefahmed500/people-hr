@@ -16,12 +16,17 @@ export type Employee = {
   location: string
   status: EmployeeStatus
   avatar?: string
+  /** Absolute hire date (YYYY-MM-DD). Source of truth for tenure; the legacy
+   *  hiredDaysAgo field is kept only for documents written before it existed. */
+  hiredAt?: string
   hiredDaysAgo: number
   phone?: string
   employmentType?: EmploymentType
   reportingManager?: string
   /** Monthly gross salary (USD). Optional — payroll only processes employees with one. */
   salary?: number
+  /** Personnel-file documents attached to this employee record. */
+  attachments?: import("./attachments").Attachment[]
 }
 
 export const defaultEmployees: Employee[] = []
@@ -35,5 +40,6 @@ export const newEmployee = (input: Omit<Employee, "id" | "initials" | "hiredDays
     .slice(0, 2)
     .join("")
     .toUpperCase(),
+  hiredAt: new Date().toISOString().slice(0, 10),
   hiredDaysAgo: 0,
 })

@@ -7,7 +7,8 @@ type WorkforceTrendCardProps = {
 }
 
 export function WorkforceTrendCard({ onOpenReport, monthlyTrend }: WorkforceTrendCardProps) {
-  const months = monthlyTrend ?? buildFallback()
+  // Never fabricate a trend when data is missing â€” show an honest empty state.
+  const months = monthlyTrend ?? []
   // Guard against division by zero / -Infinity when the trend is empty.
   const max = Math.max(1, ...months.map((m) => m.value))
   const first = months[0]?.value ?? 0
@@ -16,7 +17,7 @@ export function WorkforceTrendCard({ onOpenReport, monthlyTrend }: WorkforceTren
   const netLabel = net > 0 ? `+${net}` : `${net}`
 
   return (
-    <div className="flex flex-1 flex-col gap-5 rounded-2xl border border-border bg-card p-6">
+    <div className="flex flex-1 flex-col gap-4 rounded-lg border border-border bg-card p-4">
       <div className="flex items-start justify-between">
         <div className="flex flex-col gap-1">
           <h2 className="text-h3">
@@ -30,9 +31,14 @@ export function WorkforceTrendCard({ onOpenReport, monthlyTrend }: WorkforceTren
           <span className="font-sans inline-block text-[13px] font-semibold leading-normal text-primary">
             Open report
           </span>
-          <ChevronRight className="size-3.5 text-primary" strokeWidth={2} />
+          <ChevronRight className="size-3.5 text-primary" strokeWidth={2} aria-hidden="true" />
         </button>
       </div>
+      {months.length === 0 ? (
+        <div className="flex h-[200px] items-center justify-center rounded-lg border border-dashed border-border bg-muted px-4 text-center font-sans text-[13px] text-muted-foreground">
+          No workforce trend data yet.
+        </div>
+      ) : (
       <div className="flex h-[200px] items-end justify-between gap-2.5 border-b border-b-border pb-2.5">
         {months.map((m) => (
           <div
@@ -61,6 +67,7 @@ export function WorkforceTrendCard({ onOpenReport, monthlyTrend }: WorkforceTren
           </div>
         ))}
       </div>
+      )}
       <div className="flex items-center gap-6">
         <Stat value={String(months.reduce((s, m) => Math.max(s, m.value), 0))} label="Peak" />
         <Stat value={String(last)} label="Current" />
@@ -68,21 +75,6 @@ export function WorkforceTrendCard({ onOpenReport, monthlyTrend }: WorkforceTren
       </div>
     </div>
   )
-}
-
-function buildFallback(): { month: string; value: number; current?: boolean }[] {
-  const names = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
-  const now = new Date()
-  const months: { month: string; value: number; current?: boolean }[] = []
-  for (let i = 11; i >= 0; i -= 1) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
-    months.push({
-      month: names[d.getMonth()],
-      value: Math.round(38 + (11 - i) * 5),
-      current: i === 0,
-    })
-  }
-  return months
 }
 
 function Stat({

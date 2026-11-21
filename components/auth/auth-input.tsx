@@ -15,7 +15,7 @@ export function AuthInput({ label, trailing, error, className, ...props }: AuthI
           {label}
         </span>
       ) : null}
-      <div className="flex h-12 w-full items-center rounded-lg border border-border bg-card px-4 py-0 transition-[border-color,box-shadow] duration-150 focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20">
+      <div className="flex h-9 w-full items-center rounded-md border border-border bg-background transition-[border-color,box-shadow] duration-150 focus-within:border-foreground focus-within:ring-2 focus-within:ring-ring/40">
         <input
           aria-invalid={!!error}
           className={cn(

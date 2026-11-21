@@ -38,7 +38,7 @@ export function ConfirmDialog({
 }: ConfirmDialogProps) {
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
-      <AlertDialogContent>
+      <AlertDialogContent className="rounded-xl border border-border bg-card">
         <AlertDialogHeader>
           <AlertDialogTitle>{title}</AlertDialogTitle>
           {description ? (
@@ -59,7 +59,7 @@ export function ConfirmDialog({
                 "bg-foreground text-background hover:bg-foreground/90 focus-visible:ring-foreground/40",
             )}
           >
-            {submitting ? <Loader2 className="size-4 animate-spin" /> : null}
+            {submitting ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : null}
             {confirmLabel}
           </AlertDialogAction>
         </AlertDialogFooter>

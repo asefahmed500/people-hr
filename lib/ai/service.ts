@@ -8,7 +8,6 @@ import {
   type AIToolDefinition,
   type AIToolCall,
   type AIToolResult,
-  type AITaskClassification,
   type AIUsage,
   type AIModelTier,
 } from "./types";
@@ -152,8 +151,7 @@ export class AIService {
   async executeTool(
     toolCall: AIToolCall,
     tools: AIToolDefinition[],
-    executor: (name: string, args: Record<string, unknown>) => Promise<string>,
-    options: AIServiceOptions = {}
+    executor: (name: string, args: Record<string, unknown>) => Promise<string>
   ): Promise<AIToolResult> {
     const tool = tools.find((t) => t.name === toolCall.name);
     if (!tool) {

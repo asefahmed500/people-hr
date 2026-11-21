@@ -11,6 +11,7 @@ import { TeamLeaderboard } from "@/components/performance/team-leaderboard"
 import { EmployeePerformance } from "@/components/performance/employee-performance"
 import { ActionDialog } from "@/components/shared/dialog-parts"
 import { TextArea, SelectField, useForm } from "@/components/shared/field"
+import { StoreErrorState } from "@/components/shared/store-error-state"
 import { Skeleton } from "@/components/ui/skeleton"
 import { notify } from "@/lib/toast"
 import { exportToCsv } from "@/lib/export"
@@ -27,7 +28,13 @@ import { useApiStore } from "@/hooks/use-api-store"
 import { useAuth } from "@/hooks/use-auth"
 
 export function PerformancePageClient() {
-  const { state: store, setState, hydrated } = useApiStore<PerformanceStore>(
+  const {
+    state: store,
+    setState,
+    hydrated,
+    error: performanceError,
+    retry: retryPerformance,
+  } = useApiStore<PerformanceStore>(
     "/api/store/performance",
     () => defaultPerformanceStore,
   )
@@ -35,12 +42,32 @@ export function PerformancePageClient() {
   // Reviews are written by managers/admins about their people. Employees get
   // a read-only view (the server merge rejects employee review writes too).
   const canWrite = user?.role === "admin" || user?.role === "manager"
-  const { state: employees } = useApiStore<Employee[]>("/api/store/employees", () => defaultEmployees)
+  const {
+    state: employees,
+    error: employeesError,
+    retry: retryEmployees,
+  } = useApiStore<Employee[]>("/api/store/employees", () => defaultEmployees)
+  const error = performanceError || employeesError
+  const retry = () => {
+    retryPerformance()
+    retryEmployees()
+  }
 
   const [activeDept, setActiveDept] = React.useState("all")
   const [searchQuery, setSearchQuery] = React.useState("")
   const [reviewOpen, setReviewOpen] = React.useState(false)
   const [deleteTarget, setDeleteTarget] = React.useState<Review | null>(null)
+
+  // Keep every chart, the leaderboard and the header count consistent with the
+  // selected department filter, not just the table.
+  const visibleReviews = React.useMemo(
+    () => activeDept === "all" ? store.reviews : store.reviews.filter((r) => r.department === activeDept),
+    [store.reviews, activeDept],
+  )
+  const visibleScores = React.useMemo(
+    () => activeDept === "all" ? store.teamScores : store.teamScores.filter((t) => t.team === activeDept),
+    [store.teamScores, activeDept],
+  )
 
   const employeeOptions = React.useMemo(() => {
     const seen = new Set<string>()
@@ -124,7 +151,7 @@ export function PerformancePageClient() {
       role: source.role,
       deptDot: existing?.deptDot ?? "bg-foreground",
       department: source.department,
-      reviewer: "You",
+      reviewer: user?.name ?? "Reviewer",
       rating,
       status,
       comments: reviewForm.values.comments.trim() || undefined,
@@ -147,17 +174,25 @@ export function PerformancePageClient() {
     setReviewOpen(false)
   }
 
+  if (error) {
+    return (
+      <DashboardShell activeHref="/performance" current="Performance" accentCurrent>
+        <StoreErrorState onRetry={retry} />
+      </DashboardShell>
+    )
+  }
+
   if (!hydrated) {
     return (
       <DashboardShell activeHref="/performance" current="Performance" accentCurrent>
-        <Skeleton className="h-12 w-full rounded-2xl" />
-        <Skeleton className="h-10 w-full rounded-2xl" />
-        <div className="flex w-full gap-5">
-          <Skeleton className="h-[180px] flex-1 rounded-2xl" />
-          <Skeleton className="h-[180px] w-[300px] shrink-0 rounded-2xl" />
+        <Skeleton className="h-12 w-full rounded-lg" />
+        <Skeleton className="h-9 w-full rounded-lg" />
+        <div className="flex w-full gap-4">
+          <Skeleton className="h-[180px] flex-1 rounded-lg" />
+          <Skeleton className="h-[180px] w-full shrink-0 rounded-lg lg:w-[300px]" />
         </div>
-        <Skeleton className="h-[200px] w-full rounded-2xl" />
-        <Skeleton className="h-[400px] w-full rounded-2xl" />
+        <Skeleton className="h-[200px] w-full rounded-lg" />
+        <Skeleton className="h-[400px] w-full rounded-lg" />
       </DashboardShell>
     )
   }
@@ -177,17 +212,17 @@ export function PerformancePageClient() {
           notify.success("Performance exported", `${store.reviews.length} reviews downloaded as CSV.`)
         }}
         onStartReview={canWrite ? handleStartReview : undefined}
-        subtitle={`${new Date().toLocaleDateString("en-US", { weekday: "long", day: "numeric", month: "long", year: "numeric" })} · ${store.reviews.filter((r) => r.reviewedAt || r.status !== "needs").length} of ${store.reviews.length} reviews submitted`}
+        subtitle={`${new Date().toLocaleDateString("en-US", { weekday: "long", day: "numeric", month: "long", year: "numeric" })} Ã‚Â· ${visibleReviews.filter((r) => r.reviewedAt || r.status !== "needs").length} of ${visibleReviews.length} reviews submitted`}
       />
-      <RatingDistribution reviews={store.reviews} />
+      <RatingDistribution reviews={visibleReviews} />
       <DepartmentFilterBar
         activeDept={activeDept}
         onDeptChange={setActiveDept}
         reviews={store.reviews}
       />
-      <PerformanceSpotlight reviews={store.reviews} teamScores={store.teamScores} />
+      <PerformanceSpotlight reviews={visibleReviews} teamScores={visibleScores} />
       <TeamLeaderboard
-        teamScores={store.teamScores}
+        teamScores={visibleScores}
         onFullReport={() =>
           document.getElementById("employee-performance")?.scrollIntoView({ behavior: "smooth" })
         }
@@ -196,14 +231,14 @@ export function PerformancePageClient() {
         filterDept={activeDept}
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
-        reviews={store.reviews}
+        reviews={visibleReviews}
         onDelete={canWrite ? setDeleteTarget : undefined}
       />
       <ConfirmDialog
         open={!!deleteTarget}
         onOpenChange={(o) => { if (!o) setDeleteTarget(null) }}
         title="Delete review"
-        description={deleteTarget ? `Delete the review for ${deleteTarget.name}? This can’t be undone.` : undefined}
+        description={deleteTarget ? `Delete the review for ${deleteTarget.name}? This canÃ¢â‚¬â„¢t be undone.` : undefined}
         confirmLabel="Delete"
         destructive
         onConfirm={() => {
@@ -217,7 +252,7 @@ export function PerformancePageClient() {
           setDeleteTarget(null)
         }}
       />
-      <ActionDialog
+      <ActionDialog width="wide"
         open={reviewOpen}
         onOpenChange={setReviewOpen}
         title="Start review"
@@ -232,20 +267,20 @@ export function PerformancePageClient() {
           options={employeeOptions}
           required
         />
-        <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <SelectField
             label="Rating"
             value={reviewForm.values.rating}
             onChange={(v) => reviewForm.setValue("rating", v)}
             options={[
-              { value: "5", label: "5 · Outstanding" },
-              { value: "4.5", label: "4.5 · Exceeds" },
-              { value: "4", label: "4 · Strong" },
-              { value: "3.5", label: "3.5 · Meets+" },
-              { value: "3", label: "3 · Meets" },
-              { value: "2.5", label: "2.5 · Below+" },
-              { value: "2", label: "2 · Below" },
-              { value: "1", label: "1 · Needs improvement" },
+              { value: "5", label: "5 Ã‚Â· Outstanding" },
+              { value: "4.5", label: "4.5 Ã‚Â· Exceeds" },
+              { value: "4", label: "4 Ã‚Â· Strong" },
+              { value: "3.5", label: "3.5 Ã‚Â· Meets+" },
+              { value: "3", label: "3 Ã‚Â· Meets" },
+              { value: "2.5", label: "2.5 Ã‚Â· Below+" },
+              { value: "2", label: "2 Ã‚Â· Below" },
+              { value: "1", label: "1 Ã‚Â· Needs improvement" },
             ]}
             required
           />
@@ -261,6 +296,7 @@ export function PerformancePageClient() {
           value={reviewForm.values.comments}
           onChange={(v) => reviewForm.setValue("comments", v)}
           placeholder="Add your review comments..."
+          error={reviewForm.errors.comments}
         />
       </ActionDialog>
     </DashboardShell>

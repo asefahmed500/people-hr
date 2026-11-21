@@ -4,6 +4,7 @@ import bcrypt from "bcryptjs"
 
 import { prisma } from "@/lib/db"
 import { rateLimit } from "@/lib/rate-limit"
+import { bumpSessionEpoch } from "@/lib/login-history"
 
 function sha256(s: string): string {
   return crypto.createHash("sha256").update(s).digest("hex")
@@ -18,7 +19,8 @@ export async function POST(request: Request) {
   const raw = typeof body?.token === "string" ? body.token : ""
   const password = typeof body?.password === "string" ? body.password : ""
 
-  if (raw.length < 20 || password.length < 8) {
+  // Keep parity with register/change-password: 8–128 characters.
+  if (raw.length < 20 || password.length < 8 || password.length > 128) {
     return NextResponse.json({ error: "Invalid reset link or password." }, { status: 400 })
   }
 
@@ -36,6 +38,8 @@ export async function POST(request: Request) {
   }
   await prisma.user.update({ where: { id: user.id }, data: { password: hash } })
   await prisma.verificationToken.delete({ where: { token } })
+  // A credential reset must invalidate sessions that were stolen with the old password.
+  await bumpSessionEpoch(user.id).catch(() => {})
 
   return NextResponse.json({ ok: true })
 }

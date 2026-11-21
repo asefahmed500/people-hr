@@ -37,6 +37,8 @@ export type RecentReportRecord = {
   size: string
   status: "ready" | "generating" | "failed"
   tone: "forest" | "mint" | "amber" | "slate"
+  /** Store key used to build this export, so re-downloads match the original. */
+  reportType?: string
 }
 
 export type ReportsStore = {

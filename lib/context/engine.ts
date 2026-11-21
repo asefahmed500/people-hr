@@ -83,6 +83,7 @@ Current time: ${context.system.timestamp.toISOString()}`;
     }
 
     prompt += `\n\nYou must answer based on the provided context. If you don't have enough information, say so clearly. Never fabricate data.`;
+    prompt += `\n\nNot every action is available through the assistant. If a requested change (for example deactivating an account, creating team members, or approving leave) can't be completed here, tell the user to use the relevant module UI instead of claiming it was done.`;
 
     return prompt;
   }

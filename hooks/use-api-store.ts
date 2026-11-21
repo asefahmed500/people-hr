@@ -10,6 +10,10 @@ type ApiState<T> = {
   state: T
   hydrated: boolean
   loading: boolean
+  /** True only after every GET attempt failed — drives the retry UI. */
+  error: boolean
+  /** Bumped by retry() to re-run the hydration effect. */
+  fetchNonce: number
   saveTimer: ReturnType<typeof setTimeout> | null
   version: number | null
   writeSeq: number
@@ -26,6 +30,8 @@ function getStore<T>(endpoint: string, seed: () => T): StoreApi<ApiState<T>> {
     state: seed(),
     hydrated: false,
     loading: false,
+    error: false,
+    fetchNonce: 0,
     saveTimer: null,
     version: null,
     writeSeq: 0,
@@ -50,20 +56,64 @@ function versionOf(res: Response): number | null {
 /** Drop hydration state on every store so the next mount re-fetches fresh data. */
 export function resetAllStores() {
   for (const store of registry.values()) {
-    store.setState({
+    // Cancel any in-flight debounced PUT before clearing its handle — logging
+    // out must not let a pending edit fire with an expired session.
+    const pending = store.getState().saveTimer
+    if (pending) clearTimeout(pending)
+    store.setState((s) => ({
       hydrated: false,
       loading: false,
+      error: false,
+      fetchNonce: s.fetchNonce + 1,
       saveTimer: null,
       version: null,
       writeSeq: 0,
       reverting: false,
+    }))
+  }
+}
+
+/**
+ * Endpoints whose derived views depend on a write to the key endpoint. When a
+ * write lands, these stores must re-fetch or the UI keeps showing stale counts
+ * (analytics, headcount, leave status) for the rest of the SPA session.
+ */
+const RELATED_ENDPOINTS: Record<string, string[]> = {
+  "/api/store/leave": ["employees", "analytics", "notifications"],
+  "/api/store/employees": ["leave", "payroll", "payslips", "organization", "analytics", "performance", "projects", "goals", "attendance"],
+  "/api/store/recruitment": ["employees", "leave", "onboarding", "analytics"],
+  "/api/store/organization": ["analytics", "employees"],
+  "/api/store/reports": ["notifications"],
+  "/api/store/attendance": ["analytics"],
+  "/api/store/projects": ["analytics"],
+  "/api/store/goals": ["analytics"],
+  "/api/store/performance": ["analytics"],
+  "/api/store/onboarding": ["analytics"],
+  "/api/store/payroll": ["payslips", "analytics"],
+}
+
+function invalidateRelatedStores(endpoint: string): void {
+  const related = RELATED_ENDPOINTS[endpoint]
+  for (const [key, store] of registry) {
+    if (key === endpoint) continue
+    const shouldRefresh = !related || related.some((name) => key.endsWith(`/${name}`))
+    if (!shouldRefresh) continue
+    const current = store.getState()
+    if (!current.hydrated) continue
+    // Mark unhydrated + bump nonce so mounted consumers re-fetch on the next
+    // render; unmounted ones simply fetch when they next mount.
+    store.setState({
+      hydrated: false,
+      loading: false,
+      fetchNonce: current.fetchNonce + 1,
+      version: null,
     })
   }
 }
 
 /**
  * API-backed drop-in replacement for `useMockStore`.
- * Same shape: `{ state, setState, reset, hydrated }`.
+ * Same shape plus load feedback: `{ state, setState, reset, refresh, hydrated, error, retry }`.
  * - Hydrates from `GET ${endpoint}` on mount (once per endpoint).
  * - `setState` applies optimistically + schedules a debounced `PUT`.
  * - Writes are ignored until the store is hydrated, so an early cross-store
@@ -81,30 +131,65 @@ export function useApiStore<T>(
   /** Re-fetch server truth without scheduling a write (for out-of-band changes). */
   refresh: () => Promise<void>
   hydrated: boolean
+  /** True only when all GET retries failed and the section could not load. */
+  error: boolean
+  /** Clear the failure and re-fetch this endpoint from the server. */
+  retry: () => void
 } {
   const store = getStore<T>(endpoint, seed)
 
   const state = useStore(store, (s) => s.state)
   const hydrated = useStore(store, (s) => s.hydrated)
+  const error = useStore(store, (s) => s.error)
+  const fetchNonce = useStore(store, (s) => s.fetchNonce)
 
   React.useEffect(() => {
     const cur = store.getState()
     if (cur.hydrated || cur.loading) return
-    store.setState({ loading: true })
-    apiRequest<Response>(endpoint, { raw: true })
-      .then((res) => {
-        return res.json().then((data: T) => {
-          store.setState({ state: data, hydrated: true, loading: false, version: versionOf(res) })
+    store.setState({ loading: true, error: false })
+    let cancelled = false
+
+    // Transient network/server blips should not strand the user on a permanent
+    // skeleton. Retry a couple of times with backoff before surfacing the
+    // failure; never mark hydrated on failure, so seed defaults can't be PUT
+    // over real server data.
+    const load = async (attempt: number): Promise<void> => {
+      try {
+        const res = await apiRequest<Response>(endpoint, { raw: true })
+        const data = (await res.json()) as T
+        if (cancelled) return
+        store.setState({
+          state: data,
+          hydrated: true,
+          loading: false,
+          error: false,
+          version: versionOf(res),
         })
-      })
-      .catch(() => {
-        // Stay un-hydrated: the UI keeps its skeleton and any component
-        // remount retries the fetch. Marking hydrated here would let seed
-        // defaults be edited and PUT over real server data.
-        store.setState({ hydrated: false, loading: false })
-        notify.error("Couldn’t load", `Failed to load ${labelFor(endpoint)}.`)
-      })
-  }, [store, endpoint])
+      } catch {
+        if (cancelled) return
+        if (attempt < 2) {
+          setTimeout(() => {
+            if (!cancelled) void load(attempt + 1)
+          }, 400 * (attempt + 1))
+          return
+        }
+        // All attempts failed: surface a retryable error rather than leaving
+        // the consumer stuck on a permanent skeleton.
+        store.setState({ hydrated: false, loading: false, error: true })
+        notify.error("Couldn’t load", `Failed to load ${labelFor(endpoint)}. Try again from the page.`)
+      }
+    }
+    void load(0)
+    return () => {
+      cancelled = true
+      // React StrictMode double-invokes effects in dev: the first run's
+      // cleanup must release the loading lock so the second run can fetch.
+      // Without this, every store-backed page stays on its skeleton forever
+      // in development even though the GET would succeed.
+      const latest = store.getState()
+      if (latest.loading && !latest.hydrated) store.setState({ loading: false })
+    }
+  }, [store, endpoint, fetchNonce])
 
   const setState = React.useCallback(
     (updater: T | ((prev: T) => T)) => {
@@ -128,6 +213,7 @@ export function useApiStore<T>(
         })
           .then((res) => {
             store.setState({ version: versionOf(res) })
+            invalidateRelatedStores(endpoint)
           })
           .catch((err) => {
             const stale = err instanceof ApiError && err.status === 409
@@ -190,5 +276,17 @@ export function useApiStore<T>(
       })
   }, [store, endpoint, seed])
 
-  return { state, setState, reset, refresh, hydrated }
+  // Wipe the failed hydration state and bump the nonce so the effect above
+  // re-runs. Other mounted components sharing this store re-run too, but the
+  // loading guard makes sure only one request is actually sent.
+  const retry = React.useCallback(() => {
+    store.setState((s) => ({
+      loading: false,
+      hydrated: false,
+      error: false,
+      fetchNonce: s.fetchNonce + 1,
+    }))
+  }, [store])
+
+  return { state, setState, reset, refresh, hydrated, error, retry }
 }

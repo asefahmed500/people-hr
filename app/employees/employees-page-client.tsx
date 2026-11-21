@@ -8,6 +8,7 @@ import { type ProjectsStore, defaultProjectsStore } from "@/lib/data"
 import { type GoalsStore, defaultGoalsStore } from "@/lib/data"
 import { useApiStore } from "@/hooks/use-api-store"
 import { useAuth } from "@/hooks/use-auth"
+import { FileUpload } from "@/components/shared/file-upload"
 import { scopeDepartments } from "@/lib/role-scope"
 import { onAction, consumePendingAction } from "@/lib/command-actions"
 import { notify } from "@/lib/toast"
@@ -16,6 +17,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { DataTable, type Column, type FilterChip, type SortOption } from "@/components/shared/data-table"
 import { ActionDialog } from "@/components/shared/dialog-parts"
 import { Field, SelectField, useForm } from "@/components/shared/field"
+import { StoreErrorState } from "@/components/shared/store-error-state"
 import { DirectoryHeader } from "@/components/employees/directory-header"
 import { DirectoryStatChips } from "@/components/employees/directory-stat-chips"
 import { cn } from "@/lib/utils"
@@ -64,15 +66,38 @@ const employeeSchema = z.object({
 })
 
 export function EmployeesPageClient() {
-  const { state: employees, setState: setEmployees, hydrated: employeesHydrated } = useApiStore<Employee[]>(
+  const {
+    state: employees,
+    setState: setEmployees,
+    hydrated: employeesHydrated,
+    error: employeesError,
+    retry: retryEmployees,
+  } = useApiStore<Employee[]>(
     "/api/store/employees",
     () => defaultEmployees,
   )
-  const { state: leaveStore, setState: setLeaveStore, hydrated: leaveHydrated } = useApiStore<LeaveStore>("/api/store/leave", () => defaultLeaveStore)
-  const { state: projectsStore, hydrated: projectsHydrated } = useApiStore<ProjectsStore>("/api/store/projects", () => defaultProjectsStore)
-  const { state: goalsStore, hydrated: goalsHydrated } = useApiStore<GoalsStore>("/api/store/goals", () => defaultGoalsStore)
+  const {
+    state: leaveStore,
+    setState: setLeaveStore,
+    hydrated: leaveHydrated,
+    error: leaveError,
+    retry: retryLeave,
+  } = useApiStore<LeaveStore>("/api/store/leave", () => defaultLeaveStore)
+  const {
+    state: projectsStore,
+    hydrated: projectsHydrated,
+    error: projectsError,
+    retry: retryProjects,
+  } = useApiStore<ProjectsStore>("/api/store/projects", () => defaultProjectsStore)
+  const {
+    state: goalsStore,
+    hydrated: goalsHydrated,
+    error: goalsError,
+    retry: retryGoals,
+  } = useApiStore<GoalsStore>("/api/store/goals", () => defaultGoalsStore)
   const { user } = useAuth()
   const canWrite = user?.role === "admin" || user?.role === "manager"
+  const isAdmin = user?.role === "admin"
   const [addOpen, setAddOpen] = React.useState(false)
   const [editEmployee, setEditEmployee] = React.useState<Employee | null>(null)
   const [deactivateTarget, setDeactivateTarget] = React.useState<Employee | null>(null)
@@ -92,6 +117,7 @@ export function EmployeesPageClient() {
       key: "employee",
       header: "Employee",
       className: "min-w-0 flex-1",
+      sortable: true,
       render: (e) => (
         <div className="flex min-w-0 items-center gap-3">
           <div className="flex size-[38px] shrink-0 items-center justify-center rounded-full bg-foreground/20">
@@ -104,7 +130,7 @@ export function EmployeesPageClient() {
               {e.name}
             </span>
             <span className="font-sans text-[12.5px] leading-tight text-muted-foreground">
-              {e.email || "—"}
+              {e.email || "â€”"}
             </span>
           </div>
         </div>
@@ -114,6 +140,7 @@ export function EmployeesPageClient() {
       key: "department",
       header: "Department",
       className: "w-[150px] shrink-0",
+      sortable: true,
       sortAccessor: (e) => e.department,
       render: (e) => (
         <span className="inline-block w-fit rounded-full bg-muted px-2.5 py-1 font-sans text-[11.5px] font-medium leading-normal text-secondary-foreground">
@@ -125,6 +152,7 @@ export function EmployeesPageClient() {
       key: "role",
       header: "Role",
       className: "w-[200px] shrink-0",
+      sortable: true,
       sortAccessor: (e) => e.role,
       render: (e) => (
         <span className="font-sans text-[13.5px] leading-normal text-secondary-foreground">
@@ -136,6 +164,7 @@ export function EmployeesPageClient() {
       key: "location",
       header: "Location",
       className: "w-[150px] shrink-0",
+      sortable: true,
       sortAccessor: (e) => e.location,
       render: (e) => (
         <span className="font-sans text-[13.5px] leading-normal text-secondary-foreground">
@@ -160,23 +189,36 @@ export function EmployeesPageClient() {
   ]
 
   const sorts: SortOption<Employee>[] = [
-    { id: "name", label: "Name (A–Z)", accessor: (e) => e.name },
+    { id: "employee", label: "Name (Aâ€“Z)", accessor: (e) => e.name },
     { id: "department", label: "Department", accessor: (e) => e.department },
+    { id: "role", label: "Role", accessor: (e) => e.role },
     { id: "location", label: "Location", accessor: (e) => e.location },
   ]
 
   const hydrated = employeesHydrated && leaveHydrated && projectsHydrated && goalsHydrated
+  const error = employeesError || leaveError || projectsError || goalsError
+  const retry = () => {
+    retryEmployees()
+    retryLeave()
+    retryProjects()
+    retryGoals()
+  }
 
   // Managers may only add/edit employees inside their own department (server
   // merge rejects anything else), so restrict the dropdown accordingly.
   const deptOptions = scopeDepartments(user, DEPARTMENTS)
 
+  if (error) {
+    // page.tsx already provides the DashboardShell for this route.
+    return <StoreErrorState onRetry={retry} />
+  }
+
   if (!hydrated) {
     return (
       <>
-        <Skeleton className="h-12 w-full rounded-2xl" />
-        <Skeleton className="h-20 w-full rounded-2xl" />
-        <Skeleton className="h-[420px] w-full rounded-2xl" />
+        <Skeleton className="h-12 w-full rounded-lg" />
+        <Skeleton className="h-20 w-full rounded-lg" />
+        <Skeleton className="h-[420px] w-full rounded-lg" />
       </>
     )
   }
@@ -206,7 +248,7 @@ export function EmployeesPageClient() {
         columns={columns}
         getRowId={(e) => e.id}
         searchKeys={["name", "email", "role", "location"]}
-        searchPlaceholder="Search by name, role, email…"
+        searchPlaceholder="Search by name, role, emailâ€¦"
         filterChips={chips}
         sortOptions={sorts}
         emptyLabel="No employees match your filters."
@@ -216,7 +258,9 @@ export function EmployeesPageClient() {
           ...(canWrite
             ? [
                 { label: "Edit", onSelect: () => setEditEmployee(e) },
-                e.status === "inactive"
+                // Status is a privileged field: only admins may deactivate or
+                // reactivate. Showing this to managers produced a 403 + revert.
+                ...(isAdmin ? [e.status === "inactive"
                   ? {
                       label: "Reactivate",
                       onSelect: () => {
@@ -224,14 +268,13 @@ export function EmployeesPageClient() {
                           prev.map((p) => (p.id === e.id ? { ...p, status: "active" as const } : p)),
                         )
                         notify.success(`${e.name} reactivated`)
-
                       },
                     }
                   : {
                       label: "Deactivate",
                       danger: true,
                       onSelect: () => setDeactivateTarget(e),
-                    },
+                    }] : []),
               ]
             : []),
         ]}
@@ -241,6 +284,7 @@ export function EmployeesPageClient() {
         onOpenChange={setAddOpen}
         departments={deptOptions}
         allEmployees={employees}
+        isAdmin={isAdmin}
         onAdd={(emp) => {
           setEmployees((prev) => [emp, ...prev])
           // Every new directory entry gets a leave balance so the leave module
@@ -260,6 +304,7 @@ export function EmployeesPageClient() {
         editEmployee={editEmployee ?? undefined}
         departments={deptOptions}
         allEmployees={employees}
+        isAdmin={isAdmin}
         onEdit={(emp) => {
           setEmployees((prev) => prev.map((p) => (p.id === emp.id ? emp : p)))
           notify.success(`${emp.name} updated`)
@@ -274,9 +319,9 @@ export function EmployeesPageClient() {
             <AlertDialogDescription>
               <p>This deactivates {deactivateTarget?.name} from the directory. Their existing records are kept.</p>
               <ul className="mt-2 flex flex-col gap-1 text-left">
-                <li>• {leaveStore.requests.filter((r) => r.employeeName === deactivateTarget?.name).length} leave request(s)</li>
-                <li>• {projectsStore.tasks.filter((t) => t.ownerName === deactivateTarget?.name).length} project(s)</li>
-                <li>• {goalsStore.objectives.filter((o) => o.ownerName === deactivateTarget?.name).length} objective(s)</li>
+                <li>â€¢ {leaveStore.requests.filter((r) => r.employeeName === deactivateTarget?.name).length} leave request(s)</li>
+                <li>â€¢ {projectsStore.tasks.filter((t) => t.ownerName === deactivateTarget?.name).length} project(s)</li>
+                <li>â€¢ {goalsStore.objectives.filter((o) => o.ownerName === deactivateTarget?.name).length} objective(s)</li>
               </ul>
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -294,7 +339,10 @@ export function EmployeesPageClient() {
                   setLeaveStore?.((prev) => ({
                     ...prev,
                     requests: prev.requests.map((r) =>
-                      r.employeeId === deactivateTarget.id && r.status === "pending"
+                      // Match by stable id only. Matching on display name could
+                      // decline a different person's request when two employees
+                      // share a name.
+                      r.status === "pending" && r.employeeId === deactivateTarget.id
                         ? { ...r, status: "declined" as const }
                         : r,
                     ),
@@ -311,7 +359,7 @@ export function EmployeesPageClient() {
         </AlertDialogContent>
       </AlertDialog>
       <Sheet open={!!viewEmployee} onOpenChange={(o) => { if (!o) setViewEmployee(null) }}>
-        <SheetContent side="right" className="w-full gap-4 border-l border-border bg-card p-6 sm:max-w-[400px]">
+        <SheetContent side="right" className="w-full gap-4 border-l border-border bg-card p-4 sm:max-w-[400px]">
           <SheetHeader>
             <SheetTitle className="text-h4">
               {viewEmployee?.name}
@@ -330,10 +378,10 @@ export function EmployeesPageClient() {
                 </div>
                 <div className="flex flex-col">
                   <span className="font-sans text-[13px] font-semibold text-foreground">{viewEmployee.name}</span>
-                  <span className="font-sans text-[12px] text-muted-foreground">{viewEmployee.email || "—"}</span>
+                  <span className="font-sans text-[12px] text-muted-foreground">{viewEmployee.email || "â€”"}</span>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-3 rounded-xl border border-border bg-muted p-4">
+              <div className="grid grid-cols-2 gap-3 rounded-lg border border-border bg-muted p-4">
                 <div className="flex flex-col gap-0.5">
                   <span className="font-sans text-[11px] text-muted-foreground">Role</span>
                   <span className="font-sans text-[13px] font-medium text-foreground">{viewEmployee.role}</span>
@@ -352,7 +400,7 @@ export function EmployeesPageClient() {
                 </div>
                 <div className="flex flex-col gap-0.5">
                   <span className="font-sans text-[11px] text-muted-foreground">Phone</span>
-                  <span className="font-sans text-[13px] font-medium text-foreground">{viewEmployee.phone || "—"}</span>
+                  <span className="font-sans text-[13px] font-medium text-foreground">{viewEmployee.phone || "â€”"}</span>
                 </div>
                 <div className="flex flex-col gap-0.5">
                   <span className="font-sans text-[11px] text-muted-foreground">Employment type</span>
@@ -360,10 +408,10 @@ export function EmployeesPageClient() {
                 </div>
                 <div className="flex flex-col gap-0.5">
                   <span className="font-sans text-[11px] text-muted-foreground">Reporting manager</span>
-                  <span className="font-sans text-[13px] font-medium text-foreground">{viewEmployee.reportingManager || "—"}</span>
+                  <span className="font-sans text-[13px] font-medium text-foreground">{viewEmployee.reportingManager || "â€”"}</span>
                 </div>
               </div>
-              <div className="flex flex-col gap-1 rounded-xl border border-border bg-muted p-4">
+              <div className="flex flex-col gap-1 rounded-lg border border-border bg-muted p-4">
                 <span className="font-sans text-[11px] text-muted-foreground">Employee ID</span>
                 <span className="font-sans text-[13px] font-medium text-foreground">{viewEmployee.id}</span>
               </div>
@@ -405,6 +453,7 @@ function AddEmployeeDialog({
   onEdit,
   departments = DEPARTMENTS,
   allEmployees = [],
+  isAdmin = false,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -413,8 +462,10 @@ function AddEmployeeDialog({
   onEdit?: (emp: Employee) => void
   departments?: readonly string[]
   allEmployees?: Employee[]
+  isAdmin?: boolean
 }) {
   const isEdit = !!editEmployee
+  const { user } = useAuth()
   const [submitting, setSubmitting] = React.useState(false)
   const form = useForm({
     name: editEmployee?.name ?? "",
@@ -427,6 +478,7 @@ function AddEmployeeDialog({
     employmentType: editEmployee?.employmentType ?? "full-time",
     reportingManager: editEmployee?.reportingManager ?? "",
     salary: editEmployee?.salary != null ? String(editEmployee.salary) : "",
+    attachments: editEmployee?.attachments ?? [],
   })
 
   // Always-mounted dialog: clear the add form each time it opens so a
@@ -444,6 +496,7 @@ function AddEmployeeDialog({
       employmentType: "full-time",
       reportingManager: "",
       salary: "",
+      attachments: [],
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open])
@@ -461,6 +514,7 @@ function AddEmployeeDialog({
       form.setValue("employmentType", editEmployee.employmentType ?? "full-time")
       form.setValue("reportingManager", editEmployee.reportingManager ?? "")
       form.setValue("salary", editEmployee.salary != null ? String(editEmployee.salary) : "")
+      form.setValue("attachments", editEmployee.attachments ?? [])
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editEmployee])
@@ -475,7 +529,7 @@ function AddEmployeeDialog({
       form.setErrors(fieldErrors as never)
       return
     }
-    // Duplicate email guard — emails are the identity used by role-scoping.
+    // Duplicate email guard â€” emails are the identity used by role-scoping.
     const email = parsed.data.email.toLowerCase()
     const duplicate =
       email !== "" &&
@@ -491,14 +545,18 @@ function AddEmployeeDialog({
           ...editEmployee,
           name: parsed.data.name,
           email: parsed.data.email,
-          role: parsed.data.role,
+          // Employment fields are admin-only; managers cannot change them.
+          role: isAdmin ? parsed.data.role : editEmployee.role,
           department: parsed.data.department as Employee["department"],
           location: parsed.data.location,
-          status: parsed.data.status,
+          status: isAdmin ? parsed.data.status : editEmployee.status,
           phone: parsed.data.phone || undefined,
           employmentType: parsed.data.employmentType,
           reportingManager: parsed.data.reportingManager || undefined,
-          salary: parsed.data.salary === "" ? undefined : Number(parsed.data.salary),
+          salary: isAdmin
+            ? (parsed.data.salary === "" ? undefined : Number(parsed.data.salary))
+            : editEmployee.salary,
+          attachments: form.values.attachments,
         })
       } else if (onAdd) {
         onAdd(
@@ -513,6 +571,7 @@ function AddEmployeeDialog({
             employmentType: parsed.data.employmentType,
             reportingManager: parsed.data.reportingManager || undefined,
             salary: parsed.data.salary === "" ? undefined : Number(parsed.data.salary),
+            attachments: form.values.attachments,
           }),
         )
       }
@@ -528,11 +587,13 @@ function AddEmployeeDialog({
       open={open}
       onOpenChange={onOpenChange}
       title={isEdit ? "Edit employee" : "Add employee"}
-      description={isEdit ? `Update ${editEmployee?.name}'s details.` : "Create a new directory entry. They'll receive an invite via email."}
+      description={isEdit ? `Update ${editEmployee?.name}'s details.` : "Create a directory entry with personnel documents. No invite email is sent."}
       submitLabel={isEdit ? "Save changes" : "Add employee"}
       submitting={submitting}
+      width="wide"
       onSubmit={onSubmit}
     >
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
       <Field
         label="Full name"
         value={form.values.name}
@@ -550,15 +611,23 @@ function AddEmployeeDialog({
         required
         error={form.errors.email}
       />
-      <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
-        <Field
-          label="Role"
-          value={form.values.role}
-          onChange={(v) => form.setValue("role", v)}
-          placeholder="Product Designer"
-          required
-          error={form.errors.role}
-        />
+      </div>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 lg:grid-cols-3">
+        {isAdmin ? (
+          <Field
+            label="Role"
+            value={form.values.role}
+            onChange={(v) => form.setValue("role", v)}
+            placeholder="Product Designer"
+            required
+            error={form.errors.role}
+          />
+        ) : (
+          <div className="flex min-w-0 flex-col gap-1">
+            <span className="font-sans text-xs font-medium text-muted-foreground">Role</span>
+            <span className="truncate font-sans text-[13.5px] text-foreground">{form.values.role}</span>
+          </div>
+        )}
         <SelectField
           label="Department"
           value={form.values.department}
@@ -567,7 +636,7 @@ function AddEmployeeDialog({
           required
         />
       </div>
-      <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <Field
           label="Location"
           value={form.values.location}
@@ -576,19 +645,26 @@ function AddEmployeeDialog({
           required
           error={form.errors.location}
         />
-        <SelectField
-          label="Status"
-          value={form.values.status}
-          onChange={(v) => form.setValue("status", v as Employee["status"])}
-          options={[
-            { value: "active", label: "Active" },
-            { value: "leave", label: "On leave" },
-            { value: "remote", label: "Remote" },
-            { value: "inactive", label: "Inactive" },
-          ]}
-        />
+        {isAdmin ? (
+          <SelectField
+            label="Status"
+            value={form.values.status}
+            onChange={(v) => form.setValue("status", v as Employee["status"])}
+            options={[
+              { value: "active", label: "Active" },
+              { value: "leave", label: "On leave" },
+              { value: "remote", label: "Remote" },
+              { value: "inactive", label: "Inactive" },
+            ]}
+          />
+        ) : (
+          <div className="flex min-w-0 flex-col gap-1">
+            <span className="font-sans text-xs font-medium text-muted-foreground">Status</span>
+            <span className="font-sans text-[13.5px] text-foreground">{form.values.status}</span>
+          </div>
+        )}
       </div>
-      <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <Field
           label="Phone"
           type="text"
@@ -609,14 +685,16 @@ function AddEmployeeDialog({
           ]}
         />
       </div>
-      <Field
-        label="Monthly gross salary (USD)"
-        type="number"
-        value={form.values.salary ?? ""}
-        onChange={(v) => form.setValue("salary", v)}
-        placeholder="e.g. 5200 — used by payroll"
-        error={form.errors.salary}
-      />
+      {isAdmin ? (
+        <Field
+          label="Monthly gross salary (USD)"
+          type="number"
+          value={form.values.salary ?? ""}
+          onChange={(v) => form.setValue("salary", v)}
+          placeholder="e.g. 5200 â€” used by payroll"
+          error={form.errors.salary}
+        />
+      ) : null}
       <SelectField
         label="Reporting manager"
         value={form.values.reportingManager ?? ""}
@@ -625,8 +703,18 @@ function AddEmployeeDialog({
           { value: "", label: "No manager (individual contributor)" },
           ...allEmployees
             .filter((e) => e.id !== editEmployee?.id && e.status !== "inactive")
-            .map((e) => ({ value: e.name, label: `${e.name} · ${e.role}` })),
+            .map((e) => ({ value: e.name, label: `${e.name} Â· ${e.role}` })),
         ]}
+      />
+      {/* Personnel file: identity document and supporting evidence. */}
+      <FileUpload
+        label="Personnel documents"
+        value={form.values.attachments ?? []}
+        onChange={(files) => form.setValue("attachments", files)}
+        requiredKinds={["identity"]}
+        optionalKinds={["contract", "certificate", "supporting", "other"]}
+        maxFiles={10}
+        uploadedBy={user?.id}
       />
     </ActionDialog>
   )

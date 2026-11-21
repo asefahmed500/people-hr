@@ -1,35 +1,20 @@
 "use client"
 
 import * as React from "react"
+import { Users } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import type { CheckIn, CheckInStatus } from "@/lib/data"
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Badge } from "@/components/ui/badge"
 
 const statuses: Record<
   CheckInStatus,
-  { label: string; pillBg: string; pillText: string; avatarBg: string; avatarText: string }
+  { label: string; variant: "secondary" | "outline" | "ghost" }
 > = {
-  "on-time": {
-    label: "On time",
-    pillBg: "bg-primary/10",
-    pillText: "text-primary",
-    avatarBg: "bg-foreground/10",
-    avatarText: "text-primary",
-  },
-  late: {
-    label: "Late",
-    pillBg: "bg-secondary-foreground/10",
-    pillText: "text-secondary-foreground",
-    avatarBg: "bg-foreground/10",
-    avatarText: "text-secondary-foreground",
-  },
-  remote: {
-    label: "Remote",
-    pillBg: "bg-muted-foreground/10",
-    pillText: "text-muted-foreground",
-    avatarBg: "bg-foreground/10",
-    avatarText: "text-muted-foreground",
-  },
+  "on-time": { label: "On time", variant: "secondary" },
+  late: { label: "Late", variant: "outline" },
+  remote: { label: "Remote", variant: "ghost" },
 }
 
 type LiveCheckinsProps = {
@@ -50,25 +35,24 @@ export function LiveCheckins({ checkIns, onSelect }: LiveCheckinsProps) {
 
   const items = checkIns ?? []
   return (
-    <div className="flex w-full flex-col overflow-clip rounded-2xl border border-border bg-card">
-      <div className="flex items-center justify-between border-b border-b-border px-6 py-5">
+    <div className="flex w-full flex-col overflow-clip rounded-lg border border-border bg-card">
+      <div className="flex items-center justify-between border-b border-b-border px-4 py-3">
         <div className="flex items-center gap-3">
-          <span className="size-2.5 shrink-0 rounded-full bg-primary" />
+          <span className="size-2.5 shrink-0 rounded-full bg-primary" aria-hidden="true" />
           <h2 className="font-sans inline-block text-sm font-semibold text-foreground">
             Live check-ins
           </h2>
-          <span className="rounded-full bg-foreground/10 px-2 py-[3px] font-sans text-[10px] font-semibold leading-normal text-secondary-foreground">
-            {items.length}
-          </span>
+          <Badge variant="secondary" className="text-[10px]">{items.length}</Badge>
         </div>
         <span className="font-sans inline-block text-xs text-muted-foreground">
           {updatedLabel ? `Updated ${updatedLabel}` : "Updating…"}
         </span>
       </div>
       {items.length === 0 ? (
-        <div className="px-6 py-10 text-center">
-          <p className="font-sans text-[13px] font-medium text-foreground">No check-ins yet</p>
-          <p className="mt-1 font-sans text-[12px] text-muted-foreground">
+        <div className="flex flex-col items-center gap-2 px-4 py-8 text-center">
+          <Users className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" strokeWidth={2} />
+          <p className="font-sans text-[13px] font-semibold text-foreground">No check-ins yet</p>
+          <p className="font-sans text-[12px] text-muted-foreground">
             Mark attendance to see today’s live list here.
           </p>
         </div>
@@ -105,26 +89,14 @@ function CheckinRow({
       tabIndex={onSelect ? 0 : undefined}
       role={onSelect ? "button" : undefined}
       className={cn(
-        "flex items-center gap-4 px-6 py-3.5 transition-colors",
+        "flex items-center gap-4 px-4 py-3 transition-colors",
         !last && "border-b border-b-border",
         onSelect && "cursor-pointer hover:bg-muted",
       )}
     >
-      <div
-        className={cn(
-          "flex size-9 shrink-0 items-center justify-center rounded-full",
-          s.avatarBg,
-        )}
-      >
-        <span
-          className={cn(
-            "font-sans text-xs font-semibold",
-            s.avatarText,
-          )}
-        >
-          {checkin.initials}
-        </span>
-      </div>
+      <Avatar className="size-9">
+        <AvatarFallback className="text-xs">{checkin.initials}</AvatarFallback>
+      </Avatar>
       <div className="flex min-w-0 flex-1 flex-col">
         <span className="font-sans inline-block text-sm font-semibold text-foreground">
           {checkin.name}
@@ -136,15 +108,9 @@ function CheckinRow({
       <span className="shrink-0 font-sans text-xs text-secondary-foreground">
         {checkin.time}
       </span>
-      <span
-        className={cn(
-          "flex shrink-0 items-center rounded-full px-2.5 py-1 font-sans text-xs font-medium",
-          s.pillBg,
-          s.pillText,
-        )}
-      >
+      <Badge variant={s.variant} className="shrink-0">
         {s.label}
-      </span>
+      </Badge>
     </div>
   )
 }

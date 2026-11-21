@@ -32,7 +32,7 @@ export function PreferencesCard({
   ][]).filter(([, meta]) => !!meta)
 
   return (
-    <div className="flex flex-col rounded-2xl border border-border bg-card p-6">
+    <div className="flex flex-col rounded-lg border border-border bg-card p-4">
       <h2 className="mx-0 mb-4 mt-0 font-sans inline-block text-[15px] font-semibold leading-normal text-foreground">
         Preferences
       </h2>
@@ -40,7 +40,7 @@ export function PreferencesCard({
         <div
           key={key}
           className={cn(
-            "flex h-fit items-center justify-between px-0 py-3.5",
+            "flex h-fit items-center justify-between px-0 py-3",
             idx !== entries.length - 1 && "border-b border-b-border",
           )}
         >
@@ -53,6 +53,7 @@ export function PreferencesCard({
             </span>
           </div>
           <Switch
+            aria-label={meta.label}
             checked={preferences[key]}
             onCheckedChange={() => onToggle(key)}
           />

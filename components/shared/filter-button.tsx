@@ -36,12 +36,12 @@ export function FilterButton({
         <button
           type="button"
           aria-label={ariaLabel ?? current?.label}
-          className="flex h-10 flex-1 items-center gap-2 rounded-lg border border-border bg-card px-4 transition-colors hover:bg-muted sm:flex-none"
+          className="flex h-9 flex-1 items-center gap-2 rounded-lg border border-border bg-card px-4 transition-colors hover:bg-muted sm:flex-none"
         >
           <span className="font-sans text-[13px] font-medium leading-normal text-secondary-foreground">
             {current?.label ?? "Filter"}
           </span>
-          <ChevronDown className="size-[15px] text-muted-foreground" strokeWidth={2} />
+          <ChevronDown className="size-[15px] text-muted-foreground" strokeWidth={2} aria-hidden="true" />
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align={align} className="w-[200px]">
@@ -57,7 +57,7 @@ export function FilterButton({
           >
             {opt.label}
             {opt.value === value ? (
-              <Check className="size-3.5 text-primary" strokeWidth={2.5} />
+              <Check className="size-3.5 text-primary" strokeWidth={2.5} aria-hidden="true" />
             ) : null}
           </DropdownMenuItem>
         ))}

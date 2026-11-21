@@ -1,5 +1,13 @@
-import type { OCRPreprocessOptions, OCRBoundingBox, OCRWord, OCRLine, OCRBlock, OCRPage, OCRResult, OCRProviderName } from "./types";
-import { DEFAULT_PREPROCESS_OPTIONS, getOCRConfig } from "./config";
+import type {
+  OCRBoundingBox,
+  OCRWord,
+  OCRLine,
+  OCRBlock,
+  OCRPage,
+  OCRResult,
+  OCRProviderName,
+} from "./types";
+import { getOCRConfig } from "./config";
 import { createWorker, type Worker } from "tesseract.js";
 
 let _worker: Worker | null = null;
@@ -10,6 +18,12 @@ async function getWorker(): Promise<Worker> {
     logger: () => {},
   });
   return _worker;
+}
+
+/** Tesseract reports 0-100 (and sometimes -1); store everything as 0-1. */
+function normalizeConfidence(confidence: number): number {
+  if (!Number.isFinite(confidence) || confidence <= 0) return 0;
+  return Math.min(1, confidence / 100);
 }
 
 function groupWordsIntoLines(words: OCRWord[]): OCRLine[] {
@@ -85,7 +99,7 @@ function buildBlock(lines: OCRLine[]): OCRBlock {
   const firstLine = lines[0];
   const isHeading =
     lines.length === 1 &&
-    firstLine.words.some((w) => w.confidence > 90 && w.bbox.y1 - w.bbox.y0 > 20);
+    firstLine.words.some((w) => w.confidence > 0.9 && w.bbox.y1 - w.bbox.y0 > 20);
 
   return {
     text,
@@ -144,29 +158,33 @@ function detectTables(lines: OCRLine[]): { text: string; bbox: OCRBoundingBox; c
   return tables;
 }
 
-export async function ocrImage(
-  imageBuffer: Buffer,
-  options?: Partial<OCRPreprocessOptions>
-): Promise<OCRPage> {
+/** Run real OCR on an image and return Tesseract's actual confidence values. */
+export async function ocrImage(imageBuffer: Buffer): Promise<OCRPage> {
   const startTime = Date.now();
   const worker = await getWorker();
-  const opts = { ...DEFAULT_PREPROCESS_OPTIONS, ...options };
+  const recognized = await worker.recognize(imageBuffer);
+  const { blocks: recognizedBlocks, text, confidence } = recognized.data;
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const recognized = await worker.recognize(imageBuffer) as any;
-  const { words, text, confidence } = recognized.data;
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const ocrWords: OCRWord[] = words.map((w: any) => ({
-    text: w.text,
-    confidence: w.confidence,
-    bbox: {
-      x0: w.bbox.x0,
-      y0: w.bbox.y0,
-      x1: w.bbox.x1,
-      y1: w.bbox.y1,
-    },
-  }));
+  // Words are nested under blocks/paragraphs/lines in tesseract.js v7.
+  const ocrWords: OCRWord[] = [];
+  for (const block of recognizedBlocks ?? []) {
+    for (const paragraph of block.paragraphs ?? []) {
+      for (const line of paragraph.lines ?? []) {
+        for (const word of line.words ?? []) {
+          ocrWords.push({
+            text: word.text,
+            confidence: normalizeConfidence(word.confidence),
+            bbox: {
+              x0: word.bbox.x0,
+              y0: word.bbox.y0,
+              x1: word.bbox.x1,
+              y1: word.bbox.y1,
+            },
+          });
+        }
+      }
+    }
+  }
 
   const ocrLines = groupWordsIntoLines(ocrWords);
   const blocks = groupLinesIntoBlocks(ocrLines);
@@ -174,8 +192,8 @@ export async function ocrImage(
 
   return {
     pageNumber: 1,
-    width: 0,
-    height: 0,
+    width: ocrWords.length ? Math.max(...ocrWords.map((w) => w.bbox.x1)) : 0,
+    height: ocrWords.length ? Math.max(...ocrWords.map((w) => w.bbox.y1)) : 0,
     blocks,
     tables: tables.map((t) => ({
       rows: t.text.split("\n").map((r) => r.split(/[|\t]/).map((c) => c.trim())),
@@ -183,39 +201,52 @@ export async function ocrImage(
       confidence: t.confidence,
     })),
     fullText: text,
-    averageConfidence: confidence,
+    averageConfidence: normalizeConfidence(confidence),
     processingTimeMs: Date.now() - startTime,
   };
 }
 
-export async function ocrPDFPages(
-  pageBuffers: Buffer[],
-  options?: Partial<OCRPreprocessOptions>
-): Promise<OCRPage[]> {
+export async function ocrPDFPages(pageBuffers: Buffer[]): Promise<OCRPage[]> {
   const pages: OCRPage[] = [];
   for (let i = 0; i < pageBuffers.length; i++) {
-    const page = await ocrImage(pageBuffers[i], options);
+    const page = await ocrImage(pageBuffers[i]);
     page.pageNumber = i + 1;
     pages.push(page);
   }
   return pages;
 }
 
-export function buildOCRResult(pages: OCRPage[], provider: OCRProviderName, language: string): OCRResult {
-  const avgConfidence =
+export interface OCRResultOverrides {
+  needsReview?: boolean;
+  warning?: string;
+  /** Use when the pages do not represent a successful extraction. */
+  averageConfidence?: number;
+}
+
+export function buildOCRResult(
+  pages: OCRPage[],
+  provider: OCRProviderName,
+  language: string,
+  overrides?: OCRResultOverrides
+): OCRResult {
+  const computedConfidence =
     pages.reduce((s, p) => s + p.averageConfidence, 0) / Math.max(pages.length, 1);
+  const confidence = overrides?.averageConfidence ?? computedConfidence;
   const fullText = pages.map((p) => p.fullText).join("\n\n");
   const config = getOCRConfig();
 
   return {
     pages,
     fullText,
-    averageConfidence: avgConfidence,
+    averageConfidence: confidence,
     totalPages: pages.length,
     processingTimeMs: pages.reduce((s, p) => s + p.processingTimeMs, 0),
     provider,
     language,
-    needsReview: avgConfidence < config.confidenceThreshold * 100,
+    needsReview:
+      overrides?.needsReview ??
+      (confidence < config.confidenceThreshold || !!overrides?.warning),
+    warning: overrides?.warning,
   };
 }
 

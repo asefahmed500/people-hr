@@ -12,6 +12,8 @@ type NotificationsState = {
   /** Notifications pushed before hydration — merged in once the GET resolves. */
   pending: Notification[]
   ensureLoaded: () => Promise<void>
+  /** Re-fetch server notifications (used by the bell's live polling). */
+  refresh: () => Promise<void>
   push: (input: Partial<Notification> & { title: string; description: string }) => void
   markRead: (id: string) => void
   markAllRead: () => void
@@ -57,6 +59,30 @@ export const useNotificationsStore = create<NotificationsState>((set, get) => ({
     } catch {
       // Stay un-hydrated (pending intact) so the next ensureLoaded retries;
       // anything pushed meanwhile is already being persisted server-side.
+      set({ loading: false })
+    }
+  },
+
+  refresh: async () => {
+    // Silent re-fetch for live polling. Keep locally-created pending rows that
+    // the server hasn't returned yet, and preserve the read state of rows we
+    // already showed so polling can't mark them unread again.
+    if (get().loading) return
+    set({ loading: true })
+    try {
+      const items = await apiRequest<Notification[]>("/api/notifications")
+      const previous = get().items
+      const readIds = new Set(previous.filter((n) => n.read).map((n) => n.id))
+      const pending = get().pending
+      const seen = new Set(items.map((n) => n.id))
+      const fresh = pending.filter((n) => !seen.has(n.id))
+      set({
+        items: [...fresh, ...items.map((n) => (readIds.has(n.id) ? { ...n, read: true } : n))],
+        pending: fresh,
+        loading: false,
+        hydrated: true,
+      })
+    } catch {
       set({ loading: false })
     }
   },

@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth-guards";
-import { getAgentOrchestrator, type AgentRequest } from "@/lib/agent/orchestrator";
-import { getObservability } from "@/lib/agent/observability";
+import { getAgentOrchestrator } from "@/lib/agent/orchestrator";
+import { getObservability, type AgentTrace } from "@/lib/agent/observability";
+import { rateLimit } from "@/lib/rate-limit";
+import { AIUnavailableError } from "@/lib/ai/provider";
 import { z } from "zod";
 
 const requestSchema = z.object({
@@ -12,8 +14,17 @@ const requestSchema = z.object({
 });
 
 export async function POST(request: NextRequest) {
+  // Agent turns call an LLM and may run several tool steps, so bound the
+  // request rate before doing any auth/work. Best-effort, per-process.
+  const limited = rateLimit(request, { name: "agent-execute", limit: 20, windowMs: 60_000 });
+  if (limited) return limited;
+
   const auth = await requireAuth();
   if (!auth.ok) return auth.response;
+
+  const requestId = crypto.randomUUID();
+  const obs = getObservability();
+  let trace: AgentTrace | undefined;
 
   try {
     const body = await request.json();
@@ -29,9 +40,7 @@ export async function POST(request: NextRequest) {
       managerId: u.managerId as string | undefined,
     };
 
-    const requestId = crypto.randomUUID();
-    const obs = getObservability();
-    const trace = obs.startTrace(requestId, user.userId, "glm-5.3");
+    trace = obs.startTrace(requestId, user.userId, "glm-5.3");
 
     const orchestrator = getAgentOrchestrator();
     const agentResponse = await orchestrator.execute({
@@ -43,9 +52,11 @@ export async function POST(request: NextRequest) {
       requestId,
     });
 
+    // Approval-required turns are a distinct terminal state — recording them
+    // as "completed" hid that no user decision had been made yet.
     obs.completeTrace(
       trace.id,
-      agentResponse.requiresApproval ? "completed" : "completed",
+      agentResponse.requiresApproval ? "awaiting_approval" : "completed",
       agentResponse.usage
     );
 
@@ -65,8 +76,19 @@ export async function POST(request: NextRequest) {
       traceId: trace.id,
     });
   } catch (e) {
-    if (e instanceof z.ZodError) {
-      return NextResponse.json({ error: "Invalid request", details: e.issues }, { status: 400 });
+    if (trace) {
+      obs.completeTrace(
+        trace.id,
+        "failed",
+        undefined,
+        e instanceof Error ? e.message : "Unknown error"
+      );
+    }
+    if (e instanceof z.ZodError || e instanceof SyntaxError) {
+      return NextResponse.json({ error: "Invalid request" }, { status: 400 });
+    }
+    if (e instanceof AIUnavailableError) {
+      return NextResponse.json({ error: e.message }, { status: 503 });
     }
     return NextResponse.json(
       { error: "Agent processing failed" },

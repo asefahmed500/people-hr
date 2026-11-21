@@ -1,12 +1,14 @@
 "use client"
 
 import * as React from "react"
-import { Camera, CameraOff, CheckCircle2, Clock, RefreshCw, ScanFace, ShieldQuestion, XCircle } from "lucide-react"
+import { Camera, CameraOff, CheckCircle2, Clock, RefreshCw, ScanFace, ShieldQuestion, XCircle, type LucideIcon } from "lucide-react"
 
 import { captureDescriptor, prepareFaceEngine, startCamera } from "@/lib/face-client"
 import { apiRequest, ApiError } from "@/lib/api-client"
 import { notify } from "@/lib/toast"
 import { cn } from "@/lib/utils"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 
 type EnrollmentStatus = "none" | "pending" | "approved" | "rejected"
 
@@ -118,7 +120,7 @@ export function FaceCheckinCard({ alreadyCheckedInTime, onCheckedIn }: FaceCheck
         )
         notify.success(
           `Checked in at ${res.checkIn.time}`,
-          `Welcome, ${res.checkIn.name} — recorded as ${res.checkIn.status.replace("-", " ")}.`,
+          `Welcome, ${res.checkIn.name} Ã¢â‚¬â€ recorded as ${res.checkIn.status.replace("-", " ")}.`,
         )
         stopCamera()
         onCheckedIn?.()
@@ -133,16 +135,16 @@ export function FaceCheckinCard({ alreadyCheckedInTime, onCheckedIn }: FaceCheck
     }
   }
 
-  const statusChip = (s: EnrollmentStatus) => {
+  const statusChip = (s: EnrollmentStatus): { icon: LucideIcon; label: string; variant: "secondary" | "outline" | "destructive" } => {
     switch (s) {
       case "approved":
-        return { icon: CheckCircle2, label: "Registered", tone: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400" }
+        return { icon: CheckCircle2, label: "Registered", variant: "secondary" }
       case "pending":
-        return { icon: Clock, label: "Awaiting approval", tone: "bg-amber-500/10 text-amber-700 dark:text-amber-400" }
+        return { icon: Clock, label: "Awaiting approval", variant: "outline" }
       case "rejected":
-        return { icon: XCircle, label: "Rejected", tone: "bg-destructive/10 text-destructive" }
+        return { icon: XCircle, label: "Rejected", variant: "destructive" }
       default:
-        return { icon: ShieldQuestion, label: "Not registered", tone: "bg-muted text-muted-foreground" }
+        return { icon: ShieldQuestion, label: "Not registered", variant: "secondary" }
     }
   }
 
@@ -150,46 +152,43 @@ export function FaceCheckinCard({ alreadyCheckedInTime, onCheckedIn }: FaceCheck
   const captureKind: "enroll" | "checkin" = status === "approved" ? "checkin" : "enroll"
 
   return (
-    <div className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-6">
+    <div className="flex flex-col gap-4 rounded-lg border border-border bg-card p-4">
       <div className="flex items-start justify-between gap-3">
         <div className="flex flex-col gap-1">
           <h3 className="text-h4 flex items-center gap-2">
-            <ScanFace className="size-4.5 text-primary" strokeWidth={2} />
+            <ScanFace className="size-4.5 text-primary" strokeWidth={2} aria-hidden="true" />
             Face check-in
           </h3>
           <span className="font-sans inline-block text-[12px] leading-normal text-muted-foreground">
-            Check in with your face — attendance identity is verified server-side, never self-reported.
+            Check in with your face Ã¢â‚¬â€ attendance identity is verified server-side, never self-reported.
           </span>
         </div>
         {s ? (
-          <span
-            className={cn(
-              "inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 font-sans text-[11px] font-semibold",
-              s.tone,
-            )}
-          >
-            <s.icon className="size-3" />
+          <Badge variant={s.variant} className="inline-flex shrink-0 items-center gap-1.5 text-[11px] font-semibold">
+            <s.icon className="size-3" aria-hidden="true" />
             {s.label}
-          </span>
+          </Badge>
         ) : null}
       </div>
 
       {loadError ? (
-        <div className="flex items-center justify-between gap-3 rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3">
+        <div className="flex items-center justify-between gap-3 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3">
           <span className="font-sans text-[12.5px] text-destructive">{loadError}</span>
-          <button
+          <Button
             type="button"
+            variant="outline"
+            size="sm"
             onClick={() => void refreshStatus()}
-            className="flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-border bg-card px-3 font-sans text-[12px] font-medium text-foreground hover:bg-muted"
+            className="shrink-0 font-sans text-[12px] font-medium"
           >
-            <RefreshCw className="size-3.5" /> Retry
-          </button>
+            <RefreshCw className="size-3.5" aria-hidden="true" /> Retry
+          </Button>
         </div>
       ) : null}
 
       {status === "pending" ? (
-        <div className="flex items-center gap-2 rounded-xl border border-amber-500/30 bg-amber-500/5 px-4 py-3">
-          <Clock className="size-4 shrink-0 text-amber-600 dark:text-amber-400" />
+        <div className="flex items-center gap-2 rounded-lg border border-border bg-muted px-4 py-3">
+          <Clock className="size-4 shrink-0 text-primary" aria-hidden="true" />
           <span className="font-sans text-[12.5px] text-secondary-foreground">
             Your registration is waiting for an admin to approve it. You&apos;ll be able to check in once approved.
           </span>
@@ -202,7 +201,7 @@ export function FaceCheckinCard({ alreadyCheckedInTime, onCheckedIn }: FaceCheck
           whenever the flow isn't active. */}
       <div
         className={cn(
-          "relative overflow-hidden rounded-xl border border-border bg-black",
+          "relative overflow-hidden rounded-lg border border-border bg-foreground",
           phase === "idle" && "hidden",
         )}
       >
@@ -210,7 +209,7 @@ export function FaceCheckinCard({ alreadyCheckedInTime, onCheckedIn }: FaceCheck
         {phase === "processing" || !modelsReady ? (
           <div className="absolute inset-0 flex items-center justify-center bg-black/60">
             <span className="font-sans text-[12.5px] font-medium text-white">
-              {phase === "processing" ? "Recognizing…" : "Loading face model (first time only)…"}
+              {phase === "processing" ? "RecognizingÃ¢â‚¬Â¦" : "Loading face model (first time only)Ã¢â‚¬Â¦"}
             </span>
           </div>
         ) : null}
@@ -219,24 +218,24 @@ export function FaceCheckinCard({ alreadyCheckedInTime, onCheckedIn }: FaceCheck
       {phase === "idle" ? (
         <div className="flex flex-col gap-3">
           {status === "approved" && !alreadyCheckedInTime ? (
-            <button
+            <Button
               type="button"
               onClick={() => void openCamera()}
-              className="flex h-11 items-center justify-center gap-2 rounded-lg bg-primary font-sans text-[14px] font-medium text-primary-foreground shadow-card transition-colors hover:bg-primary/90"
+              className="h-9 font-sans text-[14px] font-medium"
             >
-              <ScanFace className="size-4" />
+              <ScanFace className="size-4" aria-hidden="true" />
               Scan my face to check in
-            </button>
+            </Button>
           ) : null}
           {(status === "none" || status === "rejected") && !alreadyCheckedInTime ? (
-            <button
+            <Button
               type="button"
               onClick={() => void openCamera()}
-              className="flex h-11 items-center justify-center gap-2 rounded-lg bg-primary font-sans text-[14px] font-medium text-primary-foreground shadow-card transition-colors hover:bg-primary/90"
+              className="h-9 font-sans text-[14px] font-medium"
             >
-              <Camera className="size-4" />
+              <Camera className="size-4" aria-hidden="true" />
               {status === "rejected" ? "Register again" : "Register your face"}
-            </button>
+            </Button>
           ) : null}
           {status === "approved" ? (
             <span className="font-sans text-[11.5px] leading-normal text-muted-foreground">
@@ -244,42 +243,38 @@ export function FaceCheckinCard({ alreadyCheckedInTime, onCheckedIn }: FaceCheck
             </span>
           ) : null}
           {alreadyCheckedInTime ? (
-            <div className="flex items-center justify-between gap-3 rounded-xl border border-border bg-muted px-4 py-3">
+            <div className="flex items-center justify-between gap-3 rounded-lg border border-border bg-muted px-4 py-3">
               <span className="flex items-center gap-2 font-sans text-[12.5px] text-secondary-foreground">
-                <CheckCircle2 className="size-4 shrink-0 text-primary" />
+                <CheckCircle2 className="size-4 shrink-0 text-primary" aria-hidden="true" />
                 You already checked in today at {alreadyCheckedInTime}.
               </span>
-              <button
-                type="button"
-                onClick={() => void openCamera()}
-                className="flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-border bg-card px-3 font-sans text-[12px] font-medium text-foreground hover:bg-muted"
-              >
-                <ScanFace className="size-3.5" />
-                Scan again
-              </button>
+              <span className="shrink-0 font-sans text-[11px] text-muted-foreground">
+                One check-in per day
+              </span>
             </div>
           ) : null}
         </div>
       ) : (
         <div className="flex items-center gap-2">
-          <button
+          <Button
             type="button"
             disabled={phase === "processing"}
             onClick={() => void submit(captureKind)}
-            className="flex h-10 flex-1 items-center justify-center gap-2 rounded-lg bg-primary font-sans text-[13px] font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-60"
+            className="h-9 flex-1 font-sans text-[13px] font-medium disabled:opacity-60"
           >
-            <ScanFace className="size-4" />
+            <ScanFace className="size-4" aria-hidden="true" />
             {captureKind === "checkin" ? "Capture & check in" : "Capture & register"}
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
+            variant="outline"
             disabled={phase === "processing"}
             onClick={stopCamera}
-            className="flex h-10 items-center justify-center gap-2 rounded-lg border border-border bg-card px-4 font-sans text-[13px] font-medium text-secondary-foreground hover:bg-muted disabled:opacity-60"
+            className="h-9 px-4 font-sans text-[13px] font-medium disabled:opacity-60"
           >
-            <CameraOff className="size-4" />
+            <CameraOff className="size-4" aria-hidden="true" />
             Cancel
-          </button>
+          </Button>
         </div>
       )}
     </div>

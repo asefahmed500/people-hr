@@ -13,6 +13,16 @@ export const DOCUMENT_TYPES = [
   "noc",
   "warning",
   "appraisal",
+  "confirmation",
+  "promotion",
+  "transfer",
+  "termination",
+  "show-cause",
+  "appreciation",
+  "no-dues",
+  "maternity",
+  "paternity",
+  "salary-revision",
 ] as const
 
 export type DocumentType = (typeof DOCUMENT_TYPES)[number]
@@ -47,6 +57,16 @@ export const DOCUMENT_TYPE_LABELS: Record<DocumentType, string> = {
   noc: "No Objection Certificate",
   warning: "Warning Letter",
   appraisal: "Appraisal Letter",
+  confirmation: "Confirmation of Employment",
+  promotion: "Promotion Letter",
+  transfer: "Transfer Letter",
+  termination: "Termination Letter",
+  "show-cause": "Show Cause Notice",
+  appreciation: "Appreciation Letter",
+  "no-dues": "No Dues Certificate",
+  maternity: "Maternity Leave Letter",
+  paternity: "Paternity Leave Letter",
+  "salary-revision": "Salary Revision Letter",
 }
 
 const REF_PREFIXES: Record<DocumentType, string> = {
@@ -60,6 +80,16 @@ const REF_PREFIXES: Record<DocumentType, string> = {
   noc: "NOC",
   warning: "WRN",
   appraisal: "APR",
+  confirmation: "CFM",
+  promotion: "PRO",
+  transfer: "TRF",
+  termination: "TRM",
+  "show-cause": "SHO",
+  appreciation: "APP",
+  "no-dues": "NDC",
+  maternity: "MAT",
+  paternity: "PAT",
+  "salary-revision": "SVR",
 }
 
 /** Short uppercase code from the company name for reference numbers. */
@@ -81,7 +111,14 @@ export function nextRefNo(
   const max = existing.reduce((acc, d) => {
     if (d.type !== type) return acc
     const parts = d.refNo.split("/")
-    if (parts.length < 4 || parts[1] !== REF_PREFIXES[type]) return acc
+    // Match the full prefix (company code + type + year). Ignoring the year
+    // made a single old reference inflate every subsequent year's sequence.
+    if (
+      parts.length < 4 ||
+      parts[0] !== code ||
+      parts[1] !== REF_PREFIXES[type] ||
+      parts[2] !== String(year)
+    ) return acc
     const n = Number(parts[3])
     return Number.isFinite(n) && n > acc ? n : acc
   }, 0)
@@ -210,6 +247,64 @@ export function buildLetterBody(
         `<p>Dear ${name},</p>`,
         `<p>Based on your performance review, we are pleased to confirm your continued growth as <strong>${esc(c.jobTitle)}</strong> in the ${esc(c.department)} department at ${esc(company)}, effective <strong>${fmtDate(c.startDate)}</strong>.</p>`,
         `<p>Your revised compensation will be <strong>${esc(c.monthlySalary || "communicated separately")}</strong> per month. We appreciate your contributions and look forward to your continued impact.</p>`,
+      ])
+    case "confirmation":
+      return letterShell(c, DOCUMENT_TYPE_LABELS[type], [
+        `<p>Dear ${name},</p>`,
+        `<p>We are pleased to confirm your employment with ${esc(company)} as <strong>${esc(c.jobTitle)}</strong> in the ${esc(c.department)} department, effective <strong>${fmtDate(c.startDate)}</strong>, after successfully completing your probationary period.</p>`,
+        `<p>Your continued employment is governed by the company's policies and the terms of your appointment. We value your contribution and look forward to your continued association with us.</p>`,
+      ])
+    case "promotion":
+      return letterShell(c, DOCUMENT_TYPE_LABELS[type], [
+        `<p>Dear ${name},</p>`,
+        `<p>We are delighted to inform you that you have been promoted to <strong>${esc(c.jobTitle)}</strong> in the ${esc(c.department)} department, effective <strong>${fmtDate(c.startDate)}</strong>.</p>`,
+        `<p>This recognition reflects your consistent performance and the trust the team places in you. Your revised compensation will be <strong>${esc(c.monthlySalary || "communicated separately")}</strong> per month. We wish you continued success in your new role.</p>`,
+      ])
+    case "transfer":
+      return letterShell(c, DOCUMENT_TYPE_LABELS[type], [
+        `<p>Dear ${name},</p>`,
+        `<p>This letter confirms your transfer to the <strong>${esc(c.department)}</strong> department as <strong>${esc(c.jobTitle)}</strong>, effective <strong>${fmtDate(c.startDate)}</strong>.</p>`,
+        `<p>Your reporting manager and the People team will support your transition. All other terms of your employment remain unchanged. We are confident you will make a strong contribution in your new team.</p>`,
+      ])
+    case "termination":
+      return letterShell(c, DOCUMENT_TYPE_LABELS[type], [
+        `<p>Dear ${name},</p>`,
+        `<p>We write to formally confirm the conclusion of your employment with ${esc(company)} as <strong>${esc(c.jobTitle)}</strong>, with your last working day being <strong>${fmtDate(c.endDate)}</strong>.</p>`,
+        `<p>${esc(c.reason || "The decision follows a review of your employment with the company.")} Your final settlement, including any dues, will be processed in accordance with company policy and applicable law.</p>`,
+        `<p>We thank you for your service and wish you the very best for the future.</p>`,
+      ])
+    case "show-cause":
+      return letterShell(c, DOCUMENT_TYPE_LABELS[type], [
+        `<p>Dear ${name},</p>`,
+        `<p>It has been observed that <strong>${esc(c.reason || "your conduct or performance has not met expected standards")}</strong>. You are therefore required to show cause within seven (7) working days of receiving this notice as to why disciplinary action should not be initiated against you.</p>`,
+        `<p>You may submit a written explanation to the Human Resources department. Your response will be reviewed fairly, and you may seek support from your reporting manager or HR throughout this process.</p>`,
+      ])
+    case "appreciation":
+      return letterShell(c, DOCUMENT_TYPE_LABELS[type], [
+        `<p>Dear ${name},</p>`,
+        `<p>We would like to place on record our sincere appreciation for your outstanding contributions as <strong>${esc(c.jobTitle)}</strong> in the ${esc(c.department)} department${c.reason ? `, particularly <strong>${esc(c.reason)}</strong>` : ""}.</p>`,
+        `<p>Your dedication and the quality of your work have made a meaningful difference to the team. Thank you for the positive impact you continue to make at ${esc(company)}.</p>`,
+      ])
+    case "no-dues":
+      return letterShell(c, DOCUMENT_TYPE_LABELS[type], [
+        `<p>To Whom It May Concern,</p>`,
+        `<p>This is to certify that <strong>${name}</strong>, formerly <strong>${esc(c.jobTitle)}</strong> in the ${esc(c.department)} department, has settled all dues and returned all company property as of <strong>${fmtDate(c.endDate)}</strong>.</p>`,
+        `<p>No further financial or material obligations remain between the employee and ${esc(company)}. This certificate is issued at the employee's request.</p>`,
+      ])
+    case "maternity":
+    case "paternity": {
+      const kind = type === "maternity" ? "maternity" : "paternity"
+      return letterShell(c, DOCUMENT_TYPE_LABELS[type], [
+        `<p>Dear ${name},</p>`,
+        `<p>We are pleased to confirm your eligibility for <strong>${kind} leave</strong> in accordance with company policy and applicable law. The leave will run from <strong>${fmtDate(c.startDate)}</strong> to <strong>${fmtDate(c.endDate)}</strong>.</p>`,
+        `<p>During your leave, your position will be held and your benefits will continue as per policy. Please coordinate with the People team on handover arrangements before your leave begins. We wish you and your family all the best.</p>`,
+      ])
+    }
+    case "salary-revision":
+      return letterShell(c, DOCUMENT_TYPE_LABELS[type], [
+        `<p>Dear ${name},</p>`,
+        `<p>Following your recent performance review, we are pleased to inform you that your monthly compensation has been revised to <strong>${esc(c.monthlySalary || "the amount communicated separately")}</strong>, effective <strong>${fmtDate(c.startDate)}</strong>.</p>`,
+        `<p>All other terms and conditions of your employment remain unchanged. We appreciate your continued contributions to ${esc(company)} and look forward to your ongoing success.</p>`,
       ])
   }
 }

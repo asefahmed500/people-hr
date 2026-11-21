@@ -38,13 +38,45 @@ async function createMany(inputs: NotificationInput[]) {
   })
 }
 
+/**
+ * A scheduled report finished generating. Reports are generated in-app (no
+ * email is sent), so notify every active admin that the export is waiting
+ * under "Recent exports" on the Reports page. Best-effort like the rest of
+ * the notification fan-out.
+ */
+export async function notifyScheduledReport(opts: {
+  reportName: string
+  rows: number
+}): Promise<void> {
+  try {
+    const admins = await prisma.user.findMany({
+      where: { role: "admin", deactivatedAt: null },
+      select: { id: true },
+    })
+    await createMany(
+      admins.map((admin) => ({
+        userId: admin.id,
+        type: "report_generated",
+        title: "Scheduled report generated",
+        description: `${opts.reportName} (${opts.rows} ${opts.rows === 1 ? "row" : "rows"}) is ready under Recent exports.`,
+        href: "/reports",
+      })),
+    )
+  } catch {
+    // Notification fan-out must never fail the report generation.
+  }
+}
+
+type DirectoryUser = { id: string; name: string | null; role: string; department: string | null }
+
 /** Active admins + managers of one department, minus the actor. */
-async function approverIds(department: string | null, actorId: string): Promise<string[]> {
-  const users = await prisma.user.findMany({
-    where: { deactivatedAt: null, role: { in: ["admin", "manager"] } },
-    select: { id: true, role: true, department: true },
-  })
+function approverIds(
+  users: DirectoryUser[],
+  department: string | null,
+  actorId: string,
+): string[] {
   return users
+    .filter((u) => u.role === "admin" || u.role === "manager")
     .filter((u) => u.id !== actorId)
     .filter((u) => u.role === "admin" || (department != null && u.department === department))
     .map((u) => u.id)
@@ -70,6 +102,20 @@ export async function notifyLeaveChanges(opts: {
     const mergedArr = ((opts.merged as { requests?: LeaveRequestRow[] })?.requests ?? []) as LeaveRequestRow[]
     const storedById = new Map(storedArr.map((r) => [String(r.id), r]))
 
+    // Load the directory once (avoids an N+1 query per changed request) and
+    // resolve the requester's own department — not a hard-coded null — so a
+    // manager is only notified about leave in their department.
+    const users = (await prisma.user.findMany({
+      where: { deactivatedAt: null },
+      select: { id: true, name: true, role: true, department: true },
+    })) as DirectoryUser[]
+    const deptById = new Map(users.map((u) => [u.id, u.department]))
+    const deptByName = new Map(users.filter((u) => u.name).map((u) => [u.name as string, u.department]))
+    const departmentOf = (row: LeaveRequestRow): string | null =>
+      (row.employeeId ? deptById.get(row.employeeId) : undefined) ??
+      (row.employeeName ? deptByName.get(row.employeeName) : undefined) ??
+      null
+
     const added: NotificationInput[] = []
     const decided: NotificationInput[] = []
 
@@ -80,10 +126,8 @@ export async function notifyLeaveChanges(opts: {
 
       if (!prev) {
         if (row.status !== "pending") continue
-        const targets = await approverIds(null, opts.actorId)
-        // Department managers only need their own dept's queue — the merge
-        // view already scopes them, so a dept-wide fan-out to all managers is
-        // refined here by resolving the requester's department on the fly.
+        const targets = approverIds(users, departmentOf(row), opts.actorId)
+        // Admins plus managers of the requester's own department only.
         const inputs: NotificationInput[] = targets.map((userId) => ({
           userId,
           type: "leave_requested",
@@ -115,7 +159,7 @@ export async function notifyLeaveChanges(opts: {
       const owner = String(prev.employeeId ?? "")
       const label = `${prev.employeeName ?? "Someone"} · ${prev.days ?? "?"} day(s)`
       if (owner === opts.actorId) {
-        const targets = await approverIds(null, opts.actorId)
+        const targets = approverIds(users, departmentOf(prev), opts.actorId)
         added.push(
           ...targets.map((userId) => ({
             userId,

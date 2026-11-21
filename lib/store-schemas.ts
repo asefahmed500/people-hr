@@ -5,6 +5,7 @@
 import { z } from "zod"
 
 import { DEPARTMENTS } from "@/lib/data/types"
+import { DOCUMENT_TYPES } from "@/lib/data/documents"
 import { EMPLOYEE_STATUSES } from "@/lib/data/employees"
 
 const id = z.string().min(1)
@@ -35,11 +36,24 @@ const employee = z.object({
   location: z.string(),
   status: z.enum(EMPLOYEE_STATUSES),
   avatar: z.string().optional(),
+  hiredAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   hiredDaysAgo: z.number().int().min(0),
   phone: z.string().optional(),
   employmentType: z.enum(["full-time", "part-time", "contract", "intern"]).optional(),
   reportingManager: z.string().optional(),
   salary: z.number().int().min(0).optional(),
+  // Personnel-file attachments (identity, contract, certificates, etc.).
+  attachments: z.array(z.object({
+    id: z.string(),
+    name: z.string(),
+    type: z.string(),
+    size: z.number().min(0),
+    dataUrl: z.string(),
+    kind: z.enum(["identity", "contract", "certificate", "supporting", "other"]),
+    required: z.boolean(),
+    uploadedAt: z.string(),
+    uploadedBy: z.string().optional(),
+  })).optional(),
 })
 
 const leaveRequest = z.object({
@@ -64,6 +78,7 @@ const candidate = z.object({
   department,
   appliedAt: z.string(),
   stage: z.enum(["applied", "screening", "interview", "offer", "hired"]),
+  source: z.string().optional(),
 })
 
 const opening = z.object({
@@ -119,6 +134,32 @@ const payment = z.object({
   status: z.enum(["paid", "pending", "failed"]),
 })
 
+const payslip = z.object({
+  id,
+  employeeId: id,
+  employeeName: z.string().min(1),
+  initials: z.string().min(1),
+  department,
+  jobTitle: z.string(),
+  period: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/),
+  issuedAt: z.string(),
+  status: z.enum(["draft", "paid"]),
+  earnings: z.object({
+    basic: z.number().int().min(0),
+    housing: z.number().int().min(0),
+    transport: z.number().int().min(0),
+    special: z.number().int().min(0),
+    other: z.number().int().min(0),
+  }),
+  deductions: z.object({
+    incomeTax: z.number().int().min(0),
+    providentFund: z.number().int().min(0),
+    healthInsurance: z.number().int().min(0),
+    professionalTax: z.number().int().min(0),
+  }),
+  notes: z.string().optional(),
+})
+
 const review = z.object({
   id,
   initials: z.string().min(1),
@@ -160,6 +201,8 @@ const onboardingTask = z.object({
 
 const checkIn = z.object({
   id,
+  // Written by the face check-in route — stripping it breaks one-per-account matching.
+  userId: z.string().optional(),
   initials: z.string().min(1),
   name: z.string().min(1),
   dept: z.string(),
@@ -184,6 +227,7 @@ const dept = z.object({
 })
 
 const office = z.object({
+  id: z.string().optional(),
   city: z.string().min(1),
   country: z.string(),
   count: z.number().int().min(0),
@@ -253,6 +297,7 @@ const recentReport = z.object({
   size: z.string(),
   status: z.enum(["ready", "generating", "failed"]),
   tone: z.enum(["forest", "mint", "amber", "slate"]),
+  reportType: z.string().optional(),
 })
 
 const chatMessage = z.object({
@@ -281,10 +326,9 @@ const announcement = z.object({
 
 const hrDocument = z.object({
   id,
-  type: z.enum([
-    "appointment", "offer", "experience", "relieving", "internship",
-    "salary-certificate", "employment-verification", "noc", "warning", "appraisal",
-  ]),
+  // Single source of truth: the 20 templates shown in the gallery must all be
+  // savable. The old hardcoded 10-value list made half the catalog inert.
+  type: z.enum(DOCUMENT_TYPES),
   title: z.string().min(1),
   refNo: z.string().min(1),
   status: z.enum(["draft", "issued"]),
@@ -298,7 +342,23 @@ const hrDocument = z.object({
 })
 
 export const STORE_SCHEMAS: Record<string, z.ZodType> = {
-  employees: z.array(employee),
+  // Emails are used as identity for role scoping — duplicates would make
+  // ownership ambiguous and let one user reach another's row.
+  employees: z.array(employee).superRefine((rows, ctx) => {
+    const seen = new Set<string>()
+    rows.forEach((row, index) => {
+      const email = String(row.email ?? "").trim().toLowerCase()
+      if (!email || email === "user@example.com") return
+      if (seen.has(email)) {
+        ctx.addIssue({
+          code: "custom",
+          path: [index, "email"],
+          message: "Duplicate email in the directory.",
+        })
+      }
+      seen.add(email)
+    })
+  }),
   leave: z.object({ requests: z.array(leaveRequest), balances: z.record(id, balances) }),
   recruitment: z.object({ candidates: z.array(candidate), openings: z.array(opening) }),
   projects: z.object({ tasks: z.array(projectTask) }),
@@ -310,6 +370,7 @@ export const STORE_SCHEMAS: Record<string, z.ZodType> = {
       .nullable()
       .refine((v) => v === null || v === "" || !Number.isNaN(Date.parse(v))),
   }),
+  payslips: z.object({ payslips: z.array(payslip) }),
   performance: z.object({ reviews: z.array(review), teamScores: z.array(teamRow) }),
   onboarding: z.object({ tasks: z.array(onboardingTask) }),
   attendance: z.object({ checkIns: z.array(checkIn) }),

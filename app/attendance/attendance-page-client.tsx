@@ -12,6 +12,7 @@ import { FaceRegistrationsCard } from "@/components/attendance/face-registration
 import { ActionDialog } from "@/components/shared/dialog-parts"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { SelectField } from "@/components/shared/field"
+import { StoreErrorState } from "@/components/shared/store-error-state"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Pencil, Trash2 } from "lucide-react"
 import {
@@ -29,24 +30,47 @@ import { exportToCsv } from "@/lib/export"
 import { cn } from "@/lib/utils"
 
 export function AttendancePageClient() {
-  const { state, setState, refresh, hydrated: attendanceHydrated } = useApiStore<AttendanceStore>(
+  const {
+    state,
+    setState,
+    refresh,
+    hydrated: attendanceHydrated,
+    error: attendanceError,
+    retry: retryAttendance,
+  } = useApiStore<AttendanceStore>(
     "/api/store/attendance",
     () => ({ checkIns: defaultCheckIns }),
   )
-  const { state: employees, hydrated: employeesHydrated } = useApiStore<Employee[]>(
+  const {
+    state: employees,
+    hydrated: employeesHydrated,
+    error: employeesError,
+    retry: retryEmployees,
+  } = useApiStore<Employee[]>(
     "/api/store/employees",
     () => defaultEmployees,
   )
   const { user } = useAuth()
-  const canWrite = !!user
-  const canMarkAnyone = user?.role === "admin" || user?.role === "manager"
+  // Attendance writes are admin/manager-only. Employees check in through the
+  // face scanner, whose identity is verified server-side.
+  const canWrite = user?.role === "admin" || user?.role === "manager"
+  const canMarkAnyone = canWrite
   const hydrated = attendanceHydrated && employeesHydrated
+  const error = attendanceError || employeesError
+  const retry = () => {
+    retryAttendance()
+    retryEmployees()
+  }
   const [markOpen, setMarkOpen] = useState(false)
   const [markStatus, setMarkStatus] = useState("on-time")
   const [selectedCheckin, setSelectedCheckin] = useState<CheckIn | null>(null)
   const [editCheckin, setEditCheckin] = useState<CheckIn | null>(null)
   const [deleteCheckin, setDeleteCheckin] = useState<CheckIn | null>(null)
   const [editStatus, setEditStatus] = useState("on-time")
+
+  // Even an employee's own check-in is server-managed (face verified), so no
+  // manual edit/delete is offered to non-admins.
+  const canWriteSelected = canWrite
 
   const todayIso = () => new Date().toISOString().slice(0, 10)
   const nowTime = () =>
@@ -74,7 +98,7 @@ export function AttendancePageClient() {
         ...prev.checkIns,
       ],
     }))
-    notify.success(`Clocked in at ${nowTime()}`, `Have a great day — recorded as ${status.replace("-", " ")}.`)
+    notify.success(`Clocked in at ${nowTime()}`, `Have a great day â€” recorded as ${status.replace("-", " ")}.`)
 
   }
 
@@ -83,23 +107,31 @@ export function AttendancePageClient() {
     : employees[0]?.id
   const [markEmployeeId, setMarkEmployeeId] = useState<string>("")
 
+  if (error) {
+    return (
+      <DashboardShell activeHref="/attendance" current="Attendance" accentCurrent>
+        <StoreErrorState onRetry={retry} />
+      </DashboardShell>
+    )
+  }
+
   if (!hydrated) {
     return (
       <DashboardShell activeHref="/attendance" current="Attendance" accentCurrent>
-        <div className="flex w-full items-start gap-6">
-          <Skeleton className="h-[400px] w-[380px] shrink-0 rounded-2xl" />
-          <div className="flex min-w-0 flex-1 flex-col gap-5">
-            <div className="flex gap-5">
+        <div className="flex w-full items-start gap-4">
+          <Skeleton className="h-[400px] w-full shrink-0 rounded-lg sm:w-[380px]" />
+          <div className="flex min-w-0 flex-1 flex-col gap-4">
+            <div className="flex gap-4">
               {Array.from({ length: 4 }).map((_, i) => (
-                <Skeleton key={i} className="h-[130px] flex-1 rounded-2xl" />
+                <Skeleton key={i} className="h-[130px] flex-1 rounded-lg" />
               ))}
             </div>
-            <Skeleton className="h-[180px] rounded-2xl" />
+            <Skeleton className="h-[180px] rounded-lg" />
           </div>
         </div>
         <div className="mt-5 flex flex-col gap-3">
           {Array.from({ length: 4 }).map((_, i) => (
-            <Skeleton key={i} className="h-[58px] rounded-2xl" />
+            <Skeleton key={i} className="h-[58px] rounded-lg" />
           ))}
         </div>
       </DashboardShell>
@@ -119,7 +151,7 @@ export function AttendancePageClient() {
           notify.success("Attendance exported", `${state.checkIns.length} check-ins downloaded as CSV.`)
         }}
         onClockIn={
-          // Free self clock-in stays available to admins/managers only —
+          // Free self clock-in stays available to admins/managers only â€”
           // employees check in through the face scanner below (identity is
           // verified server-side against their approved face registration).
           canMarkAnyone && user?.name
@@ -153,9 +185,9 @@ export function AttendancePageClient() {
             : undefined
         }
       />
-      <div className="flex w-full items-start gap-6">
+      <div className="flex w-full flex-col items-start gap-4 lg:flex-row">
         <TodayStatusCard checkIns={state.checkIns} />
-        <div className="flex min-w-0 flex-1 flex-col gap-5">
+        <div className="flex min-w-0 flex-1 flex-col gap-4">
           <AttendanceKpis checkIns={state.checkIns} />
           <DeptHeatCard checkIns={state.checkIns} />
         </div>
@@ -167,7 +199,7 @@ export function AttendancePageClient() {
       <LiveCheckins checkIns={state.checkIns} onSelect={setSelectedCheckin} />
       {user?.role === "admin" ? <FaceRegistrationsCard onChanged={() => void refresh()} /> : null}
       <Sheet open={!!selectedCheckin} onOpenChange={(o) => !o && setSelectedCheckin(null)}>
-        <SheetContent side="right" className="w-full gap-5 border-l border-border bg-card p-6 sm:max-w-[400px]">
+        <SheetContent side="right" className="w-full gap-4 border-l border-border bg-card p-4 sm:max-w-[400px]">
           <SheetHeader>
             <SheetTitle className="text-h4">
               Employee details
@@ -177,7 +209,7 @@ export function AttendancePageClient() {
             </SheetDescription>
           </SheetHeader>
           {selectedCheckin ? (
-            <div className="flex flex-col gap-5">
+            <div className="flex flex-col gap-4">
               <div className="flex items-center gap-4">
                 <div
                   className={cn(
@@ -199,7 +231,7 @@ export function AttendancePageClient() {
                 </div>
               </div>
 
-              <div className="flex flex-col gap-3 rounded-xl border border-border bg-muted p-4">
+              <div className="flex flex-col gap-3 rounded-lg border border-border bg-muted p-4">
                 <div className="flex items-center justify-between">
                   <span className="font-sans text-[12px] font-medium text-muted-foreground">Check-in time</span>
                   <span className="font-sans text-[13px] font-semibold text-foreground">{selectedCheckin.time}</span>
@@ -218,7 +250,7 @@ export function AttendancePageClient() {
                   </span>
                 </div>
               </div>
-              {canWrite ? (
+              {canWriteSelected ? (
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
@@ -246,7 +278,7 @@ export function AttendancePageClient() {
         </SheetContent>
       </Sheet>
 
-      <ActionDialog
+      <ActionDialog width="wide"
         open={markOpen}
         onOpenChange={(o) => {
           setMarkOpen(o)
@@ -285,7 +317,7 @@ export function AttendancePageClient() {
           label="Employee"
           value={markEmployeeId}
           onChange={setMarkEmployeeId}
-          options={employees.map((e) => ({ value: e.id, label: `${e.name} · ${e.department}` }))}
+          options={employees.map((e) => ({ value: e.id, label: `${e.name} Â· ${e.department}` }))}
           disabled={!canMarkAnyone}
           required
         />
@@ -302,7 +334,7 @@ export function AttendancePageClient() {
         />
       </ActionDialog>
 
-      <ActionDialog
+      <ActionDialog width="wide"
         open={!!editCheckin}
         onOpenChange={(o) => { if (!o) setEditCheckin(null) }}
         title="Edit check-in"
@@ -337,7 +369,7 @@ export function AttendancePageClient() {
         open={!!deleteCheckin}
         onOpenChange={(o) => { if (!o) setDeleteCheckin(null) }}
         title="Delete check-in"
-        description={deleteCheckin ? `Remove ${deleteCheckin.name}'s check-in? This can’t be undone.` : undefined}
+        description={deleteCheckin ? `Remove ${deleteCheckin.name}'s check-in? This canâ€™t be undone.` : undefined}
         confirmLabel="Delete"
         destructive
         onConfirm={() => {

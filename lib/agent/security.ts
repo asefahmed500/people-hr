@@ -68,7 +68,7 @@ export class ToolSecurity {
     return sanitized;
   }
 
-  shouldRequireApproval(tool: AIToolDefinition, args: Record<string, unknown>): boolean {
+  shouldRequireApproval(tool: AIToolDefinition): boolean {
     if (tool.requiresApproval) return true;
     if (tool.riskLevel === "high") return true;
     if (tool.riskLevel === "medium" && tool.sideEffects) return true;

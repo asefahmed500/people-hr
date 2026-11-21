@@ -36,13 +36,13 @@ export function LetterPreview({ open, onOpenChange, document: doc }: LetterPrevi
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[720px] gap-4 rounded-2xl border border-border bg-card p-6">
+      <DialogContent className="max-w-[720px] gap-4 rounded-xl border border-border bg-card p-5">
         <DialogHeader>
           <DialogTitle className="text-h4">{DOCUMENT_TYPE_LABELS[doc.type]} — {doc.employeeName}</DialogTitle>
         </DialogHeader>
-        <div className="max-h-[55vh] overflow-y-auto rounded-xl border border-border bg-white px-10 py-8 shadow-inner dark:bg-[#fdfdfc]">
+        <div className="paper-surface max-h-[55vh] overflow-y-auto rounded-lg border border-border px-6 py-5">
           <div
-            className="letter-editor-body text-[13px] leading-relaxed text-[#111] [&_em]:text-muted-foreground [&_ol]:list-decimal [&_ol]:pl-6 [&_p]:mb-3 [&_strong]:font-semibold [&_ul]:list-disc [&_ul]:pl-6"
+            className="letter-editor-body text-[13px] leading-relaxed [&_em]:text-muted-foreground [&_ol]:list-decimal [&_ol]:pl-6 [&_p]:mb-3 [&_strong]:font-semibold [&_ul]:list-disc [&_ul]:pl-6"
             dangerouslySetInnerHTML={{ __html: sanitizeLetterHtml(doc.body) }}
           />
         </div>
@@ -51,7 +51,7 @@ export function LetterPreview({ open, onOpenChange, document: doc }: LetterPrevi
             Close
           </Button>
           <Button onClick={handleDownloadPdf}>
-            <Download className="size-4" />
+            <Download className="size-4" aria-hidden="true" />
             Download PDF
           </Button>
         </DialogFooter>

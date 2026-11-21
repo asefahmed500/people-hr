@@ -8,7 +8,7 @@ import { sanitizeLetterHtml } from "@/lib/sanitize-html"
 export function printDocument(
   title: string,
   bodyHtml: string,
-  opts?: { companyName?: string },
+  opts?: { companyName?: string; raw?: boolean },
 ): boolean {
   const frame = document.createElement("iframe")
   frame.style.position = "fixed"
@@ -34,7 +34,7 @@ export function printDocument(
   @page { size: A4; margin: 22mm 20mm; }
   * { box-sizing: border-box; }
   body {
-    font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-family: Geist, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Arial, sans-serif;
     color: #111; font-size: 12.5pt; line-height: 1.65;
     -webkit-print-color-adjust: exact; print-color-adjust: exact;
     margin: 0; padding: 0;
@@ -54,12 +54,12 @@ export function printDocument(
     <div class="letter-brand-sub">People Operations</div>
   </div>
 </div>
-${sanitizeLetterHtml(bodyHtml)}
-<script>window.onload=function(){setTimeout(function(){window.print()},120)}<\/script>
+${opts?.raw ? bodyHtml : sanitizeLetterHtml(bodyHtml)}
 </body></html>`)
   doc.close()
 
-  // Give the frame a moment to render, then clean up after printing.
+  // Trigger exactly one print dialog (the injected onload script did this a
+  // second time). Wait for the iframe to paint before printing.
   setTimeout(() => {
     try {
       frame.contentWindow?.focus()

@@ -1,8 +1,8 @@
 import type { AIMessage, AIToolCall } from "../ai/types";
 import type { UserContext } from "../context/engine";
 import { getAIService } from "../ai/service";
-import { getContextEngine, type FullContext } from "../context/engine";
-import { getToolRegistry } from "./tools";
+import { getContextEngine } from "../context/engine";
+import { getToolRegistry, TOOL_UNAVAILABLE_ERROR } from "./tools";
 import { getToolSecurity } from "./security";
 import { getRetriever, type RAGContext } from "../rag/retriever";
 import { randomUUID } from "crypto";
@@ -138,7 +138,28 @@ export class AgentOrchestrator {
           continue;
         }
 
-        if (this.security.shouldRequireApproval(validation.tool!, JSON.parse(toolCall.arguments))) {
+        const toolMeta = getToolRegistry().get(toolCall.name);
+        if (!toolMeta) continue;
+
+        // Unavailable write actions must never be advertised as mutable or
+        // queued for approval. Return the same honest refusal the executor
+        // would, and let the model tell the user to use the module UI.
+        if (!toolMeta.available) {
+          steps.push({
+            stepNumber: step + 1,
+            type: "error",
+            content: TOOL_UNAVAILABLE_ERROR,
+            timestamp: new Date(),
+          });
+          messages.push({
+            role: "tool",
+            content: JSON.stringify({ ok: false, error: TOOL_UNAVAILABLE_ERROR }),
+            toolCallId: toolCall.id,
+          });
+          continue;
+        }
+
+        if (this.security.shouldRequireApproval(validation.tool!)) {
           const args = JSON.parse(toolCall.arguments);
           const approvalKey = `${toolCall.name}:${JSON.stringify(args)}`;
           const prevCount = approvalStepCounts.get(approvalKey) || 0;
@@ -190,9 +211,6 @@ export class AgentOrchestrator {
           continue;
         }
 
-        const toolMeta = getToolRegistry().get(toolCall.name);
-        if (!toolMeta) continue;
-
         steps.push({
           stepNumber: step + 1,
           type: "tool_call",
@@ -204,7 +222,7 @@ export class AgentOrchestrator {
         try {
           const args = JSON.parse(toolCall.arguments);
           const sanitized = this.security.sanitizeArgs(args);
-          const result = await toolMeta.executor(sanitized, request.user.userId, request.user.role);
+          const result = await toolMeta.executor(sanitized, request.user);
 
           toolCallResults.push({
             name: toolCall.name,

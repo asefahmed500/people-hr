@@ -7,7 +7,8 @@ import { z } from "zod"
 
 import { AuthBrandPanel } from "@/components/auth/auth-brand-panel"
 import { AuthInput } from "@/components/auth/auth-input"
-import { apiRequest } from "@/lib/api-client"
+import { Button } from "@/components/ui/button"
+import { apiRequest, ApiError } from "@/lib/api-client"
 import { notify } from "@/lib/toast"
 
 const schema = z.object({ email: z.string().email("Enter a valid work email.") })
@@ -39,9 +40,11 @@ export function ForgotPasswordClient() {
       } else {
         notify.success("Check your inbox", "If that account exists, a reset link is on its way.")
       }
-    } catch {
+    } catch (err) {
       setSubmitting(false)
-      notify.error("Couldn’t send reset", "Please try again.")
+      const message = err instanceof ApiError ? err.message : "Please try again."
+      setError(message)
+      notify.error("Couldn’t send reset", message)
     }
   }
 
@@ -80,13 +83,12 @@ export function ForgotPasswordClient() {
                   {resetUrl}
                 </a>
               </div>
-              <Link
-                href="/login"
-                className="flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-primary font-sans text-[15px] font-medium text-primary-foreground transition-colors hover:bg-primary/90"
-              >
-                Back to sign in
-                <ArrowRight className="size-[17px]" strokeWidth={2} />
-              </Link>
+              <Button asChild className="w-full">
+                <Link href="/login">
+                  Back to sign in
+                  <ArrowRight className="size-4" strokeWidth={2} aria-hidden="true" />
+                </Link>
+              </Button>
             </div>
           ) : (
             <form onSubmit={handleSubmit} className="flex flex-col gap-4">
@@ -102,14 +104,10 @@ export function ForgotPasswordClient() {
                 }}
                 error={error ?? undefined}
               />
-              <button
-                type="submit"
-                disabled={submitting}
-                className="mt-1 flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-primary font-sans text-[15px] font-medium text-primary-foreground shadow-card transition-colors hover:bg-primary/90 disabled:opacity-60"
-              >
+              <Button type="submit" disabled={submitting} className="mt-1 w-full">
                 Send reset link
-                <ArrowRight className="size-[17px]" strokeWidth={2} />
-              </button>
+                <ArrowRight className="size-4" strokeWidth={2} aria-hidden="true" />
+              </Button>
             </form>
           )}
 

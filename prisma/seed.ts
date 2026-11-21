@@ -84,7 +84,7 @@ async function main() {
   // Shared modules use a workspace-level scope; personal modules are per-user.
   const SHARED = new Set([
     "employees", "leave", "recruitment", "projects", "goals",
-    "payroll", "performance", "onboarding", "attendance",
+    "payroll", "payslips", "performance", "onboarding", "attendance",
     "organization", "analytics", "reports", "documents",
     "announcements",
   ])

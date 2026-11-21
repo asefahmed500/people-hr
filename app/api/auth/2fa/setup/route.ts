@@ -3,7 +3,7 @@ import QRCode from "qrcode"
 
 import { prisma } from "@/lib/db"
 import { auth } from "@/lib/auth"
-import { generateSecretKey, otpauthUrl, generateBackupCodes } from "@/lib/totp"
+import { generateSecretKey, otpauthUrl, generateBackupCodes, hashBackupCode } from "@/lib/totp"
 
 // Start 2FA enrollment: generate a secret + backup codes (not yet enabled).
 export async function POST() {
@@ -32,7 +32,9 @@ export async function POST() {
     prisma.user.update({ where: { id: user.id }, data: { totpSecret: secret } }),
     prisma.backupCode.deleteMany({ where: { userId: user.id } }),
     prisma.backupCode.createMany({
-      data: backupCodes.map((code) => ({ userId: user.id, code })),
+      // Persist digests only. The plaintext is returned once, for the user to
+      // save in their password manager; it is never written to the database.
+      data: backupCodes.map((code) => ({ userId: user.id, code: hashBackupCode(code) })),
     }),
   ])
 

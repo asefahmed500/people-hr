@@ -4,10 +4,7 @@ import { join } from "path";
 import { existsSync } from "fs";
 import type {
   ProcessedDocument,
-  DocumentStatus,
-  DocumentType,
   ExtractedDocument,
-  DocumentMetadata,
   OCRResult,
   OCRField,
 } from "../ocr/types";
@@ -17,7 +14,6 @@ import { getAIService } from "../ai/service";
 import { z } from "zod";
 
 const UPLOAD_DIR = join(process.cwd(), "tmp", "uploads");
-const PROCESSED_DIR = join(process.cwd(), "tmp", "processed");
 
 async function ensureDir(dir: string) {
   if (!existsSync(dir)) await mkdir(dir, { recursive: true });
@@ -114,7 +110,7 @@ export class DocumentProcessor {
     const text = ocrResult.fullText;
     const fieldsFromOCR = extractFieldsFromText(text, doc.type);
 
-      const aiExtractedFields: Record<string, OCRField> = {};
+    const aiExtractedFields: Record<string, OCRField> = {};
     try {
       const extractionPrompt = `Extract structured fields from this ${doc.type} document. Return JSON with fields like: documentNumber, vendor, customer, date, dueDate, currency, subtotal, tax, total, lineItems (array of {description, quantity, unitPrice, amount}).
 
@@ -163,7 +159,7 @@ Return ONLY valid JSON.`;
 
     return {
       type: doc.type,
-      confidence: ocrResult.averageConfidence / 100,
+      confidence: ocrResult.averageConfidence,
       fields: mergedFields,
       rawText: text,
       pages: ocrResult.pages,
@@ -179,13 +175,15 @@ Return ONLY valid JSON.`;
   }
 
   async reprocess(doc: ProcessedDocument, options?: DocumentProcessorOptions): Promise<ProcessedDocument> {
+    // Reserved for future reprocessing controls; kept for API compatibility.
+    void options;
     doc.status = "processing";
     doc.updatedAt = new Date();
     doc.error = undefined;
 
     try {
-      if (doc.extracted) {
-        doc.extracted = await this.extractStructured(doc, doc.ocrResult!);
+      if (doc.extracted && doc.ocrResult) {
+        doc.extracted = await this.extractStructured(doc, doc.ocrResult);
         doc.status = "completed";
       }
     } catch (e) {

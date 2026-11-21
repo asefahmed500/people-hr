@@ -65,7 +65,7 @@ export function AttendanceKpis({ checkIns = [] }: { checkIns?: CheckIn[] }) {
   ]
 
   return (
-    <div className="flex gap-5">
+    <div className="flex flex-wrap gap-4">
       {kpis.map((kpi) => (
         <KpiCard key={kpi.label} kpi={kpi} />
       ))}
@@ -76,7 +76,7 @@ export function AttendanceKpis({ checkIns = [] }: { checkIns?: CheckIn[] }) {
 function KpiCard({ kpi }: { kpi: Kpi }) {
   const Icon = kpi.icon
   return (
-    <div className="flex flex-1 flex-col gap-3 rounded-2xl border border-border bg-card p-5">
+    <div className="flex min-w-[130px] flex-1 flex-col gap-3 rounded-lg border border-border bg-card p-4">
       <div className="flex items-center justify-between">
         <span className="font-sans inline-block text-xs text-muted-foreground">
           {kpi.label}

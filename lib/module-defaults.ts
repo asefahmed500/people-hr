@@ -8,6 +8,7 @@ import { defaultRecruitmentStore } from "./data/recruitment"
 import { defaultProjectsStore } from "./data/projects"
 import { defaultGoalsStore } from "./data/goals"
 import { defaultPayrollStore } from "./data/payroll"
+import { defaultPayslipsStore } from "./data/payslips"
 import { defaultPerformanceStore } from "./data/performance"
 import { defaultOnboardingStore } from "./data/onboarding"
 import { defaultCheckIns } from "./data/attendance"
@@ -26,6 +27,7 @@ export const MODULE_DEFAULTS: Record<string, unknown> = {
   projects: defaultProjectsStore,
   goals: defaultGoalsStore,
   payroll: defaultPayrollStore,
+  payslips: defaultPayslipsStore,
   performance: defaultPerformanceStore,
   onboarding: defaultOnboardingStore,
   attendance: { checkIns: defaultCheckIns },

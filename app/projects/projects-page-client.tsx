@@ -43,20 +43,36 @@ import { Ellipsis } from "lucide-react"
 import { ActionDialog } from "@/components/shared/dialog-parts"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { Field, SelectField, useForm } from "@/components/shared/field"
+import { StoreErrorState } from "@/components/shared/store-error-state"
 import { ProjectsHeader } from "@/components/projects/projects-header"
 import { ProjectsKpiStrip } from "@/components/projects/projects-kpi-strip"
 
 export function ProjectsPageClient() {
-  const { state: store, setState: setStore, hydrated } = useApiStore<ProjectsStore>(
+  const {
+    state: store,
+    setState: setStore,
+    hydrated,
+    error: projectsError,
+    retry: retryProjects,
+  } = useApiStore<ProjectsStore>(
     "/api/store/projects",
     () => defaultProjectsStore,
   )
   const { user } = useAuth()
   const canEdit = !!user
-  const { state: employees } = useApiStore<import("@/lib/data").Employee[]>(
+  const {
+    state: employees,
+    error: employeesError,
+    retry: retryEmployees,
+  } = useApiStore<import("@/lib/data").Employee[]>(
     "/api/store/employees",
     () => [],
   )
+  const error = projectsError || employeesError
+  const retry = () => {
+    retryProjects()
+    retryEmployees()
+  }
   const employeeOptions = employees.map((e) => ({ name: e.name, role: e.role }))
   // Server write scope: employees own their tasks (ownerName), managers own
   // their department's tasks. Restrict the scope-defining fields accordingly.
@@ -85,7 +101,7 @@ export function ProjectsPageClient() {
     const t = store.tasks.find((x) => x.id === String(active.id))
     if (t) {
       const col = statusColumns.find((c) => c.id === overStatus)
-      notify.success(`${t.name} → ${col?.title}`)
+      notify.success(`${t.name} Ã¢â€ â€™ ${col?.title}`)
 
     }
   }
@@ -130,14 +146,19 @@ export function ProjectsPageClient() {
     notify.success("Projects exported", `${visibleTasks.length} projects downloaded as CSV.`)
   }
 
-  const subtitle = `${store.tasks.length} projects across ${deptOptions.length - 1} teams · ${store.tasks.filter((t) => t.status === "at-risk" || t.status === "delayed").length} flagged`
+  const subtitle = `${store.tasks.length} projects across ${deptOptions.length - 1} teams Ã‚Â· ${store.tasks.filter((t) => t.status === "at-risk" || t.status === "delayed").length} flagged`
+
+  if (error) {
+    // page.tsx already provides the DashboardShell for this route.
+    return <StoreErrorState onRetry={retry} />
+  }
 
   if (!hydrated) {
     return (
       <>
-        <Skeleton className="h-12 w-full rounded-2xl" />
-        <Skeleton className="h-20 w-full rounded-2xl" />
-        <Skeleton className="h-[420px] w-full rounded-2xl" />
+        <Skeleton className="h-12 w-full rounded-lg" />
+        <Skeleton className="h-20 w-full rounded-lg" />
+        <Skeleton className="h-[420px] w-full rounded-lg" />
       </>
     )
   }
@@ -221,7 +242,7 @@ export function ProjectsPageClient() {
         title="Delete project"
         description={
           deleteTarget
-            ? `Delete “${deleteTarget.name}” and remove it from the board? This can’t be undone.`
+            ? `Delete Ã¢â‚¬Å“${deleteTarget.name}Ã¢â‚¬Â and remove it from the board? This canÃ¢â‚¬â„¢t be undone.`
             : undefined
         }
         confirmLabel="Delete"
@@ -288,7 +309,7 @@ function EditProjectDialog({
     const errors: Record<string, string> = {}
     if (name.length < 2) errors.name = "Project name is required"
     if (ownerName.length < 2) errors.ownerName = "Pick an owner"
-    if (progress < 0 || progress > 100 || Number.isNaN(progress)) errors.progress = "0–100 only"
+    if (progress < 0 || progress > 100 || Number.isNaN(progress)) errors.progress = "0Ã¢â‚¬â€œ100 only"
     if (Object.keys(errors).length > 0) {
       form.setErrors(errors as never)
       return
@@ -313,11 +334,11 @@ function EditProjectDialog({
   }
 
   return (
-    <ActionDialog
+    <ActionDialog width="wide"
       open={open}
       onOpenChange={onOpenChange}
       title="Edit project"
-      description={task ? `Update “${task.name}”.` : ""}
+      description={task ? `Update Ã¢â‚¬Å“${task.name}Ã¢â‚¬Â.` : ""}
       submitLabel="Save changes"
       submitting={submitting}
       onSubmit={onSubmit}
@@ -339,11 +360,11 @@ function EditProjectDialog({
         error={form.errors.ownerName}
         options={
           employees.length > 0
-            ? employees.map((e) => ({ value: e.name, label: `${e.name} · ${e.role}` }))
+            ? employees.map((e) => ({ value: e.name, label: `${e.name} Ã‚Â· ${e.role}` }))
             : [{ value: form.values.ownerName, label: form.values.ownerName || "No directory match" }]
         }
       />
-      <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <SelectField
           label="Department"
           value={form.values.department}
@@ -364,7 +385,7 @@ function EditProjectDialog({
           required
         />
       </div>
-      <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <Field
           label="Progress (%)"
           type="number"
@@ -470,7 +491,7 @@ function NewProjectDialog({
   }
 
   return (
-    <ActionDialog
+    <ActionDialog width="wide"
       open={open}
       onOpenChange={onOpenChange}
       title="New project"
@@ -496,11 +517,11 @@ function NewProjectDialog({
         error={form.errors.ownerName}
         options={
           employees.length > 0
-            ? employees.map((e) => ({ value: e.name, label: `${e.name} · ${e.role}` }))
+            ? employees.map((e) => ({ value: e.name, label: `${e.name} Ã‚Â· ${e.role}` }))
             : [{ value: form.values.ownerName, label: form.values.ownerName || "No directory match" }]
         }
       />
-      <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <SelectField
           label="Department"
           value={form.values.department}
@@ -551,8 +572,8 @@ function KanbanColumn({
       ref={setNodeRef}
       data-status={status}
       className={cn(
-        "flex min-w-[240px] flex-1 flex-col gap-2.5 rounded-xl border p-3 transition-colors",
-        isOver ? "border-primary bg-muted" : "border-border bg-muted",
+        "flex min-w-[240px] flex-1 flex-col gap-2.5 rounded-lg border bg-card p-3 transition-colors",
+        isOver ? "border-primary" : "border-border",
       )}
     >
       <div
@@ -585,7 +606,7 @@ function KanbanColumn({
         {tasks.length === 0 ? (
           <div
             className={cn(
-              "rounded-2xl border border-dashed bg-card p-4 text-center font-sans text-[11.5px] text-muted-foreground",
+              "rounded-lg border border-dashed bg-muted p-4 text-center font-sans text-[11.5px] text-muted-foreground",
               isOver ? "border-primary" : "border-border",
             )}
           >
@@ -642,7 +663,7 @@ function ProjectCard({
 }) {
   const tone = cardToneStyles[task.tone]
   return (
-    <div className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-4">
+    <div className="flex flex-col gap-3 rounded-lg border border-border bg-card p-4">
       <div className="flex items-center gap-2.5">
         <div
           className={cn(
@@ -685,7 +706,7 @@ function ProjectCard({
         ) : null}
       </div>
       <span className="font-sans inline-block text-[11.5px] leading-normal text-muted-foreground">
-        {task.department} · {task.ownerName}
+        {task.department} Ã‚Â· {task.ownerName}
       </span>
       <div className="flex flex-col gap-1.5">
         <div className="flex h-1.5 w-full overflow-clip rounded-full bg-muted">

@@ -74,23 +74,23 @@ export function DashboardShellClient({
 
   if (!hydrated || !isAuthenticated) {
     return (
-      <div className="flex min-h-svh w-full flex-col gap-6 bg-muted p-6 sm:p-10">
-        <Skeleton className="h-12 w-full rounded-xl bg-card" />
-        <Skeleton className="h-72 w-full rounded-2xl bg-card" />
+      <div className="flex min-h-svh w-full flex-col gap-6 bg-background p-6 sm:p-10">
+        <Skeleton className="h-12 w-full rounded-lg border border-border bg-muted" />
+        <Skeleton className="h-72 w-full rounded-lg border border-border bg-muted" />
         <div className="grid w-full grid-cols-1 gap-6 lg:grid-cols-3">
-          <Skeleton className="h-64 rounded-2xl bg-card" />
-          <Skeleton className="h-64 rounded-2xl bg-card" />
-          <Skeleton className="h-64 rounded-2xl bg-card" />
+          <Skeleton className="h-64 rounded-lg border border-border bg-muted" />
+          <Skeleton className="h-64 rounded-lg border border-border bg-muted" />
+          <Skeleton className="h-64 rounded-lg border border-border bg-muted" />
         </div>
       </div>
     )
   }
 
   return (
-    <div className="flex min-h-svh w-full bg-muted">
+    <div className="flex min-h-svh w-full bg-background">
       <a
         href="#main"
-        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[100] focus:rounded-lg focus:bg-card focus:px-4 focus:py-2 focus:font-sans focus:text-sm focus:text-foreground focus:shadow-lg"
+        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[100] focus:rounded-lg focus:border focus:border-border focus:bg-card focus:px-4 focus:py-2 focus:font-sans focus:text-sm focus:text-foreground"
       >
         Skip to main content
       </a>
@@ -117,11 +117,11 @@ export function DashboardShellClient({
         aria-label="Open navigation"
         onClick={() => setMobileNavOpen(true)}
         className={cn(
-          "fixed left-4 top-4 z-30 flex size-10 items-center justify-center rounded-xl border border-border bg-card shadow-sm",
+          "fixed left-4 top-4 z-30 flex size-9 items-center justify-center rounded-xl border border-border bg-card",
           "lg:hidden",
         )}
       >
-        <Menu className="size-5 text-secondary-foreground" strokeWidth={2} />
+        <Menu className="size-5 text-secondary-foreground" strokeWidth={2} aria-hidden="true" />
       </button>
 
       <main id="main" className="flex min-w-0 flex-1 flex-col gap-4 px-3 py-3 sm:gap-6 sm:px-6 sm:py-5 lg:pl-6">

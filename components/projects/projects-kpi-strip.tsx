@@ -2,13 +2,13 @@ import { AlertCircle, ArrowUpRight, CheckCircle2, TrendingUp } from "lucide-reac
 import type { ProjectTask } from "@/lib/data"
 
 import { cn } from "@/lib/utils"
+import { Badge } from "@/components/ui/badge"
 
 type Trend = {
   text: string
-  bg: string
-  text2: string
   icon: typeof TrendingUp
   iconColor: string
+  text2: string
 }
 
 type Kpi = {
@@ -34,7 +34,6 @@ export function ProjectsKpiStrip({ tasks }: { tasks?: ProjectTask[] }) {
       valueColor: "text-primary",
       trend: {
         text: `${delayed} delayed`,
-        bg: "bg-foreground/5",
         text2: "text-primary",
         icon: TrendingUp,
         iconColor: "text-primary",
@@ -46,7 +45,6 @@ export function ProjectsKpiStrip({ tasks }: { tasks?: ProjectTask[] }) {
       valueColor: "text-primary",
       trend: {
         text: `${total ? Math.round((onTrack / total) * 100) : 0}% of total`,
-        bg: "bg-foreground/5",
         text2: "text-secondary-foreground",
         icon: CheckCircle2,
         iconColor: "text-secondary-foreground",
@@ -58,7 +56,6 @@ export function ProjectsKpiStrip({ tasks }: { tasks?: ProjectTask[] }) {
       valueColor: "text-primary",
       trend: {
         text: "from tasks",
-        bg: "bg-foreground/5",
         text2: "text-primary",
         icon: ArrowUpRight,
         iconColor: "text-primary",
@@ -70,7 +67,6 @@ export function ProjectsKpiStrip({ tasks }: { tasks?: ProjectTask[] }) {
       valueColor: "text-secondary-foreground",
       trend: {
         text: `${atRisk} at risk`,
-        bg: "bg-foreground/10",
         text2: "text-foreground",
         icon: AlertCircle,
         iconColor: "text-foreground",
@@ -83,7 +79,7 @@ export function ProjectsKpiStrip({ tasks }: { tasks?: ProjectTask[] }) {
       {kpis.map((kpi) => (
         <div
           key={kpi.label}
-          className="flex flex-col gap-1 rounded-2xl border border-border bg-card px-5 py-4"
+          className="flex flex-col gap-1 rounded-lg border border-border bg-card px-4 py-3"
         >
           <span
             className={cn(
@@ -96,15 +92,11 @@ export function ProjectsKpiStrip({ tasks }: { tasks?: ProjectTask[] }) {
           <span className="font-sans inline-block text-xs font-medium leading-normal text-muted-foreground">
             {kpi.label}
           </span>
-          <span
-            className={cn(
-              "mt-0.5 flex w-fit items-center gap-1 rounded-full px-1.5 py-0.5",
-              kpi.trend.bg,
-            )}
-          >
+          <Badge variant="secondary" className="mt-0.5 w-fit gap-1 px-1.5">
             <kpi.trend.icon
               className={cn("size-3", kpi.trend.iconColor)}
               strokeWidth={2}
+              aria-hidden="true"
             />
             <span
               className={cn(
@@ -114,7 +106,7 @@ export function ProjectsKpiStrip({ tasks }: { tasks?: ProjectTask[] }) {
             >
               {kpi.trend.text}
             </span>
-          </span>
+          </Badge>
         </div>
       ))}
     </div>

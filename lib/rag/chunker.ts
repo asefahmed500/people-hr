@@ -1,5 +1,5 @@
 import { randomUUID } from "crypto";
-import type { DocumentChunk, ChunkMetadata, OCRPage } from "../ocr/types";
+import type { DocumentChunk, OCRPage } from "../ocr/types";
 import { getAIEnv } from "../ai/env";
 
 export interface ChunkingOptions {

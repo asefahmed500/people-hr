@@ -1,5 +1,7 @@
 import { Plus } from "lucide-react"
 
+import { Button } from "@/components/ui/button"
+
 function currentQuarter(): string {
   const now = new Date()
   const q = Math.floor(now.getMonth() / 3) + 1
@@ -19,7 +21,7 @@ export function GoalsHeader({
           Goals
         </h1>
         <p className="font-sans inline-block text-[13.5px] leading-normal text-muted-foreground">
-          Company objectives and key results · {period} cycle
+          Company objectives and key results Â· {period} cycle
         </p>
       </div>
       <div className="flex items-center gap-2.5">
@@ -29,16 +31,12 @@ export function GoalsHeader({
           </span>
         </span>
         {onNewGoal ? (
-          <button
-            type="button"
-            onClick={onNewGoal}
-            className="flex items-center gap-1.5 rounded-lg gap-1.5 rounded-lg px-3.5 py-2 border border-border bg-gradient-to-b from-white to-[#ececea] shadow-xs transition-colors hover:to-[#e2e2df]"
-          >
-            <Plus className="size-3.5 text-secondary-foreground" strokeWidth={2} />
+          <Button type="button" variant="secondary" onClick={onNewGoal} className="h-9 px-3.5">
+            <Plus className="size-3.5 text-secondary-foreground" strokeWidth={2} aria-hidden="true" />
             <span className="font-sans text-[13px] font-medium leading-normal text-secondary-foreground">
               New goal
             </span>
-          </button>
+          </Button>
         ) : null}
       </div>
     </div>

@@ -6,9 +6,10 @@ import { auth } from "@/lib/auth"
 import { rateLimit } from "@/lib/rate-limit"
 
 // Face check-in: the client posts only a face descriptor. Identity is derived
-// SERVER-SIDE by nearest-neighbor matching against APPROVED enrollments — a
-// caller can never check in as someone else by claiming their id, and a
-// session alone is not enough: the face must match.
+// SERVER-SIDE by nearest-neighbor matching against APPROVED enrollments, then
+// checked against the authenticated session — BOTH the face and the session
+// must identify the same person. A photo of a colleague therefore cannot be
+// used to check in as them.
 //
 // Check-ins are written into the shared attendance module document (same
 // shape the attendance page uses) with a compare-and-swap retry so two
@@ -28,7 +29,10 @@ function parseDescriptor(input: unknown): number[] | null {
   if (!Array.isArray(input) || input.length !== DESCRIPTOR_LENGTH) return null
   const out: number[] = []
   for (const v of input) {
-    if (typeof v !== "number" || !Number.isFinite(v)) return null
+    // Bound the magnitude as well as the type: normalized Human embeddings are
+    // small, and a 1024-element array of huge floats would make distance()
+    // overflow to Infinity and burn CPU for no reason.
+    if (typeof v !== "number" || !Number.isFinite(v) || Math.abs(v) > 100) return null
     out.push(v)
   }
   return out
@@ -45,6 +49,8 @@ function distance(a: number[], b: number[]): number {
 
 type CheckIn = {
   id: string
+  /** Stable account id — display names are mutable and not unique. */
+  userId?: string
   initials: string
   name: string
   dept: string
@@ -83,6 +89,16 @@ export async function POST(request: Request) {
     )
   }
 
+  // 1b. The matched face must belong to the signed-in account. Without this
+  // check, anyone holding a photo of an enrolled employee could check in as
+  // them — the face alone is not an identity proof.
+  if (best.userId !== session.user.id) {
+    return NextResponse.json(
+      { error: "This face is registered to a different account." },
+      { status: 403 },
+    )
+  }
+
   // 2. The matched account must still be active.
   const user = await prisma.user.findUnique({ where: { id: best.userId } })
   if (!user || user.deactivatedAt) {
@@ -92,8 +108,12 @@ export async function POST(request: Request) {
   // 3. Record the check-in (one per person per day) with a CAS retry so
   // concurrent check-ins can't clobber each other in the shared document.
   const now = new Date()
+  // Keep the UTC date key used everywhere else in the attendance module.
   const today = now.toISOString().slice(0, 10)
-  const time = now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false })
+  // Build the clock time explicitly: toLocaleTimeString("en-US", { hour12: false })
+  // can emit "24:xx" at midnight on some ICU versions, which breaks the string
+  // comparison against ON_TIME_UNTIL.
+  const time = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`
   const status: CheckIn["status"] = time <= ON_TIME_UNTIL ? "on-time" : "late"
 
   for (let attempt = 0; attempt < 3; attempt += 1) {
@@ -102,14 +122,18 @@ export async function POST(request: Request) {
     })
     const store = (doc?.data as { checkIns?: CheckIn[] } | undefined) ?? { checkIns: [] }
     const checkIns = store.checkIns ?? []
-    if (checkIns.some((c) => c.name === user.name && c.date === today)) {
+    const already = checkIns.find(
+      (c) => (c.userId ? c.userId === session.user.id : c.name === user.name) && c.date === today,
+    )
+    if (already) {
       return NextResponse.json(
-        { error: `You already checked in today (${checkIns.find((c) => c.name === user.name && c.date === today)?.time}).` },
+        { error: `You already checked in today (${already.time}).` },
         { status: 409 },
       )
     }
     const checkIn: CheckIn = {
       id: `ci-${crypto.randomUUID()}`,
+      userId: session.user.id,
       initials:
         user.initials ||
         (user.name ?? "UN")

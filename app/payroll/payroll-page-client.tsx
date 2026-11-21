@@ -15,17 +15,27 @@ import { onAction, consumePendingAction } from "@/lib/command-actions"
 import { useApiStore } from "@/hooks/use-api-store"
 import { useAuth } from "@/hooks/use-auth"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
+import { StoreErrorState } from "@/components/shared/store-error-state"
 import { type PayrollStore, defaultPayrollStore, type Employee, formatMoney } from "@/lib/data"
 
 export function PayrollPageClient() {
   const { user } = useAuth()
   const canWrite = user?.role === "admin"
-  const { state, setState, hydrated } = useApiStore<PayrollStore>(
+  const { state, setState, hydrated, error: payrollError, retry: retryPayroll } = useApiStore<PayrollStore>(
     "/api/store/payroll",
     () => defaultPayrollStore,
   )
   // The directory is the source of truth for who gets paid and how much.
-  const { state: employees } = useApiStore<Employee[]>("/api/store/employees", () => [])
+  const {
+    state: employees,
+    error: employeesError,
+    retry: retryEmployees,
+  } = useApiStore<Employee[]>("/api/store/employees", () => [])
+  const error = payrollError || employeesError
+  const retry = () => {
+    retryPayroll()
+    retryEmployees()
+  }
 
   const [runConfirmOpen, setRunConfirmOpen] = React.useState(false)
 
@@ -88,16 +98,24 @@ export function PayrollPageClient() {
     return off
   }, [canWrite])
 
+  if (error) {
+    return (
+      <DashboardShell activeHref="/payroll" current="Payroll" accentCurrent>
+        <StoreErrorState onRetry={retry} />
+      </DashboardShell>
+    )
+  }
+
   if (!hydrated) {
     return (
       <DashboardShell activeHref="/payroll" current="Payroll" accentCurrent>
-        <Skeleton className="h-12 w-full rounded-2xl" />
-        <Skeleton className="h-[140px] w-full rounded-2xl" />
-        <div className="flex w-full items-start gap-5">
-          <Skeleton className="h-[200px] flex-1 rounded-2xl" />
-          <Skeleton className="h-[200px] flex-1 rounded-2xl" />
+        <Skeleton className="h-12 w-full rounded-lg" />
+        <Skeleton className="h-[140px] w-full rounded-lg" />
+        <div className="flex w-full items-start gap-4">
+          <Skeleton className="h-[200px] flex-1 rounded-lg" />
+          <Skeleton className="h-[200px] flex-1 rounded-lg" />
         </div>
-        <Skeleton className="h-[300px] w-full rounded-2xl" />
+        <Skeleton className="h-[300px] w-full rounded-lg" />
       </DashboardShell>
     )
   }
@@ -120,7 +138,7 @@ export function PayrollPageClient() {
         onRunPayroll={canWrite ? () => setRunConfirmOpen(true) : undefined}
       />
       <PayRunSummary payments={state.payments} lastRun={state.lastRun} />
-      <div className="flex w-full flex-col gap-5 lg:flex-row lg:items-start">
+      <div className="flex w-full flex-col gap-4 lg:flex-row lg:items-start">
         <CostByDepartment payments={state.payments} />
         <PayBreakdown payments={state.payments} />
       </div>

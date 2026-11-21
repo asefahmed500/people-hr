@@ -27,7 +27,7 @@ export function RatingDistribution({ reviews = [] }: RatingDistributionProps) {
   ]
 
   return (
-    <div className="flex w-full flex-col gap-5 rounded-2xl border border-border bg-card p-6 shadow-card">
+    <div className="flex w-full flex-col gap-4 rounded-lg border border-border bg-card p-4">
       <div className="flex flex-col gap-1">
         <h2 className="text-h3">
           Rating distribution
@@ -45,7 +45,7 @@ export function RatingDistribution({ reviews = [] }: RatingDistributionProps) {
           />
         ))}
       </div>
-      <div className="flex flex-wrap items-center gap-6">
+      <div className="flex flex-wrap items-center gap-4">
         {legend.map((item) => (
           <div key={item.label} className="flex items-center gap-2">
             <span className={`size-3 shrink-0 rounded ${item.swatch}`} />

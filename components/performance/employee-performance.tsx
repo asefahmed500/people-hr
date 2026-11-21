@@ -1,16 +1,28 @@
 "use client"
 
 import * as React from "react"
-import { ChevronDown, Search, Trash2 } from "lucide-react"
+import { ChevronDown, Search, Trash2, Users } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import type { Review, ReviewStatus } from "@/lib/data"
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import {
+  Table,
+  TableBody,
+  TableCaption,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
 
-const statusStyles: Record<ReviewStatus, { bg: string; text: string; label: string }> = {
-  exceeds: { bg: "bg-primary/10", text: "text-primary", label: "Exceeds" },
-  meets: { bg: "bg-secondary-foreground/10", text: "text-secondary-foreground", label: "Meets" },
-  below: { bg: "bg-muted-foreground/10", text: "text-muted-foreground", label: "Below" },
-  needs: { bg: "bg-foreground/10", text: "text-foreground", label: "Needs improvement" },
+const statusStyles: Record<ReviewStatus, { variant: "secondary" | "outline" | "destructive"; label: string }> = {
+  exceeds: { variant: "secondary", label: "Exceeds" },
+  meets: { variant: "secondary", label: "Meets" },
+  below: { variant: "outline", label: "Below" },
+  needs: { variant: "destructive", label: "Needs improvement" },
 }
 
 type SortDir = "high" | "low" | null
@@ -60,8 +72,8 @@ export function EmployeePerformance({
   }
 
   return (
-    <div id="employee-performance" className="flex w-full flex-col overflow-clip rounded-2xl border border-border bg-card shadow-card">
-      <div className="flex items-center justify-between gap-4 px-6 py-5">
+    <div id="employee-performance" className="flex w-full flex-col overflow-clip rounded-lg border border-border bg-card">
+      <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 sm:gap-4 sm:px-4">
         <div className="flex flex-col gap-1">
           <h2 className="text-h3">
             Employee performance
@@ -70,66 +82,61 @@ export function EmployeePerformance({
             Individual reviews across all departments
           </span>
         </div>
-        <div className="flex shrink-0 items-center gap-2.5">
-          <div className="flex h-9 w-[220px] items-center gap-2 rounded-lg border border-border bg-muted px-3">
-            <Search className="size-4 shrink-0 text-muted-foreground" strokeWidth={2} />
+        <div className="flex w-full items-center gap-2.5 sm:w-auto sm:shrink-0">
+          <div className="flex h-9 min-w-0 flex-1 items-center gap-2 rounded-lg border border-border bg-muted px-3 sm:w-[220px] sm:flex-none">
+            <Search className="size-4 shrink-0 text-muted-foreground" strokeWidth={2} aria-hidden="true" />
             <input
               type="text"
               value={searchQuery ?? ""}
               onChange={(e) => onSearchChange?.(e.target.value)}
               placeholder="Search employees"
+              aria-label="Search employees"
               className="flex-1 bg-transparent font-sans text-[12.5px] leading-normal text-foreground outline-none placeholder:text-muted-foreground"
             />
           </div>
-          <button
+          <Button
             type="button"
+            variant="outline"
             onClick={cycleSort}
             aria-label="Sort by rating"
-            className="flex h-9 items-center gap-1.5 rounded-lg border border-border bg-card px-3 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+            className="text-[12.5px] font-medium"
           >
-            <span className="font-sans text-[12.5px] font-medium leading-normal text-secondary-foreground">
-              {sortDir === "high"
-                ? "Rating: High to low"
-                : sortDir === "low"
-                  ? "Rating: Low to high"
-                  : "Sort by rating"}
-            </span>
-            <ChevronDown className="size-3.5 shrink-0 text-muted-foreground" strokeWidth={2} />
-          </button>
+            {sortDir === "high"
+              ? "Rating: High to low"
+              : sortDir === "low"
+                ? "Rating: Low to high"
+                : "Sort by rating"}
+            <ChevronDown className="size-3.5 shrink-0 text-muted-foreground" strokeWidth={2} aria-hidden="true" />
+          </Button>
         </div>
       </div>
-      <div className="flex items-center gap-4 border-y border-border bg-muted px-6 py-2.5">
-        <span className="min-w-0 flex-1 font-sans text-[10.5px] font-semibold uppercase leading-normal tracking-[0.7px] text-muted-foreground">
-          Employee
-        </span>
-        <span className="w-[120px] shrink-0 font-sans text-[10.5px] font-semibold uppercase leading-normal tracking-[0.7px] text-muted-foreground">
-          Department
-        </span>
-        <span className="w-[130px] shrink-0 font-sans text-[10.5px] font-semibold uppercase leading-normal tracking-[0.7px] text-muted-foreground">
-          Reviewer
-        </span>
-        <span className="w-[54px] shrink-0 font-sans text-[10.5px] font-semibold uppercase leading-normal tracking-[0.7px] text-muted-foreground">
-          Rating
-        </span>
-        <span className="w-[150px] shrink-0 font-sans text-[10.5px] font-semibold uppercase leading-normal tracking-[0.7px] text-muted-foreground">
-          Status
-        </span>
-        <span className="w-[40px] shrink-0" />
-      </div>
-      <div className="flex flex-col">
-        {filtered.length === 0 ? (
-          <div className="flex items-center justify-center py-10">
-            <span className="font-sans text-[13px] leading-normal text-muted-foreground">
-              No employees match your filter
-            </span>
-          </div>
-        ) : (
-          filtered.map((emp, idx) => (
-            <EmployeeRow key={emp.id} emp={emp} first={idx === 0} onDelete={onDelete} />
-          ))
-        )}
-      </div>
-      <div className="flex items-center justify-between border-t border-t-border px-6 py-3.5">
+      {filtered.length === 0 ? (
+        <div className="flex flex-col items-center gap-2 border-y border-border bg-muted py-8 text-center">
+          <Users className="size-5 shrink-0 text-muted-foreground" aria-hidden="true" strokeWidth={2} />
+          <p className="font-sans text-[13px] font-semibold text-foreground">No employees match your filter</p>
+          <p className="font-sans text-[12px] text-muted-foreground">Try a different search or department.</p>
+        </div>
+      ) : (
+        <Table className="min-w-[720px]">
+          <TableCaption className="sr-only">Employee performance reviews</TableCaption>
+          <TableHeader>
+            <TableRow className="border-y border-border bg-muted hover:bg-muted">
+              <TableHead className="font-sans text-[10.5px] font-semibold uppercase tracking-[0.7px] text-muted-foreground">Employee</TableHead>
+              <TableHead className="w-[120px] font-sans text-[10.5px] font-semibold uppercase tracking-[0.7px] text-muted-foreground">Department</TableHead>
+              <TableHead className="w-[130px] font-sans text-[10.5px] font-semibold uppercase tracking-[0.7px] text-muted-foreground">Reviewer</TableHead>
+              <TableHead className="w-[54px] font-sans text-[10.5px] font-semibold uppercase tracking-[0.7px] text-muted-foreground">Rating</TableHead>
+              <TableHead className="w-[150px] font-sans text-[10.5px] font-semibold uppercase tracking-[0.7px] text-muted-foreground">Status</TableHead>
+              <TableHead className="w-[40px]"><span className="sr-only">Actions</span></TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {filtered.map((emp, idx) => (
+              <EmployeeRow key={emp.id} emp={emp} first={idx === 0} onDelete={onDelete} />
+            ))}
+          </TableBody>
+        </Table>
+      )}
+      <div className="flex flex-wrap items-center justify-between gap-2 border-t border-t-border px-4 py-3 sm:px-4">
         <span className="font-sans inline-block text-[12.5px] leading-normal text-muted-foreground">
           Showing {filtered.length} of {reviews.length} employees
         </span>
@@ -152,67 +159,55 @@ function EmployeeRow({
 }) {
   const s = statusStyles[emp.status]
   return (
-    <div
-      className={cn(
-        "group flex items-center gap-4 px-6 py-3.5",
-        !first && "border-t border-t-border",
-      )}
-    >
-      <div className="flex min-w-0 flex-1 items-center gap-3">
-        <div
-          className={cn(
-            "flex size-9 shrink-0 items-center justify-center rounded-full",
-            emp.avatarBg,
-          )}
-        >
-          <span className="font-sans text-xs font-semibold leading-normal text-background">
-            {emp.initials}
+    <TableRow className={cn("group border-b-0", !first && "border-t border-t-border")}>
+      <TableCell className="px-4 py-3">
+        <div className="flex min-w-0 items-center gap-3">
+          <Avatar className="size-9">
+            <AvatarFallback className="text-xs font-semibold">{emp.initials}</AvatarFallback>
+          </Avatar>
+          <div className="flex min-w-0 flex-col">
+            <span className="font-sans inline-block text-[13.5px] font-semibold leading-tight text-foreground">
+              {emp.name}
+            </span>
+            <span className="font-sans inline-block text-[11.5px] leading-tight text-muted-foreground">
+              {emp.role}
+            </span>
+          </div>
+        </div>
+      </TableCell>
+      <TableCell className="px-4 py-3">
+        <div className="flex items-center gap-2">
+          <span className={`size-2.5 shrink-0 rounded-full ${emp.deptDot}`} aria-hidden="true" />
+          <span className="font-sans inline-block text-[12.5px] leading-normal text-secondary-foreground">
+            {emp.department}
           </span>
         </div>
-        <div className="flex min-w-0 flex-col">
-          <span className="font-sans inline-block text-[13.5px] font-semibold leading-tight text-foreground">
-            {emp.name}
-          </span>
-          <span className="font-sans inline-block text-[11.5px] leading-tight text-muted-foreground">
-            {emp.role}
-          </span>
-        </div>
-      </div>
-      <div className="flex w-[120px] shrink-0 items-center gap-2">
-        <span className={`size-2.5 shrink-0 rounded-full ${emp.deptDot}`} />
-        <span className="font-sans inline-block text-[12.5px] leading-normal text-secondary-foreground">
-          {emp.department}
-        </span>
-      </div>
-      <span className="w-[130px] shrink-0 font-sans text-[12.5px] leading-normal text-muted-foreground">
+      </TableCell>
+      <TableCell className="px-4 py-3 font-sans text-[12.5px] leading-normal text-muted-foreground">
         {emp.reviewer}
-      </span>
-      <span className="w-[54px] shrink-0 text-lg font-semibold leading-normal text-foreground">
+      </TableCell>
+      <TableCell className="px-4 py-3 text-lg font-semibold leading-normal text-foreground">
         {emp.rating.toFixed(1)}
-      </span>
-      <div className="flex w-[150px] shrink-0">
-        <span
-          className={cn(
-            "flex items-center rounded-full px-2.5 py-1 font-sans text-[11.5px] font-semibold leading-normal",
-            s.bg,
-            s.text,
-          )}
-        >
+      </TableCell>
+      <TableCell className="px-4 py-3">
+        <Badge variant={s.variant} className="text-[11.5px] font-semibold">
           {s.label}
-        </span>
-      </div>
-      <div className="flex w-[40px] shrink-0 justify-end">
+        </Badge>
+      </TableCell>
+      <TableCell className="px-4 py-3">
         {onDelete ? (
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            size="icon-xs"
+            className="size-6 shrink-0 text-muted-foreground opacity-0 transition-opacity hover:text-foreground focus-visible:opacity-100 sm:group-hover:opacity-100"
             aria-label={`Delete review for ${emp.name}`}
             onClick={() => onDelete(emp)}
-            className="flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-opacity hover:bg-muted hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100"
           >
-            <Trash2 className="size-3.5" strokeWidth={2} />
-          </button>
+            <Trash2 className="size-3.5" strokeWidth={2} aria-hidden="true" />
+          </Button>
         ) : null}
-      </div>
-    </div>
+      </TableCell>
+    </TableRow>
   )
 }

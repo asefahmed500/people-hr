@@ -10,6 +10,8 @@ import { mergeNonAdminWrite, type UserCtx } from "@/lib/non-admin-merge"
 import { notifyLeaveChanges } from "@/lib/notify-server"
 import { defaultBalances } from "@/lib/data/leave"
 import { DEPARTMENTS } from "@/lib/data/types"
+import { describeDocumentChange, recordActivity } from "@/lib/activity"
+import { isOwnRecord } from "@/lib/role-scope"
 import type { Employee } from "@/lib/data/employees"
 import type { LeaveStore } from "@/lib/data/leave"
 import type { RecruitmentStore } from "@/lib/data/recruitment"
@@ -20,7 +22,7 @@ type RouteContext = { params: Promise<{ key: string }> }
 // Personal modules stay per-user.
 const SHARED_KEYS = new Set([
   "employees", "leave", "recruitment", "projects", "goals",
-  "payroll", "performance", "onboarding", "attendance",
+  "payroll", "payslips", "performance", "onboarding", "attendance",
   "organization", "analytics", "reports", "documents", "announcements",
 ])
 const WORKSPACE_ID = "__workspace__"
@@ -44,6 +46,7 @@ function emptyFor(key: string): unknown {
     case "projects": return { tasks: [] }
     case "goals": return { objectives: [] }
     case "payroll": return { payments: [], lastRun: null }
+    case "payslips": return { payslips: [] }
     case "performance": return { reviews: [], teamScores: [] }
     case "onboarding": return { tasks: [] }
     case "attendance": return { checkIns: [] }
@@ -58,6 +61,37 @@ function emptyFor(key: string): unknown {
     case "announcements": return { announcements: [] }
     default: return {}
   }
+}
+
+type ActivitySessionUser = {
+  id: string
+  name: string | null
+  department: string | null
+  role: string
+}
+
+/**
+ * Best-effort audit entry for a successful document replace. Only counts and
+ * labels are derived — document bodies (and their values) never leave here.
+ */
+async function trackWrite(
+  key: string,
+  before: unknown,
+  after: unknown,
+  sessionUser: ActivitySessionUser,
+) {
+  const { action, summary } = describeDocumentChange(key, before, after)
+  await recordActivity({
+    actor: {
+      id: sessionUser.id,
+      name: sessionUser.name,
+      department: sessionUser.department,
+      role: sessionUser.role,
+    },
+    action,
+    module: key,
+    summary,
+  })
 }
 
 /**
@@ -83,9 +117,12 @@ function filterForRole(
   // with no department must not inherit full workspace visibility). Employees
   // are always self-scoped.
   const selfScoped = isEmployee || !department
-  const matchesName = (v: string | undefined) => v === userName
-  const matchesIdentity = (name?: string, email?: string) =>
-    (email && email === userEmail) || (name && matchesName(name))
+  const identity = { id: userId, email: userEmail, name: userName }
+  const isOwn = (row: object): boolean =>
+    isOwnRecord(row as Record<string, unknown>, identity, {
+      // Directory rows carry their own `id`; a display name is never identity.
+      allowNameFallback: key !== "employees",
+    })
 
   // Admin-only modules: non-admins get a genuinely empty structure — except
   // organization, where the workspace name stays visible (it labels the
@@ -102,7 +139,7 @@ function filterForRole(
     case "employees": {
       const items = data as Array<{ name?: string; email?: string; department?: string }>
       if (selfScoped) {
-        return items.filter((e) => matchesIdentity(e.name, e.email))
+        return items.filter((e) => isOwn(e))
       }
       // Manager: filter to their department.
       return items.filter((e) => e.department === department)
@@ -116,7 +153,7 @@ function filterForRole(
       if (selfScoped) {
         return {
           ...store,
-          requests: store.requests.filter((r) => matchesName(r.employeeName)),
+          requests: store.requests.filter((r) => isOwn(r)),
           balances: store.balances[userId]
             ? { [userId]: store.balances[userId] }
             : { [userId]: defaultBalances },
@@ -126,7 +163,13 @@ function filterForRole(
       return {
         ...store,
         requests: store.requests.filter(
-          (r) => !!r.employeeName && managerDeptOf?.(r.employeeName) === department,
+          (r) => {
+            // Leave rows carry the account id, while directory rows may be
+            // keyed by an e-* id or only by name. Try both.
+            const byId = managerDeptOf?.(String(r.employeeId ?? ""))
+            const byName = managerDeptOf?.(String(r.employeeName ?? ""))
+            return (byId ?? byName) === department
+          },
         ),
       }
     }
@@ -134,7 +177,7 @@ function filterForRole(
     case "attendance": {
       const store = data as { checkIns: Array<{ name?: string; dept?: string }> }
       if (selfScoped) {
-        return { checkIns: store.checkIns.filter((c) => matchesName(c.name)) }
+        return { checkIns: store.checkIns.filter((c) => isOwn(c)) }
       }
       return { checkIns: store.checkIns.filter((c) => c.dept === department) }
     }
@@ -142,7 +185,7 @@ function filterForRole(
     case "projects": {
       const store = data as { tasks: Array<{ ownerName?: string; department?: string }> }
       if (selfScoped) {
-        return { tasks: store.tasks.filter((t) => matchesName(t.ownerName)) }
+        return { tasks: store.tasks.filter((t) => isOwn(t)) }
       }
       return { tasks: store.tasks.filter((t) => t.department === department) }
     }
@@ -150,7 +193,7 @@ function filterForRole(
     case "goals": {
       const store = data as { objectives: Array<{ ownerName?: string }> }
       if (isEmployee || role === "manager") {
-        return { objectives: store.objectives.filter((o) => matchesName(o.ownerName)) }
+        return { objectives: store.objectives.filter((o) => isOwn(o)) }
       }
       return data
     }
@@ -161,7 +204,7 @@ function filterForRole(
         teamScores: Array<{ team?: string }>
       }
       if (selfScoped) {
-        return { ...store, reviews: store.reviews.filter((r) => matchesName(r.name)), teamScores: [] }
+        return { ...store, reviews: store.reviews.filter((r) => isOwn(r)), teamScores: [] }
       }
       // Managers see their department's reviews AND only their own team's
       // leaderboard row — otherwise the spotlight mixes dept-filtered reviews
@@ -176,9 +219,18 @@ function filterForRole(
     case "onboarding": {
       const store = data as { tasks: Array<{ hireName?: string; hireDept?: string }> }
       if (selfScoped) {
-        return { tasks: store.tasks.filter((t) => matchesName(t.hireName)) }
+        return { tasks: store.tasks.filter((t) => isOwn(t)) }
       }
       return { tasks: store.tasks.filter((t) => t.hireDept === department) }
+    }
+
+    case "payslips": {
+      // Salary is private: an employee may only ever read their own slips.
+      // Managers do NOT get department-wide access to payslips.
+      const store = data as { payslips?: Array<Record<string, unknown>> }
+      return {
+        payslips: (store.payslips ?? []).filter((p) => isOwn(p)),
+      }
     }
 
     case "announcements": {
@@ -217,7 +269,9 @@ export async function GET(_request: Request, { params }: RouteContext) {
   // there is no stored snapshot to read.
   if (key === "analytics") {
     if (session.user.role !== "admin") {
-      return NextResponse.json(emptyFor("analytics"))
+      return NextResponse.json(emptyFor("analytics"), {
+        headers: { "Cache-Control": "no-store" },
+      })
     }
     const read = async <T>(k: string): Promise<T> => {
       const doc = await prisma.moduleState.findUnique({
@@ -235,7 +289,12 @@ export async function GET(_request: Request, { params }: RouteContext) {
       leave: leaveData,
       recruitment: recData,
     })
-    return NextResponse.json(computed)
+    return NextResponse.json(computed, {
+      headers: {
+        "X-Module-Version": String(Date.now()),
+        "Cache-Control": "no-store",
+      },
+    })
   }
 
   const defaults = MODULE_DEFAULTS[key] as object
@@ -270,8 +329,7 @@ export async function GET(_request: Request, { params }: RouteContext) {
     const idx = rows.findIndex(
       (r) =>
         r.id === session.user.id ||
-        (session.user.email && r.email === session.user.email) ||
-        (session.user.name && r.name === session.user.name),
+        (!!session.user.email && r.email === session.user.email),
     )
     let updated = false
     if (idx === -1) {
@@ -291,6 +349,9 @@ export async function GET(_request: Request, { params }: RouteContext) {
         role: "Team Member",
         location: "Remote",
         status: "active",
+        // Absolute date so tenure advances with real time (hiredDaysAgo would
+        // stay at 0 forever and silently corrupt every tenure metric).
+        hiredAt: new Date().toISOString().slice(0, 10),
         hiredDaysAgo: 0,
       })
       updated = true
@@ -342,12 +403,23 @@ export async function GET(_request: Request, { params }: RouteContext) {
   let deptOf: ((name: string) => string | null) | undefined
   let managerBalanceIds: Set<string> | undefined
   if (key === "leave" && session.user.role === "manager") {
-    const empDoc = await prisma.moduleState.findUnique({
-      where: { userId_key: { userId: WORKSPACE_ID, key: "employees" } },
-    })
+    const [empDoc, leaveDoc] = await Promise.all([
+      prisma.moduleState.findUnique({
+        where: { userId_key: { userId: WORKSPACE_ID, key: "employees" } },
+      }),
+      prisma.moduleState.findUnique({
+        where: { userId_key: { userId: WORKSPACE_ID, key: "leave" } },
+      }),
+    ])
     const employees = (empDoc?.data as Array<{ id?: string; name?: string; department?: string }>) ?? []
-    const map = new Map(employees.map((e) => [e.name, e.department]))
-    deptOf = (name) => map.get(name) ?? null
+    // Key by id first: two employees can share a display name, but only one
+    // account id identifies the requester unambiguously.
+    const map = new Map<string, string | null>()
+    for (const e of employees) {
+      if (e.id) map.set(e.id, e.department ?? null)
+      if (e.name) map.set(e.name, e.department ?? null)
+    }
+    deptOf = (key) => map.get(key) ?? null
     if (session.user.department) {
       // Balances are keyed by employee/user id. A manager may see only their
       // department's balances (needed to act on dept requests) plus their own —
@@ -355,6 +427,17 @@ export async function GET(_request: Request, { params }: RouteContext) {
       managerBalanceIds = new Set<string>([session.user.id])
       for (const e of employees) {
         if (e.department === session.user.department && e.id) managerBalanceIds.add(e.id)
+      }
+      // Leave requests are keyed by the account id, while directory rows use
+      // e-* ids. Include the account ids of this department's requesters so a
+      // manager can see (and act on) the balances those requests consume.
+      const requests =
+        (leaveDoc?.data as { requests?: Array<{ employeeId?: string; employeeName?: string }> })?.requests ?? []
+      for (const r of requests) {
+        if (!r.employeeId) continue
+        if (map.get(r.employeeId) === session.user.department || map.get(r.employeeName ?? "") === session.user.department) {
+          managerBalanceIds.add(r.employeeId)
+        }
       }
     }
   }
@@ -380,19 +463,91 @@ export async function GET(_request: Request, { params }: RouteContext) {
     }
   }
 
+  // Employees on leave: the approval flow sets status="leave" but nothing ever
+  // flipped it back when the leave expired or was cancelled. Derive the flag
+  // from live approved requests on every read instead of trusting a stored
+  // value that can never age out.
+  if (key === "employees") {
+    filtered = await reconcileEmployeeStatuses(filtered)
+  }
+
+  // Seed-on-read CAS writes above advanced the row's version. Re-read it so the
+  // client doesn't put with a stale version and get a spurious 409.
+  const freshDoc = await prisma.moduleState.findUnique({
+    where: { userId_key: { userId: scopeId, key } },
+    select: { updatedAt: true },
+  })
+  const responseVersion = (freshDoc?.updatedAt ?? doc.updatedAt).getTime().toString()
+
   // Organization: reconcile live headcount/team/open counts from the actual
   // employees and recruitment documents so they never drift from the data.
   if (key === "organization" && session.user.role === "admin") {
-    return NextResponse.json(await reconcileOrganization(filtered))
+    return NextResponse.json(await reconcileOrganization(filtered), {
+      headers: {
+        "X-Module-Version": responseVersion,
+        "Cache-Control": "no-store",
+      },
+    })
   }
 
   return NextResponse.json(filtered, {
-    headers: { "X-Module-Version": doc.updatedAt.getTime().toString() },
+    headers: {
+      "X-Module-Version": doc.updatedAt.getTime().toString(),
+      "Cache-Control": "no-store",
+    },
+  })
+}
+
+/**
+ * An employee is "on leave" only while an approved request covers today. This
+ * makes an expired leave window (or a cancellation) restore "active" without
+ * a scheduler, and keeps the stored document free of a stale status.
+ */
+async function reconcileEmployeeStatuses(data: unknown): Promise<unknown> {
+  if (!Array.isArray(data)) return data
+  const [leaveDoc] = await Promise.all([
+    prisma.moduleState.findUnique({
+      where: { userId_key: { userId: WORKSPACE_ID, key: "leave" } },
+    }),
+  ])
+  const requests = (leaveDoc?.data as { requests?: Array<Record<string, unknown>> })?.requests ?? []
+  const today = new Date().toISOString().slice(0, 10)
+  const onLeave = new Set<string>()
+  for (const r of requests) {
+    if (r.status !== "approved") continue
+    const start = String(r.startDate ?? "")
+    const end = String(r.endDate ?? "")
+    if (!start || !end || start > today || today > end) continue
+    if (r.employeeId) onLeave.add(String(r.employeeId))
+    if (r.employeeName) onLeave.add(`name:${r.employeeName}`)
+  }
+  return data.map((e) => {
+    const row = e as Record<string, unknown>
+    const patch: Record<string, unknown> = {}
+
+    // Derive the flag in BOTH directions. Leave requests carry the account id
+    // while directory rows use e-* ids, so also match by display name.
+    const active = onLeave.has(String(row.id)) || onLeave.has(`name:${row.name}`)
+    if (active && row.status !== "inactive") patch.status = "leave"
+    else if (row.status === "leave") patch.status = "active"
+
+    // Keep the legacy relative field in sync with the absolute hire date.
+    // Every consumer (KPI strips, charts, assistant context) reads
+    // hiredDaysAgo, so deriving it here fixes all of them at the source.
+    if (typeof row.hiredAt === "string") {
+      const hired = new Date(`${row.hiredAt}T00:00:00`)
+      if (!Number.isNaN(hired.getTime())) {
+        const days = Math.max(0, Math.floor((Date.now() - hired.getTime()) / 86_400_000))
+        if (days !== row.hiredDaysAgo) patch.hiredDaysAgo = days
+      }
+    }
+
+    return Object.keys(patch).length > 0 ? { ...row, ...patch } : row
   })
 }
 
 type OrganizationDoc = {
-  departments?: Array<{ id?: string; name?: string }>
+  departments?: Array<Record<string, unknown> & { id?: string; name?: string }>
   offices?: unknown[]
   orgChart?: unknown[]
 }
@@ -427,7 +582,8 @@ async function reconcileOrganization(doc: unknown): Promise<unknown> {
     byDept.set(key, entry)
   }
 
-  const departments = (org.departments ?? []).map((d) => {
+  const stored = org.departments ?? []
+  const departments: Array<Record<string, unknown>> = stored.map((d) => {
     const live = byDept.get(d.name ?? d.id ?? "")
     return {
       ...d,
@@ -438,6 +594,28 @@ async function reconcileOrganization(doc: unknown): Promise<unknown> {
       open: live?.open ?? 0,
     }
   })
+
+  // A workspace with employees but no saved department rows would otherwise
+  // show "0 people" in Organization while Dashboard/Analytics show the real
+  // headcount. Synthesize rows for departments implied by live data.
+  const named = new Set(stored.map((d) => d.name))
+  for (const [name, live] of byDept) {
+    if (!name || named.has(name)) continue
+    departments.push({
+      id: `dept-${name.toLowerCase().replace(/\s+/g, "-")}`,
+      code: name.slice(0, 3).toUpperCase(),
+      name,
+      sub: "Derived from the directory",
+      people: live.people,
+      teams: live.teams.size,
+      open: live.open,
+      leadInit: "",
+      leadName: "",
+      leadRole: "",
+      iconBg: "bg-muted",
+      iconText: "text-primary",
+    })
+  }
 
   return { ...org, departments }
 }
@@ -550,19 +728,23 @@ export async function PUT(request: Request, { params }: RouteContext) {
     const fresh = await prisma.moduleState.findUnique({
       where: { userId_key: { userId: scopeId, key } },
     })
+    await trackWrite(key, existing?.data ?? null, fresh?.data ?? parsed.data, {
+      id: session.user.id,
+      name: session.user.name ?? null,
+      department: session.user.department ?? null,
+      role: session.user.role,
+    })
     return NextResponse.json(fresh?.data ?? parsed.data, {
       headers: { "X-Module-Version": fresh!.updatedAt.getTime().toString() },
     })
   }
 
-  // No If-Match: read any prior document so cross-user notifications can diff
-  // the change, then upsert.
-  const prior = key === "leave"
-    ? await prisma.moduleState.findUnique({
-        where: { userId_key: { userId: scopeId, key } },
-        select: { data: true },
-      })
-    : null
+  // No If-Match: read any prior document so notifications and the activity log
+  // can diff the change, then upsert.
+  const prior = await prisma.moduleState.findUnique({
+    where: { userId_key: { userId: scopeId, key } },
+    select: { data: true },
+  })
   const doc = await prisma.moduleState.upsert({
     where: { userId_key: { userId: scopeId, key } },
     create: { userId: scopeId, key, data: parsed.data as unknown as Prisma.InputJsonValue },
@@ -577,6 +759,13 @@ export async function PUT(request: Request, { params }: RouteContext) {
     })
   }
 
+  await trackWrite(key, prior?.data ?? null, doc.data, {
+    id: session.user.id,
+    name: session.user.name ?? null,
+    department: session.user.department ?? null,
+    role: session.user.role,
+  })
+
   return NextResponse.json(doc.data, {
     headers: { "X-Module-Version": doc.updatedAt.getTime().toString() },
   })
@@ -586,6 +775,21 @@ export async function PUT(request: Request, { params }: RouteContext) {
  * Non-admin PUT: load the current doc, run the module's restricted merge, and
  * persist only the accepted subset of changes.
  */
+/**
+ * A non-admin PUT must never answer with the full workspace document — GET
+ * filters it for a reason. Reapply the same role filter to the write response.
+ */
+function filterWriteResponse(
+  key: string,
+  data: unknown,
+  user: { id: string; name: string | null; email: string | null; department: string | null; role: string },
+  deptOf: (key: string) => string | null,
+): unknown {
+  return filterForRole(
+    key, data, user.role, user.department, user.name, user.email, user.id, deptOf,
+  )
+}
+
 async function handleNonAdminWrite(
   key: string,
   scopeId: string,
@@ -614,10 +818,15 @@ async function handleNonAdminWrite(
     where: { userId_key: { userId: WORKSPACE_ID, key: "employees" } },
   })
   const employees = (empDoc?.data as Array<{ id?: string; name?: string; department?: string }>) ?? []
-  const deptByName = new Map(employees.map((e) => [e.name, e.department]))
-  const deptOf = (name: string) => deptByName.get(name) ?? null
-  const deptById = new Map(employees.map((e) => [e.id, e.department]))
-  const deptOfId = (id: string) => deptById.get(id) ?? null
+  // A single key→department map: id wins over display name, so duplicate
+  // employee names can no longer widen a manager's scope.
+  const deptByKey = new Map<string, string | null>()
+  for (const e of employees) {
+    if (e.id) deptByKey.set(e.id, e.department ?? null)
+    if (e.name) deptByKey.set(e.name, e.department ?? null)
+  }
+  const deptOf = (key: string) => deptByKey.get(key) ?? null
+  const deptOfId = (id: string) => deptByKey.get(id) ?? null
 
   const ctx: UserCtx = {
     id: sessionUser.id,
@@ -662,9 +871,11 @@ async function handleNonAdminWrite(
     const fresh = await prisma.moduleState.findUnique({
       where: { userId_key: { userId: scopeId, key } },
     })
-    return NextResponse.json(fresh?.data ?? merged.data, {
-      headers: { "X-Module-Version": fresh!.updatedAt.getTime().toString() },
-    })
+    await trackWrite(key, existing.data, fresh?.data ?? merged.data, sessionUser)
+    return NextResponse.json(
+      filterWriteResponse(key, fresh?.data ?? merged.data, sessionUser, deptOf),
+      { headers: { "X-Module-Version": fresh!.updatedAt.getTime().toString() } },
+    )
   }
 
   const doc = await prisma.moduleState.update({
@@ -681,7 +892,10 @@ async function handleNonAdminWrite(
     })
   }
 
-  return NextResponse.json(doc.data, {
-    headers: { "X-Module-Version": doc.updatedAt.getTime().toString() },
-  })
+  await trackWrite(key, existing.data, doc.data, sessionUser)
+
+  return NextResponse.json(
+    filterWriteResponse(key, doc.data, sessionUser, deptOf),
+    { headers: { "X-Module-Version": doc.updatedAt.getTime().toString() } },
+  )
 }

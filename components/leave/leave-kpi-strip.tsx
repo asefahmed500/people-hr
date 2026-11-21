@@ -27,7 +27,7 @@ export function LeaveKpiStrip({
       {metrics.map((metric) => (
         <div
           key={metric.label}
-          className="flex flex-col gap-1 rounded-2xl border border-border bg-card px-5 py-4"
+          className="flex flex-col gap-1 rounded-lg border border-border bg-card px-4 py-3"
         >
           <span
             className={`inline-block text-[28px] font-semibold leading-none ${metric.valueColor}`}

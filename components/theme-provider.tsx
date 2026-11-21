@@ -11,6 +11,7 @@ function getStoredTheme(key: string, fallback: Theme): Theme {
     const v = localStorage.getItem(key)
     if (v === "dark" || v === "light") return v
   } catch {}
+  if (window.matchMedia?.("(prefers-color-scheme: dark)").matches) return "dark"
   return fallback
 }
 
@@ -34,14 +35,13 @@ export function ThemeProvider({
   defaultTheme = "light",
   storageKey = "theme",
 }: ThemeProviderProps) {
-  const [theme, setThemeState] = React.useState<Theme>(defaultTheme)
+  // Read the theme synchronously so the first client render matches the class
+  // the inline init script already applied — avoids a light-theme flash.
+  const [theme, setThemeState] = React.useState<Theme>(() => getStoredTheme(storageKey, defaultTheme))
 
   React.useEffect(() => {
-    const stored = getStoredTheme(storageKey, defaultTheme)
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setThemeState(stored)
-    applyTheme(stored)
-  }, [storageKey, defaultTheme])
+    applyTheme(theme)
+  }, [theme])
 
   const setTheme = React.useCallback(
     (t: Theme) => {

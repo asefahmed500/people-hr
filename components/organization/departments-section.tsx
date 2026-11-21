@@ -1,8 +1,11 @@
 import * as React from "react"
-import { ChevronRight, Ellipsis, Trash2 } from "lucide-react"
+import { Building2, ChevronRight, Ellipsis, Trash2 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import type { Dept } from "@/lib/data"
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Button } from "@/components/ui/button"
+import { Separator } from "@/components/ui/separator"
 
 type DepartmentsSectionProps = {
   departments?: Dept[]
@@ -27,23 +30,33 @@ export function DepartmentsSection({ departments = [], onDeptAction }: Departmen
           </p>
         </div>
         {departments.length > INITIAL_SHOW && (
-          <button
+          <Button
             type="button"
+            variant="link"
+            size="sm"
             onClick={() => setShowAll((v) => !v)}
-            className="flex items-center gap-1.5"
+            className="gap-1.5"
           >
-            <span className="font-sans inline-block text-[13px] font-semibold leading-normal text-primary">
-              {showAll ? "Show less" : "View all"}
-            </span>
-            <ChevronRight className={cn("size-[15px] text-primary transition-transform", showAll && "rotate-90")} strokeWidth={2} />
-          </button>
+            {showAll ? "Show less" : "View all"}
+            <ChevronRight className={cn("size-[15px] transition-transform", showAll && "rotate-90")} strokeWidth={2} aria-hidden="true" />
+          </Button>
         )}
       </div>
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {visible.map((dept) => (
-          <DeptCard key={dept.id} dept={dept} onAction={onDeptAction} />
-        ))}
-      </div>
+      {visible.length === 0 ? (
+        <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed border-border bg-muted px-4 py-8 text-center">
+          <Building2 className="size-5 shrink-0 text-muted-foreground" aria-hidden="true" strokeWidth={2} />
+          <p className="font-sans text-[13px] font-semibold text-foreground">No departments yet</p>
+          <p className="font-sans text-[12.5px] leading-normal text-muted-foreground">
+            Add one to map your company structure.
+          </p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {visible.map((dept) => (
+            <DeptCard key={dept.id} dept={dept} onAction={onDeptAction} />
+          ))}
+        </div>
+      )}
     </section>
   )
 }
@@ -63,12 +76,12 @@ function DeptCard({ dept, onAction }: { dept: Dept; onAction?: (id: string, acti
   }, [open])
 
   return (
-    <div ref={ref} className="relative flex w-full flex-col gap-4 rounded-2xl border border-border bg-card p-5 shadow-card">
+    <div ref={ref} className="relative flex w-full flex-col gap-4 rounded-lg border border-border bg-card p-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div
             className={cn(
-              "flex size-[42px] items-center justify-center rounded-xl",
+              "flex size-[42px] items-center justify-center rounded-lg",
               dept.iconBg,
             )}
           >
@@ -91,8 +104,10 @@ function DeptCard({ dept, onAction }: { dept: Dept; onAction?: (id: string, acti
           </div>
         </div>
         <div className="relative">
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            size="icon-xs"
             aria-label={`More options for ${dept.name}`}
             aria-haspopup="menu"
             aria-expanded={open}
@@ -103,46 +118,48 @@ function DeptCard({ dept, onAction }: { dept: Dept; onAction?: (id: string, acti
                 setOpen(false)
               }
             }}
-            className="text-muted-foreground"
           >
-            <Ellipsis className="size-4" strokeWidth={2} />
-          </button>
+            <Ellipsis className="size-4" strokeWidth={2} aria-hidden="true" />
+          </Button>
           {open && (
             <div
               role="menu"
               onKeyDown={(e) => {
                 if (e.key === "Escape") setOpen(false)
               }}
-              className="absolute right-0 top-full z-50 mt-1 w-36 rounded-xl border border-border bg-card py-1 shadow-lg"
+              className="absolute right-0 top-full z-50 mt-1 w-36 rounded-lg border border-border bg-card py-1"
             >
-              <button
+              <Button
                 type="button"
+                variant="ghost"
                 onClick={() => { setOpen(false); onAction?.(dept.id, "view") }}
-                className="flex w-full items-center gap-2 px-3 py-2 text-left font-sans text-[13px] text-secondary-foreground hover:bg-muted"
+                className="w-full justify-start gap-2 rounded-none px-3 text-[13px] font-sans font-normal text-secondary-foreground"
               >
                 View
-              </button>
-              <button
+              </Button>
+              <Button
                 type="button"
+                variant="ghost"
                 onClick={() => { setOpen(false); onAction?.(dept.id, "edit") }}
-                className="flex w-full items-center gap-2 px-3 py-2 text-left font-sans text-[13px] text-secondary-foreground hover:bg-muted"
+                className="w-full justify-start gap-2 rounded-none px-3 text-[13px] font-sans font-normal text-secondary-foreground"
               >
                 Edit
-              </button>
-              <div className="mx-2 my-1 h-px bg-border" />
-              <button
+              </Button>
+              <Separator className="mx-2 my-1" />
+              <Button
                 type="button"
+                variant="ghost"
                 onClick={() => { setOpen(false); onAction?.(dept.id, "delete") }}
-                className="flex w-full items-center gap-2 px-3 py-2 text-left font-sans text-[13px] text-foreground hover:bg-muted"
+                className="w-full justify-start gap-2 rounded-none px-3 text-[13px] font-sans font-normal text-foreground"
               >
-                <Trash2 className="size-3.5" strokeWidth={2} />
+                <Trash2 className="size-3.5" strokeWidth={2} aria-hidden="true" />
                 Delete
-              </button>
+              </Button>
             </div>
           )}
         </div>
       </div>
-      <div className="flex items-center gap-5">
+      <div className="flex items-center gap-4">
         <Stat value={String(dept.people)} label="People" />
         <Stat value={String(dept.teams)} label="Teams" />
         <Stat
@@ -152,11 +169,9 @@ function DeptCard({ dept, onAction }: { dept: Dept; onAction?: (id: string, acti
         />
       </div>
       <div className="flex items-center gap-2.5 border-t border-t-border px-0 pb-0 pt-3">
-        <div className="flex size-[30px] items-center justify-center rounded-full bg-foreground/10">
-          <span className="font-sans text-[11px] font-semibold leading-normal text-primary">
-            {dept.leadInit}
-          </span>
-        </div>
+        <Avatar className="size-[30px]">
+          <AvatarFallback className="text-[11px] font-semibold">{dept.leadInit}</AvatarFallback>
+        </Avatar>
         <div className="flex flex-col">
           <span className="font-sans inline-block text-[12.5px] font-semibold leading-normal text-secondary-foreground">
             {dept.leadName}

@@ -1,18 +1,45 @@
 import { readFile } from "fs/promises";
 import type {
-  OCRConfig,
   OCRResult,
   OCRPage,
   DocumentType,
   DocumentMetadata,
-  ExtractedDocument,
   OCRField,
   OCRPreprocessOptions,
 } from "./types";
 import { getOCRConfig, needsOCR, detectMimeType, isImageFile, isPDFFile, isDocumentFile } from "./config";
-import { ocrImage, ocrPDFPages, buildOCRResult } from "./tesseract";
-import { preprocessImage } from "./preprocess";
-import { DEFAULT_PREPROCESS_OPTIONS } from "./config";
+import { ocrImage, buildOCRResult, type OCRResultOverrides } from "./tesseract";
+import { preprocessImage, DEFAULT_PREPROCESS_OPTIONS } from "./preprocess";
+
+const SCANNED_PDF_WARNING =
+  "This PDF appears to contain scanned images. OCR of scanned PDFs is not available, " +
+  "so no text was extracted from those pages. The document needs manual review.";
+
+/**
+ * Build a page from text that was extracted deterministically (a PDF text
+ * layer, a DOCX or a plain text file). Confidence 1 means the text was read
+ * verbatim from the file — no OCR inference was involved.
+ */
+function createTextPage(pageNumber: number, text: string, confidence: number): OCRPage {
+  return {
+    pageNumber,
+    width: 0,
+    height: 0,
+    blocks: [
+      {
+        text,
+        confidence,
+        bbox: { x0: 0, y0: 0, x1: 0, y1: 0 },
+        type: "text",
+        lines: [{ text, confidence, bbox: { x0: 0, y0: 0, x1: 0, y1: 0 }, words: [] }],
+      },
+    ],
+    tables: [],
+    fullText: text,
+    averageConfidence: confidence,
+    processingTimeMs: 0,
+  };
+}
 
 export async function processFile(
   filePath: string,
@@ -31,6 +58,7 @@ export async function processFile(
   };
 
   let pages: OCRPage[] = [];
+  let resultOverrides: OCRResultOverrides | undefined;
 
   if (isImageFile(mimeType)) {
     metadata.pageCount = 1;
@@ -38,151 +66,54 @@ export async function processFile(
       options?.preprocess !== false
         ? await preprocessImage(buffer, options?.preprocessOptions || DEFAULT_PREPROCESS_OPTIONS)
         : buffer;
-    const page = await ocrImage(imgBuffer);
-    pages = [page];
+    // Tesseract returns real 0-100 confidence values; ocrImage normalizes them.
+    pages = [await ocrImage(imgBuffer)];
   } else if (isPDFFile(mimeType)) {
     const pdfParse = (await import("pdf-parse")).default;
-    const pdfData = await pdfParse(buffer);
+    const pageTexts: string[] = [];
+    const pdfData = await pdfParse(buffer, {
+      pagerender: async (pageData) => {
+        const textContent = await pageData.getTextContent();
+        const pageText = textContent.items.map((item) => item.str).join(" ").trim();
+        pageTexts.push(pageText);
+        return pageText;
+      },
+    });
     metadata.pageCount = pdfData.numpages;
+
+    const pdfNeedsOCR = needsOCR(pdfData.text);
     const maxPages = Math.min(pdfData.numpages, config.maxPages);
+    for (let i = 0; i < maxPages; i++) {
+      const text = pageTexts[i] ?? "";
+      // A page with no usable text layer is left empty with zero confidence.
+      pages.push(createTextPage(i + 1, text, needsOCR(text) ? 0 : 1));
+    }
 
-    if (needsOCR(pdfData.text)) {
-      // When OCR is needed on a PDF, extract text per-page using pdf-parse's
-      // built-in page callback. Each page gets its own OCR entry.
-      const pageTexts: string[] = [];
-      const parsePages = (await import("pdf-parse")).default;
-      await parsePages(buffer, {
-        pagerender: async (pageData: { getTextContent: () => Promise<{ items: { str: string }[] }> }) => {
-          const text = await pageData.getTextContent();
-          pageTexts.push(text.items.map((i) => i.str).join(" "));
-          return "";
-        },
-      });
-
-      for (let i = 0; i < Math.min(pageTexts.length, maxPages); i++) {
-        const text = pageTexts[i] || "";
-        if (needsOCR(text)) {
-          // When the page text suggests it's a scanned image embedded in the PDF,
-          // we fall back to treating the full text as the page content
-          pages.push({
-            pageNumber: i + 1,
-            width: 0,
-            height: 0,
-            fullText: text,
-            averageConfidence: 0.5,
-            processingTimeMs: 0,
-            tables: [],
-            blocks: [{ text, confidence: 0.5, bbox: { x0: 0, y0: 0, x1: 1, y1: 1 }, type: "text" as const, lines: [] }],
-          });
-        } else {
-          pages.push({
-            pageNumber: i + 1,
-            width: 0,
-            height: 0,
-            fullText: text,
-            averageConfidence: 1.0,
-            processingTimeMs: 0,
-            tables: [],
-            blocks: [{ text, confidence: 1.0, bbox: { x0: 0, y0: 0, x1: 1, y1: 1 }, type: "text" as const, lines: [] }],
-          });
-        }
-      }
-    } else {
-      pages = [
-        {
-          pageNumber: 1,
-          width: 0,
-          height: 0,
-          blocks: [
-            {
-              text: pdfData.text,
-              confidence: 95,
-              bbox: { x0: 0, y0: 0, x1: 0, y1: 0 },
-              type: "text",
-              lines: [
-                {
-                  text: pdfData.text,
-                  confidence: 95,
-                  bbox: { x0: 0, y0: 0, x1: 0, y1: 0 },
-                  words: [],
-                },
-              ],
-            },
-          ],
-          tables: [],
-          fullText: pdfData.text,
-          averageConfidence: 95,
-          processingTimeMs: 0,
-        },
-      ];
+    // pdf-parse exposes only the text layer, not rendered page images, so a
+    // scanned PDF cannot be sent to Tesseract here. Never claim success.
+    if (pdfNeedsOCR) {
+      resultOverrides = {
+        needsReview: true,
+        averageConfidence: 0,
+        warning: SCANNED_PDF_WARNING,
+      };
     }
   } else if (isDocumentFile(mimeType)) {
     metadata.pageCount = 1;
-    if (fileName.endsWith(".docx")) {
+    let text: string;
+    if (fileName.toLowerCase().endsWith(".docx")) {
       const mammoth = await import("mammoth");
       const result = await mammoth.extractRawText({ buffer });
-      pages = [
-        {
-          pageNumber: 1,
-          width: 0,
-          height: 0,
-          blocks: [
-            {
-              text: result.value,
-              confidence: 95,
-              bbox: { x0: 0, y0: 0, x1: 0, y1: 0 },
-              type: "text",
-              lines: [
-                {
-                  text: result.value,
-                  confidence: 95,
-                  bbox: { x0: 0, y0: 0, x1: 0, y1: 0 },
-                  words: [],
-                },
-              ],
-            },
-          ],
-          tables: [],
-          fullText: result.value,
-          averageConfidence: 95,
-          processingTimeMs: 0,
-        },
-      ];
+      text = result.value;
     } else {
-      const text = buffer.toString("utf-8");
-      pages = [
-        {
-          pageNumber: 1,
-          width: 0,
-          height: 0,
-          blocks: [
-            {
-              text,
-              confidence: 100,
-              bbox: { x0: 0, y0: 0, x1: 0, y1: 0 },
-              type: "text",
-              lines: [
-                {
-                  text,
-                  confidence: 100,
-                  bbox: { x0: 0, y0: 0, x1: 0, y1: 0 },
-                  words: [],
-                },
-              ],
-            },
-          ],
-          tables: [],
-          fullText: text,
-          averageConfidence: 100,
-          processingTimeMs: 0,
-        },
-      ];
+      text = buffer.toString("utf-8");
     }
+    pages = [createTextPage(1, text, 1)];
   } else {
     throw new Error(`Unsupported file type: ${mimeType}`);
   }
 
-  const ocrResult = buildOCRResult(pages, config.provider, config.language);
+  const ocrResult = buildOCRResult(pages, config.provider, config.language, resultOverrides);
   ocrResult.processingTimeMs = Date.now() - startTime;
 
   return { ocrResult, metadata };

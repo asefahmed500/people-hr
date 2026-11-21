@@ -1,8 +1,7 @@
 "use client"
 
-import { Check, Ellipsis, X } from "lucide-react"
+import { Check, Ellipsis, Inbox, X } from "lucide-react"
 
-import { cn } from "@/lib/utils"
 import type { LeaveRequest, LeaveStatus } from "@/lib/data"
 import {
   DropdownMenu,
@@ -10,32 +9,17 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 
 const statusStyles: Record<
   LeaveStatus,
-  { avatarBg: string; avatarText: string; pillBg: string; pillText: string; label: string }
+  { variant: "secondary" | "outline" | "destructive"; label: string }
 > = {
-  approved: {
-    avatarBg: "bg-foreground/10",
-    avatarText: "text-primary",
-    pillBg: "bg-foreground/10",
-    pillText: "text-secondary-foreground",
-    label: "Approved",
-  },
-  pending: {
-    avatarBg: "bg-foreground/10",
-    avatarText: "text-secondary-foreground",
-    pillBg: "bg-foreground/10",
-    pillText: "text-secondary-foreground",
-    label: "Pending",
-  },
-  declined: {
-    avatarBg: "bg-foreground/10",
-    avatarText: "text-foreground",
-    pillBg: "bg-foreground/10",
-    pillText: "text-foreground",
-    label: "Declined",
-  },
+  approved: { variant: "secondary", label: "Approved" },
+  pending: { variant: "outline", label: "Pending" },
+  declined: { variant: "destructive", label: "Declined" },
 }
 
 export function PendingRequests({
@@ -55,21 +39,21 @@ export function PendingRequests({
   const pendingCount = requests.filter((r) => r.status === "pending").length
 
   return (
-    <div className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-5 shadow-card">
+    <div className="flex flex-col gap-4 rounded-lg border border-border bg-card p-4">
       <div className="flex items-center justify-between">
         <h2 className="text-h4">
           Pending requests
         </h2>
-        <span className="flex items-center rounded-full bg-foreground/10 px-2 py-[3px]">
-          <span className="font-sans text-[10px] font-semibold leading-normal text-secondary-foreground">
-            {pendingCount} pending
-          </span>
-        </span>
+        <Badge variant="secondary" className="text-[10px] font-semibold">
+          {pendingCount} pending
+        </Badge>
       </div>
       <div className="flex flex-col gap-3">
         {visible.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-border bg-muted px-4 py-6 text-center font-sans text-[12.5px] text-muted-foreground">
-            No leave requests.
+          <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed border-border bg-muted px-4 py-8 text-center">
+            <Inbox className="size-5 shrink-0 text-muted-foreground" aria-hidden="true" strokeWidth={2} />
+            <p className="font-sans text-[13px] font-semibold text-foreground">No leave requests</p>
+            <p className="font-sans text-[12.5px] text-muted-foreground">New requests will show up here.</p>
           </div>
         ) : null}
         {visible.map((req) => (
@@ -112,16 +96,9 @@ function RequestRow({
       : `${req.startDate} → ${req.endDate}`
   return (
     <div className="flex items-center gap-3">
-      <div
-        className={cn(
-          "flex size-8 shrink-0 items-center justify-center rounded-full",
-          s.avatarBg,
-        )}
-      >
-        <span className={cn("font-sans text-[11px] font-semibold", s.avatarText)}>
-          {req.initials}
-        </span>
-      </div>
+      <Avatar className="size-8">
+        <AvatarFallback className="text-[11px] font-semibold">{req.initials}</AvatarFallback>
+      </Avatar>
       <div className="flex min-w-0 flex-1 flex-col gap-px">
         <span className="inline-block overflow-clip font-sans text-[13px] font-medium leading-normal text-foreground [text-overflow:ellipsis]">
           {req.employeeName} · {req.days}d
@@ -132,33 +109,36 @@ function RequestRow({
       </div>
       {req.status === "pending" && onApprove && onDecline ? (
         <div className="flex items-center gap-1.5">
-          <button
+          <Button
             type="button"
+            variant="secondary"
+            size="icon-xs"
             aria-label={`Approve ${req.employeeName}`}
             onClick={() => onApprove(req.id)}
-            className="flex size-7 shrink-0 items-center justify-center rounded-md bg-foreground/10 text-secondary-foreground hover:bg-foreground/20"
           >
-            <Check className="size-3.5" strokeWidth={2} />
-          </button>
-          <button
+            <Check className="size-3.5" strokeWidth={2} aria-hidden="true" />
+          </Button>
+          <Button
             type="button"
+            variant="outline"
+            size="icon-xs"
             aria-label={`Decline ${req.employeeName}`}
             onClick={() => onDecline(req.id)}
-            className="flex size-7 shrink-0 items-center justify-center rounded-md bg-foreground/10 text-foreground hover:bg-foreground/20"
           >
-            <X className="size-3.5" strokeWidth={2} />
-          </button>
+            <X className="size-3.5" strokeWidth={2} aria-hidden="true" />
+          </Button>
         </div>
       ) : req.status === "pending" && (onCancel || onEdit) ? (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button
+            <Button
               type="button"
+              variant="secondary"
+              size="icon-xs"
               aria-label={`Manage your ${req.employeeName} request`}
-              className="flex size-7 shrink-0 items-center justify-center rounded-md bg-foreground/10 text-secondary-foreground hover:bg-foreground/20"
             >
-              <Ellipsis className="size-3.5" strokeWidth={2} />
-            </button>
+              <Ellipsis className="size-3.5" strokeWidth={2} aria-hidden="true" />
+            </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             {onEdit ? (
@@ -175,15 +155,9 @@ function RequestRow({
           </DropdownMenuContent>
         </DropdownMenu>
       ) : (
-        <span
-          className={cn(
-            "flex shrink-0 items-center rounded-full px-2 py-[3px] font-sans text-[10px] font-semibold leading-normal",
-            s.pillBg,
-            s.pillText,
-          )}
-        >
+        <Badge variant={s.variant} className="shrink-0 text-[10px] font-semibold">
           {s.label}
-        </span>
+        </Badge>
       )}
     </div>
   )

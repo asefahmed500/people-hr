@@ -23,7 +23,7 @@ const notifItems = [
 
 export function NotificationsCard({ preferences, onToggle }: NotificationsCardProps) {
   return (
-    <div className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-5">
+    <div className="flex flex-col gap-3 rounded-lg border border-border bg-card p-4">
       <span className="font-sans text-[15px] font-semibold leading-normal text-foreground">
         Notification preferences
       </span>
@@ -33,7 +33,7 @@ export function NotificationsCard({ preferences, onToggle }: NotificationsCardPr
           return (
             <div key={item.key} className="flex items-center gap-3">
               <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted">
-                <Icon className="size-[16px] text-secondary-foreground" strokeWidth={2} />
+                <Icon className="size-[16px] text-secondary-foreground" strokeWidth={2} aria-hidden="true" />
               </div>
               <div className="flex min-w-0 flex-1 flex-col">
                 <span className="font-sans text-[13px] font-medium leading-normal text-foreground">
@@ -44,6 +44,7 @@ export function NotificationsCard({ preferences, onToggle }: NotificationsCardPr
                 </span>
               </div>
               <Switch
+                aria-label={item.label}
                 checked={(preferences as Record<string, boolean>)[item.key]}
                 onCheckedChange={() => onToggle(item.key)}
               />

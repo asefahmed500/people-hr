@@ -1,7 +1,6 @@
 "use client"
 
 import * as React from "react"
-import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { LogOut, MoreHorizontal, Settings, UserRound } from "lucide-react"
 
@@ -14,10 +13,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { useAuth } from "@/hooks/use-auth"
-import { notify } from "@/lib/toast"
 
 export function UserCard() {
-  const router = useRouter()
   const { user, logout } = useAuth()
   const [pending, setPending] = React.useState(false)
 
@@ -26,8 +23,6 @@ export function UserCard() {
     setPending(true)
     try {
       await logout()
-      notify.success("Signed out", "You’ve been signed out.")
-      router.replace("/login")
     } finally {
       setPending(false)
     }
@@ -37,7 +32,7 @@ export function UserCard() {
     <DropdownMenu>
       <div className="flex h-fit w-full shrink-0 items-center gap-2.5 rounded-xl border border-border bg-muted p-2.5">
         <div className="flex size-[38px] shrink-0 items-center justify-center rounded-full bg-foreground/10">
-          <UserRound className="size-5 text-primary" strokeWidth={2} />
+          <UserRound className="size-5 text-primary" strokeWidth={2} aria-hidden="true" />
         </div>
         <div className="flex min-w-0 flex-1 flex-col">
           <span className="inline-block overflow-clip font-sans text-[13px] font-semibold leading-normal text-foreground [text-overflow:ellipsis]">
@@ -53,7 +48,7 @@ export function UserCard() {
             aria-label="Account menu"
             className="flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-foreground/10 hover:text-foreground"
           >
-            <MoreHorizontal className="size-4" strokeWidth={2} />
+            <MoreHorizontal className="size-4" strokeWidth={2} aria-hidden="true" />
           </button>
         </DropdownMenuTrigger>
       </div>
@@ -69,7 +64,7 @@ export function UserCard() {
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild>
           <Link href="/settings" className="flex items-center gap-2 font-sans text-[13px] text-foreground">
-            <Settings className="size-4 text-muted-foreground" strokeWidth={2} />
+            <Settings className="size-4 text-muted-foreground" strokeWidth={2} aria-hidden="true" />
             Settings
           </Link>
         </DropdownMenuItem>
@@ -82,7 +77,7 @@ export function UserCard() {
           disabled={pending}
           className="flex items-center gap-2 font-sans text-[13px] text-foreground focus:text-foreground"
         >
-          <LogOut className="size-4 text-muted-foreground" strokeWidth={2} />
+          <LogOut className="size-4 text-muted-foreground" strokeWidth={2} aria-hidden="true" />
           {pending ? "Signing out…" : "Sign out"}
         </DropdownMenuItem>
       </DropdownMenuContent>

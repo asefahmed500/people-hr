@@ -1,25 +1,17 @@
 import { Building2, MapPin, Network, Workflow, type LucideIcon } from "lucide-react"
 
 import { cn } from "@/lib/utils"
+import { Badge } from "@/components/ui/badge"
 import type { Dept, Office } from "@/lib/data"
-
-type Tone = "forest" | "mint" | "amber" | "green" | "neutral"
 
 type Stat = {
   icon: LucideIcon
   iconBg: string
   iconColor: string
-  delta?: { text: string; tone: Exclude<Tone, "neutral"> }
+  delta?: { text: string }
   deltaNeutral?: string
   value: string
   label: string
-}
-
-const deltaTone: Record<Exclude<Tone, "neutral">, string> = {
-  forest: "bg-foreground/10 text-secondary-foreground",
-  mint: "bg-foreground/10 text-secondary-foreground",
-  amber: "bg-foreground/10 text-secondary-foreground",
-  green: "bg-foreground/10 text-secondary-foreground",
 }
 
 type OrgStatRowProps = {
@@ -43,7 +35,7 @@ export function OrgStatRow({ departments = [], offices = [] }: OrgStatRowProps) 
       icon: Building2,
       iconBg: "bg-foreground/10",
       iconColor: "text-primary",
-      delta: { text: `${peopleCount} people`, tone: "green" },
+      delta: { text: `${peopleCount} people` },
       value: String(deptCount),
       label: "Departments",
     },
@@ -51,7 +43,7 @@ export function OrgStatRow({ departments = [], offices = [] }: OrgStatRowProps) 
       icon: Network,
       iconBg: "bg-foreground/20",
       iconColor: "text-secondary-foreground",
-      delta: { text: `${deptCount} depts`, tone: "green" },
+      delta: { text: `${deptCount} depts` },
       value: String(totalTeams),
       label: "Teams",
     },
@@ -59,7 +51,7 @@ export function OrgStatRow({ departments = [], offices = [] }: OrgStatRowProps) 
       icon: MapPin,
       iconBg: "bg-foreground/20",
       iconColor: "text-secondary-foreground",
-      delta: { text: `${staffInOffices} staff`, tone: "green" },
+      delta: { text: `${staffInOffices} staff` },
       value: String(officeCount),
       label: "Office locations",
     },
@@ -74,7 +66,7 @@ export function OrgStatRow({ departments = [], offices = [] }: OrgStatRowProps) 
   ]
 
   return (
-    <div className="flex w-full gap-5">
+    <div className="grid w-full grid-cols-2 gap-4 lg:grid-cols-4">
       {stats.map((stat, idx) => (
         <StatCard key={idx} stat={stat} />
       ))}
@@ -85,29 +77,20 @@ export function OrgStatRow({ departments = [], offices = [] }: OrgStatRowProps) 
 function StatCard({ stat }: { stat: Stat }) {
   const Icon = stat.icon
   return (
-    <div className="flex flex-1 flex-col gap-3 rounded-2xl border border-border bg-card p-5 shadow-card">
+    <div className="flex flex-1 flex-col gap-3 rounded-lg border border-border bg-card p-4">
       <div className="flex items-center justify-between">
         <div
           className={cn(
-            "flex size-[42px] items-center justify-center rounded-xl",
+            "flex size-[42px] items-center justify-center rounded-lg",
             stat.iconBg,
           )}
         >
-          <Icon className={cn("size-5", stat.iconColor)} strokeWidth={2} />
+          <Icon className={cn("size-5", stat.iconColor)} strokeWidth={2} aria-hidden="true" />
         </div>
         {stat.delta ? (
-          <span
-            className={cn(
-              "rounded-full px-2 py-0.5 font-sans text-xs font-semibold leading-normal",
-              deltaTone[stat.delta.tone],
-            )}
-          >
-            {stat.delta.text}
-          </span>
+          <Badge variant="secondary">{stat.delta.text}</Badge>
         ) : stat.deltaNeutral ? (
-          <span className="rounded-full bg-muted px-2 py-0.5 font-sans text-xs font-semibold leading-normal text-muted-foreground">
-            {stat.deltaNeutral}
-          </span>
+          <Badge variant="outline">{stat.deltaNeutral}</Badge>
         ) : null}
       </div>
       <div className="flex flex-col gap-0.5">

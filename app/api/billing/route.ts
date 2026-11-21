@@ -24,19 +24,23 @@ export async function GET() {
   if (configured && key && user?.stripeCustomerId) {
     try {
       const headers = { Authorization: `Bearer ${key}` }
-      const pm = await fetch(
-        `https://api.stripe.com/v1/payment_methods?customer=${user.stripeCustomerId}&type=card&limit=1`,
-        { headers },
-      ).then((r) => r.json())
+      // Independent reads — run them together instead of paying two round trips.
+      const [pmResponse, invResponse] = await Promise.all([
+        fetch(
+          `https://api.stripe.com/v1/payment_methods?customer=${user.stripeCustomerId}&type=card&limit=1`,
+          { headers, signal: AbortSignal.timeout(10_000) },
+        ),
+        fetch(
+          `https://api.stripe.com/v1/invoices?customer=${user.stripeCustomerId}&limit=20`,
+          { headers, signal: AbortSignal.timeout(10_000) },
+        ),
+      ])
+      const [pm, inv] = await Promise.all([pmResponse.json(), invResponse.json()])
       const card = pm?.data?.[0]?.card
       if (card) {
         paymentMethod = `${card.brand} ending in ${card.last4} · Expires ${String(card.exp_month).padStart(2, "0")}/${card.exp_year}`
       }
 
-      const inv = await fetch(
-        `https://api.stripe.com/v1/invoices?customer=${user.stripeCustomerId}&limit=20`,
-        { headers },
-      ).then((r) => r.json())
       invoices = (inv?.data ?? []).map((i: { id: string; created: number; amount_due: number; status: string }) => ({
         id: i.id,
         date: new Date(i.created * 1000).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
@@ -50,11 +54,13 @@ export async function GET() {
 
   return NextResponse.json({
     configured,
+    // Only report a plan when Stripe is actually configured. The old hardcoded
+    // "Business / $12 per seat / 300 seats" was a fabricated entitlement.
     plan: {
-      name: "Business",
-      price: "$12 / seat / month",
+      name: configured ? "Business" : "No active plan",
+      price: configured ? "Stripe billing" : "not configured",
       seatsUsed: activeUserCount,
-      seatsTotal: 300,
+      seatsTotal: configured ? activeUserCount : 0,
     },
     paymentMethod,
     invoices,

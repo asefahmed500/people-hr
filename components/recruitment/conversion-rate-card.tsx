@@ -1,6 +1,6 @@
 export function ConversionRateCard({ rate }: { rate: number }) {
   return (
-    <div className="flex flex-col items-center gap-1.5 rounded-2xl border border-border bg-card p-6">
+    <div className="flex flex-col items-center gap-1.5 rounded-lg border border-border bg-card p-4">
       <span className="font-sans inline-block text-xs leading-normal text-muted-foreground">
         Applicant → Hire conversion
       </span>

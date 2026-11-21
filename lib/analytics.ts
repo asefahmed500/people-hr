@@ -36,43 +36,44 @@ function monthLabel(d: Date) {
   return d.toLocaleDateString("en-US", { month: "short" })
 }
 
-function signedDelta(delta: number): string {
-  if (delta > 0) return `+${delta.toFixed(1)}`
-  if (delta < 0) return `-${Math.abs(delta).toFixed(1)}`
-  return "+0.0"
+/**
+ * Resolve an absolute hire date. New records carry `hiredAt`; older documents
+ * only have the relative `hiredDaysAgo`, which is pinned to the day it was
+ * written. Using that legacy value directly would make tenure and every hiring
+ * trend permanently frozen at their import-time values.
+ */
+function hireDate(e: Employee, now: Date): Date {
+  if (e.hiredAt) {
+    const parsed = new Date(`${e.hiredAt}T00:00:00`)
+    if (!Number.isNaN(parsed.getTime())) return parsed
+  }
+  return new Date(now.getTime() - e.hiredDaysAgo * 86_400_000)
 }
 
 export function computeAnalytics(input: AnalyticsInput): AnalyticsStore {
   const { employees, recruitment } = input
   const now = new Date()
-  const headcount = employees.length
 
-  // Hires per month over the last 12 months.
-  // A hire 5 days ago belongs to the bucket whose month-start is 5 days back:
-  //   fromDays = days since the START of the bucket's month
-  //   toDays   = days since the START of the NEXT month (bucket boundary)
-  //   hiredDaysAgo must be > toDays (after the previous month) and <= fromDays
-  //   (on or after this month's start).
+  // Headline headcount must agree with the Organization page, which excludes
+  // departed (inactive) records. Keep the full list only as an attrition
+  // denominator.
+  const active = employees.filter((e) => e.status !== "inactive")
+  const headcount = active.length
+
+  const hiredIn = (e: Employee) => hireDate(e, now)
+  const monthOf = (d: Date) => `${d.getFullYear()}-${d.getMonth()}`
+
+  // Hires per calendar month over the last 12 months, bucketed by absolute
+  // hire date so future months no longer show a permanent zero.
   const monthlyTrend: MonthlyTrend[] = []
   for (let i = 11; i >= 0; i -= 1) {
     const start = new Date(now.getFullYear(), now.getMonth() - i, 1)
-    const end = i === 0 ? now : new Date(now.getFullYear(), now.getMonth() - i + 1, 1)
-    const fromDays = daysBetween(start, now)
-    // Current month includes people hired today (hiredDaysAgo = 0), so use -1.
-    const toDays = i === 0 ? -1 : daysBetween(end, now)
-    const value = employees.filter(
-      (e) => e.hiredDaysAgo > toDays && e.hiredDaysAgo <= fromDays,
-    ).length
-    monthlyTrend.push({
-      month: monthLabel(start),
-      value,
-      current: i === 0,
-    })
+    const value = active.filter((e) => monthOf(hiredIn(e)) === monthOf(start)).length
+    monthlyTrend.push({ month: monthLabel(start), value, current: i === 0 })
   }
 
-  // By department.
   const deptMap = new Map<string, number>()
-  for (const e of employees) deptMap.set(e.department, (deptMap.get(e.department) ?? 0) + 1)
+  for (const e of active) deptMap.set(e.department, (deptMap.get(e.department) ?? 0) + 1)
   const byDept: DeptBreakdown[] = [...deptMap.entries()]
     .sort((a, b) => b[1] - a[1])
     .map(([label, count]) => ({
@@ -82,7 +83,7 @@ export function computeAnalytics(input: AnalyticsInput): AnalyticsStore {
       fill: DEPT_FILLS[label] ?? "bg-secondary-foreground",
     }))
 
-  // By tenure bucket.
+  const tenureDays = (e: Employee) => Math.max(0, daysBetween(hireDate(e, now), now))
   const buckets: { label: string; min: number; max: number; fill: string }[] = [
     { label: "< 1 year", min: 0, max: 365, fill: "bg-secondary-foreground" },
     { label: "1–2 years", min: 365, max: 730, fill: "bg-primary" },
@@ -91,7 +92,7 @@ export function computeAnalytics(input: AnalyticsInput): AnalyticsStore {
     { label: "7+ years", min: 2555, max: Infinity, fill: "bg-foreground" },
   ]
   const byTenure: TenureBreakdown[] = buckets.map((b) => {
-    const count = employees.filter((e) => e.hiredDaysAgo >= b.min && e.hiredDaysAgo < b.max).length
+    const count = active.filter((e) => tenureDays(e) >= b.min && tenureDays(e) < b.max).length
     return {
       label: b.label,
       count,
@@ -100,37 +101,32 @@ export function computeAnalytics(input: AnalyticsInput): AnalyticsStore {
     }
   })
 
-  const totalTenureDays = employees.reduce((s, e) => s + e.hiredDaysAgo, 0)
-  const avgTenureYears = headcount > 0 ? totalTenureDays / headcount / 365 : 0
-  const newHires = employees.filter((e) => e.hiredDaysAgo <= 30)
-  // Approximate the average tenure ~1 month ago by excluding recent hires.
-  const tenured = employees.filter((e) => e.hiredDaysAgo > 30)
-  const prevAvg =
-    tenured.length > 0 ? tenured.reduce((s, e) => s + e.hiredDaysAgo, 0) / tenured.length / 365 : 0
+  const avgTenureYears = headcount > 0
+    ? active.reduce((s, e) => s + tenureDays(e), 0) / headcount / 365
+    : 0
 
   const candidates = recruitment.candidates
   const hiredCount = candidates.filter((c) => c.stage === "hired").length
   const offerCount = candidates.filter((c) => c.stage === "offer").length
   const extendedOffers = hiredCount + offerCount
-  // True accept rate: accepted offers ÷ offers extended (offer + hired).
   const acceptRate = extendedOffers > 0 ? Math.round((hiredCount / extendedOffers) * 100) : 0
 
-  // Trailing-12-month attrition: departed (inactive) employees as a share of
-  // everyone who was employed over the period. `headcount` already includes
-  // inactive rows, so it IS that denominator — adding `departed` again would
-  // double-count them and understate the rate.
-  const departed = employees.filter((e) => e.status === "inactive").length
-  const attritionRate = headcount > 0 ? (departed / headcount) * 100 : 0
+  const departed = employees.length - headcount
+  const attritionRate = employees.length > 0 ? (departed / employees.length) * 100 : 0
+  const hiresThisMonth = active.filter((e) => monthOf(hireDate(e, now)) === monthOf(now)).length
 
   return {
     headcount,
-    headcountDelta: `+${newHires.length}`,
+    // A real, derivable figure: hires whose absolute hire date is this month.
+    headcountDelta: hiresThisMonth > 0 ? `+${hiresThisMonth}` : "",
     attrition: `${attritionRate.toFixed(1)}%`,
-    attritionDelta: attritionRate > 0 ? signedDelta(attritionRate / 2) : "+0.0",
+    // No prior-period snapshot exists. Report no delta rather than inventing
+    // one as a fraction of the current value.
+    attritionDelta: "",
     avgTenure: `${avgTenureYears.toFixed(1)} yrs`,
-    avgTenureDelta: signedDelta(avgTenureYears - prevAvg),
+    avgTenureDelta: "",
     offerAcceptRate: `${acceptRate}%`,
-    offerAcceptRateDelta: extendedOffers > 0 ? signedDelta(acceptRate / 2) : "+0.0",
+    offerAcceptRateDelta: "",
     monthlyTrend,
     byDept,
     byTenure,

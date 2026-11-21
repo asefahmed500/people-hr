@@ -3,6 +3,8 @@
 import * as React from "react"
 import { Ellipsis, MessageCircle, Pencil, Plus, Trash2 } from "lucide-react"
 
+import { Button } from "@/components/ui/button"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import type { Conversation } from "@/lib/data"
 
@@ -35,17 +37,16 @@ export function ChatHistoryPanel({
 }: ChatHistoryPanelProps) {
   const items = conversations ?? []
   return (
-    <div className="flex h-fit w-[240px] shrink-0 flex-col gap-2.5 rounded-2xl border border-border bg-card p-3.5">
-      <button
+    <div className="flex h-fit w-full shrink-0 flex-col gap-2 rounded-lg border border-border bg-card p-3 lg:w-[240px]">
+      <Button
         type="button"
+        variant="outline"
         onClick={onNewChat}
-        className="flex w-full items-center justify-center gap-[7px] rounded-lg border border-primary px-3 py-[9px] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+        className="w-full gap-[7px] border-primary text-primary hover:text-primary"
       >
-        <Plus className="size-3.5 shrink-0 text-primary" strokeWidth={2} />
-        <span className="font-sans text-[13px] font-semibold leading-normal text-primary">
-          New chat
-        </span>
-      </button>
+        <Plus className="size-3.5 shrink-0 text-primary" strokeWidth={2} aria-hidden="true" />
+        New chat
+      </Button>
       <span className="px-0 pb-0 pt-0.5 font-sans text-[10.5px] font-semibold uppercase leading-normal tracking-[0.09em] text-muted-foreground">
         Recent
       </span>
@@ -152,29 +153,37 @@ function ConversationRow({
       )}
       {!renaming ? (
         <>
-          <button
-            type="button"
-            aria-label={`Options for ${conv.title}`}
-            aria-haspopup="menu"
-            aria-expanded={open}
-            onClick={() => setOpen((v) => !v)}
-            onKeyDown={(e) => {
-              if (e.key === "Escape" && open) {
-                e.stopPropagation()
-                setOpen(false)
-              }
-            }}
-            className="flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted"
-          >
-            <Ellipsis className="size-3.5" strokeWidth={2} />
-          </button>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-xs"
+                  aria-label={`Options for ${conv.title}`}
+                  aria-haspopup="menu"
+                  aria-expanded={open}
+                  onClick={() => setOpen((v) => !v)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Escape" && open) {
+                      e.stopPropagation()
+                      setOpen(false)
+                    }
+                  }}
+                >
+                  <Ellipsis className="size-3.5" strokeWidth={2} aria-hidden="true" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Conversation options</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
           {open ? (
             <div
               role="menu"
               onKeyDown={(e) => {
                 if (e.key === "Escape") setOpen(false)
               }}
-              className="absolute right-0 top-full z-50 mt-1 w-36 rounded-xl border border-border bg-card py-1 shadow-lg"
+              className="absolute right-0 top-full z-50 mt-1 w-36 rounded-lg border border-border bg-card py-1"
             >
               <button
                 type="button"

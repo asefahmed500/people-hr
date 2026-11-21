@@ -1,5 +1,8 @@
 import { Check, Download, LogIn, Plus } from "lucide-react"
 
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+
 type AttendanceHeaderProps = {
   onExport?: () => void
   onMarkAttendance?: () => void
@@ -21,48 +24,34 @@ export function AttendanceHeader({ onExport, onMarkAttendance, onClockIn, clocke
         </p>
       </div>
       <div className="flex shrink-0 items-center gap-2.5">
-        <button
-          type="button"
-          onClick={onExport}
-          className="flex h-10 items-center gap-2 rounded-lg border border-border bg-card px-4 transition-colors hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
-        >
-          <Download className="size-4 text-secondary-foreground" strokeWidth={2} />
+        <Button type="button" variant="outline" onClick={onExport} className="h-9 px-4">
+          <Download className="size-4 text-secondary-foreground" strokeWidth={2} aria-hidden="true" />
           <span className="font-sans text-[13px] font-medium leading-normal text-secondary-foreground">
             Export
           </span>
-        </button>
+        </Button>
         {onClockIn ? (
           clockedInTime ? (
-            <span className="flex h-10 cursor-default items-center gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-4">
-              <Check className="size-4 text-emerald-600 dark:text-emerald-400" strokeWidth={2} />
-              <span className="font-sans text-[13px] font-medium leading-normal text-emerald-700 dark:text-emerald-400">
-                Checked in · {clockedInTime}
-              </span>
-            </span>
+            <Badge variant="secondary" className="h-9 gap-2 rounded-lg px-4 text-[13px] font-medium">
+              <Check className="size-4" strokeWidth={2} aria-hidden="true" />
+              Checked in Â· {clockedInTime}
+            </Badge>
           ) : (
-            <button
-              type="button"
-              onClick={onClockIn}
-              className="flex h-10 items-center gap-2 rounded-lg border border-border bg-gradient-to-b from-white to-[#ececea] px-4 shadow-xs transition-colors hover:to-[#e2e2df]"
-            >
-              <LogIn className="size-4 text-secondary-foreground" strokeWidth={2} />
+            <Button type="button" variant="secondary" onClick={onClockIn} className="h-9 px-4">
+              <LogIn className="size-4 text-secondary-foreground" strokeWidth={2} aria-hidden="true" />
               <span className="font-sans text-[13px] font-medium leading-normal text-foreground">
                 Clock in
               </span>
-            </button>
+            </Button>
           )
         ) : null}
         {onMarkAttendance ? (
-          <button
-            type="button"
-            onClick={onMarkAttendance}
-            className="flex h-10 items-center gap-2 rounded-lg border border-border bg-card px-4 transition-colors hover:bg-muted"
-          >
-            <Plus className="size-4 text-secondary-foreground" strokeWidth={2} />
+          <Button type="button" variant="outline" onClick={onMarkAttendance} className="h-9 px-4">
+            <Plus className="size-4 text-secondary-foreground" strokeWidth={2} aria-hidden="true" />
             <span className="font-sans text-[13px] font-medium leading-normal text-secondary-foreground">
               Mark attendance
             </span>
-          </button>
+          </Button>
         ) : null}
       </div>
     </div>

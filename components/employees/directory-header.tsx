@@ -1,5 +1,7 @@
 import { Download, Plus } from "lucide-react"
 
+import { Button } from "@/components/ui/button"
+
 export function DirectoryHeader({ onAddClick, onExport }: { onAddClick?: () => void; onExport?: () => void }) {
   return (
     <div className="flex w-full flex-col items-start justify-between gap-3 sm:flex-row sm:items-end">
@@ -12,27 +14,28 @@ export function DirectoryHeader({ onAddClick, onExport }: { onAddClick?: () => v
         </p>
       </div>
       <div className="flex w-full items-center gap-2.5 sm:w-auto">
-        <button
+        <Button
           type="button"
+          variant="outline"
           onClick={onExport}
-          className="flex h-[42px] flex-1 items-center justify-center gap-2 rounded-xl border border-border bg-card px-4 shadow-sm transition-colors hover:bg-muted sm:flex-none"
+          className="h-[42px] flex-1 px-4 sm:flex-none"
         >
-          <Download className="size-[17px] text-secondary-foreground" strokeWidth={2} />
+          <Download className="size-[17px] text-secondary-foreground" strokeWidth={2} aria-hidden="true" />
           <span className="font-sans text-[13.5px] font-medium leading-normal text-secondary-foreground">
             Export
           </span>
-        </button>
+        </Button>
         {onAddClick ? (
-          <button
+          <Button
             type="button"
             onClick={onAddClick}
-            className="flex h-[42px] flex-1 items-center justify-center gap-2 rounded-xl bg-foreground px-4 shadow-card sm:flex-none"
+            className="h-[42px] flex-1 px-4 sm:flex-none"
           >
-            <Plus className="size-[17px] text-background" strokeWidth={2} />
-            <span className="font-sans text-[13.5px] font-medium leading-normal text-background">
+            <Plus className="size-[17px]" strokeWidth={2} aria-hidden="true" />
+            <span className="font-sans text-[13.5px] font-medium leading-normal">
               Add employee
             </span>
-          </button>
+          </Button>
         ) : null}
       </div>
     </div>

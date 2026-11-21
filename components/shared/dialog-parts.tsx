@@ -12,6 +12,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
+import { cn } from "@/lib/utils"
 
 type ActionDialogProps = {
   open: boolean
@@ -21,6 +22,8 @@ type ActionDialogProps = {
   submitLabel?: string
   submitVariant?: "default" | "destructive"
   submitting?: boolean
+  /** Wide layouts keep dense operational forms inside the viewport. */
+  width?: "default" | "wide" | "xl"
   onSubmit: () => void
   children: React.ReactNode
 }
@@ -33,6 +36,7 @@ export function ActionDialog({
   submitLabel = "Save",
   submitVariant = "default",
   submitting = false,
+  width = "default",
   onSubmit,
   children,
 }: ActionDialogProps) {
@@ -51,7 +55,12 @@ export function ActionDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         onKeyDown={handleKeyDown}
-        className="max-w-[480px] gap-5 rounded-2xl border border-border bg-card p-6"
+        className={cn(
+          "max-h-[calc(100vh-2rem)] gap-4 overflow-y-auto rounded-xl border border-border bg-card p-5",
+          width === "default" && "max-w-[480px]",
+          width === "wide" && "max-w-2xl sm:max-w-3xl",
+          width === "xl" && "max-w-4xl",
+        )}
       >
         <DialogHeader>
           <DialogTitle className="text-h4">
@@ -81,7 +90,7 @@ export function ActionDialog({
             variant={submitVariant}
             className={submitVariant === "default" ? "font-sans text-[13.5px] font-medium" : "inline-flex items-center gap-1.5 rounded-lg bg-foreground font-sans text-[13.5px] font-medium text-background hover:bg-foreground/90 disabled:opacity-60"}
           >
-            {submitting ? <Loader2 className="size-4 animate-spin" /> : null}
+            {submitting ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : null}
             {submitLabel}
           </Button>
         </DialogFooter>

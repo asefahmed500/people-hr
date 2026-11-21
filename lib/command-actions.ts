@@ -7,9 +7,10 @@ import {
   Wallet,
   ClipboardCheck,
   BarChart3,
+  ListChecks,
   Megaphone,
-  Bell,
   Clock,
+  History,
   type LucideIcon,
 } from "lucide-react"
 
@@ -23,6 +24,20 @@ export type CommandAction = {
 }
 
 export const commandActions: CommandAction[] = [
+  {
+    id: "view-payslips",
+    label: "View payslips",
+    hint: "Payslips",
+    icon: Wallet,
+    route: "/payslips",
+  },
+  {
+    id: "view-activity",
+    label: "View activity log",
+    hint: "Activity",
+    icon: History,
+    route: "/activity",
+  },
   {
     id: "add-employee",
     label: "Add employee",
@@ -67,7 +82,7 @@ export const commandActions: CommandAction[] = [
     hint: "Recruitment",
     icon: ClipboardCheck,
     route: "/recruitment",
-    roles: ["admin", "manager"],
+    roles: ["admin"],
   },
   {
     id: "new-goal",
@@ -106,7 +121,15 @@ export const commandActions: CommandAction[] = [
     hint: "Reports",
     icon: FileText,
     route: "/reports",
-    roles: ["admin", "manager"],
+    roles: ["admin"],
+  },
+  {
+    id: "view-jobs",
+    label: "View job queue",
+    hint: "Jobs",
+    icon: ListChecks,
+    route: "/jobs",
+    roles: ["admin"],
   },
   {
     id: "ask-ai",

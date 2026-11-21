@@ -2,6 +2,9 @@
 
 import { ChevronRight } from "lucide-react"
 
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Progress } from "@/components/ui/progress"
+import { cn } from "@/lib/utils"
 import type { Candidate, Opening, CandidateStage } from "@/lib/data"
 import { stageMeta, stageOrder } from "@/lib/data"
 
@@ -22,6 +25,14 @@ const initials = (name: string) =>
     .map((part) => part[0])
     .slice(0, 2)
     .join("")
+
+// Keep each stage's bar colour while using the shared Progress primitive.
+const progressFill: Record<string, string> = {
+  "bg-primary": "[&_[data-slot=progress-indicator]]:bg-primary",
+  "bg-secondary-foreground": "[&_[data-slot=progress-indicator]]:bg-secondary-foreground",
+  "bg-muted-foreground": "[&_[data-slot=progress-indicator]]:bg-muted-foreground",
+  "bg-foreground": "[&_[data-slot=progress-indicator]]:bg-foreground",
+}
 
 function buildStages(candidates: Candidate[]): StageView[] {
   const total = candidates.length || 1
@@ -59,12 +70,12 @@ export function RecruitmentPipeline({
   const totalRoles = openings?.length ?? 0
 
   return (
-    <div className="flex h-fit w-full flex-col gap-4 rounded-2xl border border-border bg-card p-6 shadow-card">
+    <div className="flex h-fit w-full flex-col gap-4 rounded-lg border border-border bg-card p-4">
       <div className="flex items-center justify-between">
         <div className="flex flex-col gap-[3px]">
-          <h3 className="font-sans inline-block text-[15px] font-semibold leading-normal text-foreground">
+          <h2 className="font-sans inline-block text-[15px] font-semibold leading-normal text-foreground">
             Recruitment pipeline
-          </h3>
+          </h2>
           <p className="font-sans inline-block text-[12.5px] leading-normal text-muted-foreground">
             {totalCandidates} active candidates across {totalRoles} roles
           </p>
@@ -74,11 +85,11 @@ export function RecruitmentPipeline({
             <span className="font-sans inline-block text-[12.5px] font-semibold leading-normal text-primary">
               Open board
             </span>
-            <ChevronRight className="size-[15px] text-primary" strokeWidth={2} />
+            <ChevronRight className="size-[15px] text-primary" strokeWidth={2} aria-hidden="true" />
           </button>
         ) : null}
       </div>
-      <div className="flex gap-3.5">
+      <div className="flex gap-3.5 overflow-x-auto pb-2">
         {stages.map((stage) => (
           <PipelineColumn key={stage.name} stage={stage} />
         ))}
@@ -89,7 +100,7 @@ export function RecruitmentPipeline({
 
 function PipelineColumn({ stage }: { stage: StageView }) {
   return (
-    <div className="flex flex-1 flex-col gap-2.5 rounded-2xl border border-border bg-muted p-3.5">
+    <div className="flex flex-1 flex-col gap-2.5 rounded-lg border border-border bg-muted p-3.5">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-[7px]">
           <span className={`size-2 rounded-full ${stage.dot}`} />
@@ -101,12 +112,11 @@ function PipelineColumn({ stage }: { stage: StageView }) {
           {stage.count}
         </span>
       </div>
-      <div className="flex h-[5px] w-full overflow-clip rounded-full bg-muted">
-        <div
-          className={`h-full rounded-full ${stage.fill}`}
-          style={{ width: `${stage.fillPct}%` }}
-        />
-      </div>
+      <Progress
+        value={stage.fillPct}
+        aria-label={`${stage.name}: ${stage.count} candidates`}
+        className={cn("h-[5px]", progressFill[stage.fill])}
+      />
       {stage.candidates.map((candidate) => (
         <CandidateCard
           key={candidate.name}
@@ -127,15 +137,16 @@ function CandidateCard({
 }) {
   return (
     <div className="flex items-center gap-2 rounded-lg border border-border bg-card p-2">
-      <div
-        className={`flex size-6 shrink-0 items-center justify-center rounded-full ${stage.avatarBg}`}
-      >
-        <span
-          className={`font-sans text-[10px] font-semibold leading-normal ${stage.avatarText}`}
+      <Avatar className={cn("size-6", stage.avatarBg)}>
+        <AvatarFallback
+          className={cn(
+            "bg-transparent font-sans text-[10px] font-semibold leading-normal",
+            stage.avatarText,
+          )}
         >
           {candidate.initials}
-        </span>
-      </div>
+        </AvatarFallback>
+      </Avatar>
       <div className="flex min-w-0 flex-col">
         <span className="inline-block overflow-clip font-sans text-[11px] font-semibold leading-[1.2] text-foreground [text-overflow:ellipsis]">
           {candidate.name}

@@ -1,8 +1,10 @@
-import { ChevronRight } from "lucide-react"
+import { ChevronRight, Trophy } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import type { TeamRow } from "@/lib/data"
 import { currentQuarter } from "@/lib/quarter"
+import { Button } from "@/components/ui/button"
+import { Progress } from "@/components/ui/progress"
 
 type TeamLeaderboardProps = {
   onFullReport?: () => void
@@ -11,8 +13,8 @@ type TeamLeaderboardProps = {
 
 export function TeamLeaderboard({ onFullReport, teamScores = [] }: TeamLeaderboardProps) {
   return (
-    <div className="flex w-full flex-col overflow-clip rounded-2xl border border-border bg-card shadow-card">
-      <div className="flex items-center justify-between px-6 py-5">
+    <div className="flex w-full flex-col overflow-clip rounded-lg border border-border bg-card">
+      <div className="flex items-center justify-between px-4 py-3">
         <div className="flex flex-col gap-1">
           <h2 className="text-h3">
             Performance by team
@@ -21,19 +23,17 @@ export function TeamLeaderboard({ onFullReport, teamScores = [] }: TeamLeaderboa
             Ranked by average rating · {currentQuarter()}
           </span>
         </div>
-        <button type="button" onClick={onFullReport} className="flex items-center gap-1">
-          <span className="font-sans inline-block text-[13px] font-semibold leading-normal text-foreground">
-            Full report
-          </span>
-          <ChevronRight className="size-3.5 text-foreground" strokeWidth={2} />
-        </button>
+        <Button type="button" variant="ghost" size="sm" onClick={onFullReport} className="gap-1 text-foreground">
+          Full report
+          <ChevronRight className="size-3.5" strokeWidth={2} aria-hidden="true" />
+        </Button>
       </div>
       <div className="flex flex-col">
         {teamScores.length === 0 ? (
-          <div className="flex items-center justify-center py-10">
-            <span className="font-sans text-[13px] leading-normal text-muted-foreground">
-              No team data available
-            </span>
+          <div className="flex flex-col items-center gap-2 bg-muted py-8 text-center">
+            <Trophy className="size-5 shrink-0 text-muted-foreground" aria-hidden="true" strokeWidth={2} />
+            <p className="font-sans text-[13px] font-semibold text-foreground">No team data available</p>
+            <p className="font-sans text-[12px] text-muted-foreground">Rankings appear once reviews are in.</p>
           </div>
         ) : (
           teamScores.map((row, idx) => (
@@ -62,7 +62,7 @@ function LeaderboardRow({ row, first }: { row: RowDisplay; first: boolean }) {
   return (
     <div
       className={cn(
-        "flex items-center gap-4 px-6 py-4",
+        "flex items-center gap-2 px-4 py-3 sm:gap-4 sm:px-4",
         first ? "bg-muted" : "border-t border-t-border",
       )}
     >
@@ -81,21 +81,16 @@ function LeaderboardRow({ row, first }: { row: RowDisplay; first: boolean }) {
           {row.rank}
         </span>
       </div>
-      <div className="flex w-[130px] shrink-0 items-center gap-2">
-        <span className={`size-2.5 shrink-0 rounded-full ${row.dot}`} />
+      <div className="flex w-[100px] shrink-0 items-center gap-2 sm:w-[130px]">
+        <span className={`size-2.5 shrink-0 rounded-full ${row.dot}`} aria-hidden="true" />
         <span className="font-sans inline-block text-[13.5px] font-semibold leading-normal text-foreground">
           {row.team}
         </span>
       </div>
-      <span className="w-20 shrink-0 font-sans text-[12.5px] leading-normal text-muted-foreground">
+      <span className="w-14 shrink-0 font-sans text-[12.5px] leading-normal text-muted-foreground sm:w-20">
         {row.reviewed}
       </span>
-      <div className="flex h-2 flex-1 overflow-clip rounded-full bg-muted">
-        <div
-          className={cn("h-full rounded-full", row.fill)}
-          style={{ width: `${row.fillPct}%` }}
-        />
-      </div>
+      <Progress value={row.fillPct} className="h-2 flex-1" />
       <span className="w-10 shrink-0 text-right text-lg font-semibold leading-normal text-foreground">
         {row.rating}
       </span>

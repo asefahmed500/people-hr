@@ -13,6 +13,10 @@ export async function PATCH(request: Request, { params }: RouteContext) {
   if (!auth.ok) return auth.response
   const { id } = await params
   const body = await request.json().catch(() => ({}))
+  // A literal JSON `null` parses to null and would throw on body.role below.
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return NextResponse.json({ error: "Invalid body." }, { status: 400 })
+  }
   const data: { role?: string; department?: string | null; managerId?: string | null } = {}
   if (typeof body.role === "string" && body.role) {
     if (!isRole(body.role)) {
@@ -46,7 +50,9 @@ export async function PATCH(request: Request, { params }: RouteContext) {
         )
       }
       const manager = await prisma.user.findUnique({ where: { id: managerId } })
-      if (!manager || manager.deactivatedAt) {
+      // Match POST /api/users: only active admins/managers may be assigned as
+      // a reporting manager, otherwise manager-scoped data rules break.
+      if (!manager || manager.deactivatedAt || !["admin", "manager"].includes(manager.role)) {
         return NextResponse.json(
           { error: "That reporting manager doesn't exist." },
           { status: 400 },
@@ -63,6 +69,37 @@ export async function PATCH(request: Request, { params }: RouteContext) {
     return NextResponse.json({ error: "Not found" }, { status: 404 })
   }
   await prisma.user.update({ where: { id }, data: data as Prisma.UserUncheckedUpdateInput })
+
+  // Keep the shared employees directory in sync. Manager leave scoping and
+  // organization headcounts read that document, not the User row.
+  if (data.department !== undefined) {
+    try {
+      const empDoc = await prisma.moduleState.findUnique({
+        where: { userId_key: { userId: "__workspace__", key: "employees" } },
+      })
+      if (Array.isArray(empDoc?.data)) {
+        const rows = empDoc!.data as Array<Record<string, unknown>>
+        let changed = false
+        for (const row of rows) {
+          if (row.id === id || (!!row.email && row.email === target?.email)) {
+            if (row.department !== data.department) {
+              row.department = data.department
+              changed = true
+            }
+          }
+        }
+        if (changed) {
+          await prisma.moduleState.update({
+            where: { userId_key: { userId: "__workspace__", key: "employees" } },
+            data: { data: rows as unknown as Prisma.InputJsonValue },
+          })
+        }
+      }
+    } catch {
+      // Directory sync is best-effort; the User row is authoritative for auth.
+    }
+  }
+
   return NextResponse.json({ ok: true })
 }
 

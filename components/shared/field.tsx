@@ -39,7 +39,7 @@ export function Field({
         aria-invalid={!!error}
         disabled={disabled}
         className={cn(
-          "h-10 w-full rounded-lg border bg-card px-3 py-2.5 font-sans text-[13.5px] leading-normal text-foreground outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-60",
+          "h-9 w-full rounded-md border bg-card px-3 py-2.5 font-sans text-[13.5px] leading-normal text-foreground outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-60",
           error
             ? "border-destructive focus:border-destructive"
             : "border-border focus:border-primary",
@@ -83,7 +83,7 @@ export function SelectField({
         onChange={(e) => onChange(e.target.value)}
         aria-invalid={!!error}
         className={cn(
-          "h-10 w-full rounded-lg border bg-card px-3 py-2.5 font-sans text-[13.5px] leading-normal text-foreground outline-none focus:border-primary disabled:cursor-not-allowed disabled:opacity-60",
+          "h-9 w-full rounded-md border bg-card px-3 py-2.5 font-sans text-[13.5px] leading-normal text-foreground outline-none focus:border-primary disabled:cursor-not-allowed disabled:opacity-60",
           error ? "border-destructive" : "border-border",
         )}
       >
@@ -106,6 +106,7 @@ type TextAreaProps = {
   onChange: (value: string) => void
   placeholder?: string
   rows?: number
+  error?: string
 }
 
 export function TextArea({
@@ -114,7 +115,9 @@ export function TextArea({
   onChange,
   placeholder,
   rows = 3,
+  error,
 }: TextAreaProps) {
+  const describedBy = error ? `${label.replace(/\s+/g, "-").toLowerCase()}-error` : undefined
   return (
     <label className="flex flex-col gap-[5px]">
       <span className="font-sans text-xs font-medium leading-normal text-muted-foreground">
@@ -125,8 +128,20 @@ export function TextArea({
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         rows={rows}
-        className="w-full rounded-lg border border-border bg-card px-3 py-2.5 font-sans text-[13.5px] leading-normal text-foreground outline-none placeholder:text-muted-foreground focus:border-primary"
+        aria-invalid={!!error}
+        aria-describedby={describedBy}
+        className={cn(
+          "w-full rounded-md border bg-card px-3 py-2.5 font-sans text-[13.5px] leading-normal text-foreground outline-none placeholder:text-muted-foreground",
+          error
+            ? "border-destructive focus:border-destructive"
+            : "border-border focus:border-primary",
+        )}
       />
+      {error ? (
+        <span id={describedBy} className="font-sans text-[11px] text-destructive">
+          {error}
+        </span>
+      ) : null}
     </label>
   )
 }

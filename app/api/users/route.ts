@@ -4,6 +4,7 @@ import { randomInt } from "crypto"
 
 import { prisma } from "@/lib/db"
 import { requireAdmin, isRole } from "@/lib/auth-guards"
+import { DEPARTMENTS } from "@/lib/data/types"
 
 function initialsFromName(name: string): string {
   return name
@@ -70,7 +71,13 @@ export async function POST(request: Request) {
   const email = typeof body?.email === "string" ? body.email.trim().toLowerCase() : ""
   const rawRole = typeof body?.role === "string" ? body.role : "employee"
   const role = isRole(rawRole) ? rawRole : "employee"
-  const department = typeof body?.department === "string" && body.department ? body.department : null
+  // Must match PATCH validation: a free-text department poisons the shared
+  // employees document, whose zod schema only accepts known departments —
+  // every later directory write would then fail.
+  const rawDepartment = typeof body?.department === "string" && body.department ? body.department : null
+  const department = rawDepartment && (DEPARTMENTS as readonly string[]).includes(rawDepartment)
+    ? rawDepartment
+    : null
   const managerId = typeof body?.managerId === "string" && body.managerId ? body.managerId : null
 
   if (name.length < 2) {
@@ -85,10 +92,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "That email is already in use." }, { status: 409 })
   }
 
-  // The reporting manager must be a real, active account.
+  // The reporting manager must be a real, active manager/admin account.
   if (managerId) {
     const manager = await prisma.user.findUnique({ where: { id: managerId } })
-    if (!manager || manager.deactivatedAt) {
+    if (!manager || manager.deactivatedAt || !["admin", "manager"].includes(manager.role)) {
       return NextResponse.json({ error: "That reporting manager doesn't exist." }, { status: 400 })
     }
   }

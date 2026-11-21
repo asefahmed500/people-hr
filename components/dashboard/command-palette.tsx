@@ -29,9 +29,13 @@ export function CommandPalette({
   const visibleNav = navItems.filter((item) => !item.roles || item.roles.includes(role))
   const visibleActions = commandActions.filter((a) => !a.roles || a.roles.includes(role))
   return (
-    <CommandDialog open={open} onOpenChange={onOpenChange}>
+    <CommandDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      className="rounded-xl! border border-border"
+    >
       <Command>
-        <CommandInput placeholder="Search pages, actions…" />
+        <CommandInput placeholder="Search pages, actions…" aria-label="Search pages and actions" />
         <CommandList>
           <CommandEmpty>No results found.</CommandEmpty>
           <CommandGroup heading="Navigate">
@@ -43,7 +47,7 @@ export function CommandPalette({
                   value={`go ${item.label}`}
                   onSelect={() => onNavigate(item.href)}
                 >
-                  <Icon className="size-4 text-muted-foreground" strokeWidth={2} />
+                  <Icon className="size-4 text-muted-foreground" strokeWidth={2} aria-hidden="true" />
                   <span className="font-sans text-[13px] text-foreground">
                     {item.label}
                   </span>
@@ -73,7 +77,7 @@ export function CommandPalette({
                     onNavigate(action.route)
                   }}
                 >
-                  <Icon className="size-4 text-muted-foreground" strokeWidth={2} />
+                  <Icon className="size-4 text-muted-foreground" strokeWidth={2} aria-hidden="true" />
                   <span className="font-sans text-[13px] text-foreground">
                     {action.label}
                   </span>

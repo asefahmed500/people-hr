@@ -10,6 +10,14 @@ const approvalSchema = z.object({
   approved: z.boolean(),
 });
 
+/** Structured refusals returned by unavailable tool executors. */
+function refusalError(result: unknown): string | null {
+  if (typeof result !== "object" || result === null) return null;
+  const obj = result as { ok?: unknown; error?: unknown };
+  if (obj.ok === false && typeof obj.error === "string") return obj.error;
+  return null;
+}
+
 export async function POST(request: NextRequest) {
   const auth = await requireAuth();
   if (!auth.ok) return auth.response;
@@ -21,6 +29,7 @@ export async function POST(request: NextRequest) {
     if (!parsed.approved) {
       return NextResponse.json({
         status: "rejected",
+        toolName: parsed.toolName,
         message: "Action rejected by user",
       });
     }
@@ -32,6 +41,7 @@ export async function POST(request: NextRequest) {
       email: auth.session.user.email || "",
       role: (auth.session.user.role as "admin" | "manager" | "employee") || "employee",
       department: (u.department as string) || "",
+      managerId: u.managerId as string | undefined,
     };
 
     const registry = getToolRegistry();
@@ -46,17 +56,45 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: permCheck.reason }, { status: 403 });
     }
 
+    // This endpoint may only run tools that actually require a human decision.
+    // Without this, it doubles as an unauthenticated-by-approval path for any
+    // registered tool regardless of its risk level.
+    if (!security.shouldRequireApproval(toolMeta.definition)) {
+      return NextResponse.json(
+        { error: `Tool '${parsed.toolName}' does not require approval.` },
+        { status: 403 }
+      );
+    }
+
     const sanitized = security.sanitizeArgs(parsed.args);
-    const result = await toolMeta.executor(sanitized, user.userId, user.role);
+    const result = await toolMeta.executor(sanitized, user);
+
+    let parsedResult: unknown;
+    try {
+      parsedResult = JSON.parse(result);
+    } catch {
+      parsedResult = result;
+    }
+
+    // No pending-approval record is bound to this request (there is no
+    // approval store). Report the executor's real outcome instead of a fake
+    // success: every write tool currently refuses, so those end in a 422.
+    const error = refusalError(parsedResult);
+    if (error) {
+      return NextResponse.json(
+        { status: "unavailable", toolName: parsed.toolName, error },
+        { status: 422 }
+      );
+    }
 
     return NextResponse.json({
       status: "executed",
       toolName: parsed.toolName,
-      result: JSON.parse(result),
+      result: parsedResult,
     });
   } catch (e) {
-    if (e instanceof z.ZodError) {
-      return NextResponse.json({ error: "Invalid request", details: e.issues }, { status: 400 });
+    if (e instanceof z.ZodError || e instanceof SyntaxError) {
+      return NextResponse.json({ error: "Invalid request" }, { status: 400 });
     }
     return NextResponse.json(
       { error: "Tool execution failed" },

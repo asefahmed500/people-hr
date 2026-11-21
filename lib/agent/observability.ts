@@ -1,6 +1,8 @@
 import { randomUUID } from "crypto";
-import type { AIToolCall } from "../ai/types";
-import type { UserContext } from "../context/engine";
+
+// In-memory traces are diagnostic only. Cap them so a busy process can't grow
+// the map without bound. Eviction is FIFO by trace creation order.
+const MAX_TRACES = 500;
 
 export interface AgentTrace {
   id: string;
@@ -8,7 +10,7 @@ export interface AgentTrace {
   userId: string;
   organizationId?: string;
   model: string;
-  status: "running" | "completed" | "failed" | "cancelled";
+  status: "running" | "completed" | "failed" | "cancelled" | "awaiting_approval";
   steps: TraceStep[];
   usage: {
     promptTokens: number;
@@ -45,6 +47,10 @@ class ObservabilityService {
       toolCalls: [],
       startedAt: new Date(),
     };
+    if (this.traces.size >= MAX_TRACES) {
+      const oldest = this.traces.keys().next().value as string | undefined;
+      if (oldest !== undefined) this.traces.delete(oldest);
+    }
     this.traces.set(trace.id, trace);
     return trace;
   }
@@ -56,7 +62,7 @@ class ObservabilityService {
 
   completeTrace(
     traceId: string,
-    status: "completed" | "failed" | "cancelled",
+    status: "completed" | "failed" | "cancelled" | "awaiting_approval",
     usage?: { promptTokens: number; completionTokens: number; estimatedCost: number },
     error?: string
   ): void {

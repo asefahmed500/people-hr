@@ -90,7 +90,7 @@ export function InsightsPanel({
   if (staleLeave.length > 0) {
     insights.push({
       tone: "coral",
-      title: `${staleLeave.length} leave request${staleLeave.length === 1 ? "" : "s"} pending > 48h`,
+      title: `${staleLeave.length} leave request${staleLeave.length === 1 ? "" : "s"} awaiting approval`,
       desc: "Delayed approvals reduce team trust. Review pending requests.",
     })
   }
@@ -150,9 +150,15 @@ export function InsightsPanel({
     }
   }
 
-  // Active headcount growth
-  const active = employees.filter((e) => e.status === "active").length
-  const thisMonth = employees.filter((e) => e.hiredDaysAgo <= 30).length
+  // Active headcount growth Ã¢â‚¬â€ prefer the absolute hire date so this keeps
+  // working months after an employee was added.
+  const thisMonth = employees.filter((e) => {
+    if (e.hiredAt) {
+      const d = new Date(e.hiredAt)
+      return d.getFullYear() === new Date().getFullYear() && d.getMonth() === new Date().getMonth()
+    }
+    return e.hiredDaysAgo <= 30
+  }).length
   if (thisMonth >= 3) {
     insights.push({
       tone: "forest",
@@ -170,14 +176,14 @@ export function InsightsPanel({
   }
 
   return (
-    <div className="flex w-full shrink-0 flex-col gap-3.5 rounded-2xl border border-border bg-card p-[22px] shadow-card sm:w-[380px]">
+    <div className="flex w-full shrink-0 flex-col gap-3.5 rounded-lg border border-border bg-card p-4 sm:w-[380px]">
       <div className="flex items-center gap-[9px]">
         <div className="flex size-[30px] items-center justify-center rounded-lg bg-foreground/10">
-          <BotMessageSquare className="size-4 text-secondary-foreground" strokeWidth={2} />
+          <BotMessageSquare className="size-4 text-secondary-foreground" strokeWidth={2} aria-hidden="true" />
         </div>
-        <h3 className="font-sans inline-block text-[15px] font-semibold leading-normal text-foreground">
+        <h2 className="font-sans inline-block text-[15px] font-semibold leading-normal text-foreground">
           Smart insights
-        </h3>
+        </h2>
       </div>
       <div className="flex flex-col gap-2.5">
         {insights.slice(0, 6).map((insight, idx) => (
@@ -202,12 +208,12 @@ export function InsightsPanel({
       <button
         type="button"
         onClick={onOpenAssistant}
-        className="mt-0.5 mb-0 flex h-10 items-center justify-center gap-1.5 rounded-xl bg-foreground/10 transition-colors hover:bg-foreground/15 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+        className="mt-0.5 mb-0 flex h-9 items-center justify-center gap-1.5 rounded-xl bg-foreground/10 transition-colors hover:bg-foreground/15 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
       >
         <span className="font-sans text-[13px] font-semibold leading-normal text-primary">
           Open AI Assistant
         </span>
-        <ChevronRight className="size-[15px] text-primary" strokeWidth={2} />
+        <ChevronRight className="size-[15px] text-primary" strokeWidth={2} aria-hidden="true" />
       </button>
     </div>
   )

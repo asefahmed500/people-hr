@@ -1,5 +1,6 @@
 "use client"
 
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import type { Employee } from "@/lib/data"
 
 export function RecentHires({
@@ -16,11 +17,11 @@ export function RecentHires({
       .slice(0, 3) ?? []
 
   return (
-    <div className="flex flex-1 flex-col gap-3.5 rounded-2xl border border-border bg-card p-[22px] shadow-card">
+    <div className="flex flex-1 flex-col gap-3.5 rounded-lg border border-border bg-card p-4">
       <div className="flex items-center justify-between">
-        <h3 className="font-sans inline-block text-[15px] font-semibold leading-normal text-foreground">
+        <h2 className="font-sans inline-block text-[15px] font-semibold leading-normal text-foreground">
           Recent hires
-        </h3>
+        </h2>
         {onViewAll ? (
           <button type="button" onClick={onViewAll} className="font-sans inline-block text-xs font-semibold leading-normal text-primary hover:text-foreground">
             View all
@@ -46,9 +47,11 @@ function HireRow({ hire }: { hire: Employee }) {
   const dateLabel = hire.hiredDaysAgo === 0 ? "Today" : `${hire.hiredDaysAgo}d ago`
   return (
     <div className="flex items-center gap-[11px]">
-      <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-foreground/10 font-sans text-[11px] font-semibold text-primary">
-        {hire.initials}
-      </div>
+      <Avatar className="size-9 bg-foreground/10">
+        <AvatarFallback className="bg-transparent font-sans text-[11px] font-semibold text-primary">
+          {hire.initials}
+        </AvatarFallback>
+      </Avatar>
       <div className="flex min-w-0 flex-1 flex-col">
         <span className="inline-block overflow-clip font-sans text-[13px] font-semibold leading-normal text-foreground [text-overflow:ellipsis]">
           {hire.name}

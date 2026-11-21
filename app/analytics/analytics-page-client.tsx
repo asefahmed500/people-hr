@@ -6,6 +6,7 @@ import { AnalyticsKpiStrip } from "@/components/analytics/analytics-kpi-strip"
 import { WorkforceTrendCard } from "@/components/analytics/workforce-trend-card"
 import { WorkforceBreakdown } from "@/components/analytics/workforce-breakdown"
 import { Skeleton } from "@/components/ui/skeleton"
+import { StoreErrorState } from "@/components/shared/store-error-state"
 import { notify } from "@/lib/toast"
 import { exportToCsv } from "@/lib/export"
 import { useApiStore } from "@/hooks/use-api-store"
@@ -15,24 +16,32 @@ import {
 } from "@/lib/data"
 
 export function AnalyticsPageClient() {
-  const { state, hydrated } = useApiStore<AnalyticsStore>(
+  const { state, hydrated, error, retry } = useApiStore<AnalyticsStore>(
     "/api/store/analytics",
     () => defaultAnalyticsStore,
   )
+
+  if (error) {
+    return (
+      <DashboardShell activeHref="/analytics" current="Analytics" accentCurrent>
+        <StoreErrorState onRetry={retry} />
+      </DashboardShell>
+    )
+  }
 
   if (!hydrated) {
     return (
       <DashboardShell activeHref="/analytics" current="Analytics" accentCurrent>
         <Skeleton className="h-8 w-[200px] rounded-lg" />
         <div className="mt-4 flex gap-4">
-          <Skeleton className="h-24 flex-1 rounded-2xl" />
-          <Skeleton className="h-24 flex-1 rounded-2xl" />
-          <Skeleton className="h-24 flex-1 rounded-2xl" />
-          <Skeleton className="h-24 flex-1 rounded-2xl" />
+          <Skeleton className="h-24 flex-1 rounded-lg" />
+          <Skeleton className="h-24 flex-1 rounded-lg" />
+          <Skeleton className="h-24 flex-1 rounded-lg" />
+          <Skeleton className="h-24 flex-1 rounded-lg" />
         </div>
-        <div className="mt-5 flex gap-5">
-          <Skeleton className="h-[320px] flex-1 rounded-2xl" />
-          <Skeleton className="h-[320px] w-[440px] rounded-2xl" />
+        <div className="mt-4 flex gap-4">
+          <Skeleton className="h-[320px] flex-1 rounded-lg" />
+          <Skeleton className="h-[320px] w-full rounded-lg lg:w-[440px]" />
         </div>
       </DashboardShell>
     )
@@ -60,7 +69,7 @@ export function AnalyticsPageClient() {
         offerAcceptRate={state.offerAcceptRate}
         offerAcceptRateDelta={state.offerAcceptRateDelta}
       />
-      <div className="flex flex-col gap-5 lg:flex-row lg:items-start">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
         <WorkforceTrendCard
           monthlyTrend={state.monthlyTrend}
           onOpenReport={() =>

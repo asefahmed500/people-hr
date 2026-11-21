@@ -1,11 +1,14 @@
 "use client"
 
 import * as React from "react"
-import { useRouter, useSearchParams } from "next/navigation"
+import { useSearchParams } from "next/navigation"
+import { signOut } from "next-auth/react"
 
 import { type SettingsStore, defaultSettingsStore } from "@/lib/data"
+import type { SessionsResponse, SignInEvent } from "@/lib/data/settings"
 import { useApiStore } from "@/hooks/use-api-store"
 import { useAuth } from "@/hooks/use-auth"
+import { useSession } from "next-auth/react"
 import { apiRequest } from "@/lib/api-client"
 import { notify } from "@/lib/toast"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -30,20 +33,39 @@ const VALID_TABS = ["profile", "notifications", "security", "billing", "team"]
 const BASE_TABS = ["profile", "notifications", "security"]
 
 export function SettingsPageClient() {
-  const router = useRouter()
   const searchParams = useSearchParams()
   const { logout, user } = useAuth()
+  const { update } = useSession()
   const isAdmin = user?.role === "admin"
   // Billing + team are admin-only surfaces; mirror the server's role guards.
-  const allowedTabs = isAdmin ? VALID_TABS : BASE_TABS
+  const allowedTabs = React.useMemo(() => isAdmin ? VALID_TABS : BASE_TABS, [isAdmin])
   const { state: settings, setState: setSettings, hydrated } = useApiStore<SettingsStore>(
     "/api/store/settings",
-    () => defaultSettingsStore,
+    // A reset must never stamp demo placeholders over a real account. Seed
+    // from the signed-in identity, with schema-valid fallbacks for OAuth
+    // accounts that have no name/department.
+    () => ({
+      ...defaultSettingsStore,
+      personal: {
+        ...defaultSettingsStore.personal,
+        fullName: user?.name ?? defaultSettingsStore.personal.fullName,
+        email: user?.email || defaultSettingsStore.personal.email,
+        department: user?.department ?? defaultSettingsStore.personal.department,
+      },
+    }),
   )
   const [activeTab, setActiveTab] = React.useState(() => {
     const requested = searchParams.get("tab") ?? ""
     return allowedTabs.includes(requested) ? requested : "profile"
   })
+  // Deep links from inside Settings (e.g. "Open billing") change only the URL;
+  // sync the visible tab so the control actually works on the same route.
+  React.useEffect(() => {
+    const requested = searchParams.get("tab") ?? ""
+    if (requested && allowedTabs.includes(requested)) {
+      void Promise.resolve().then(() => setActiveTab(requested))
+    }
+  }, [searchParams, allowedTabs])
   const snapshotRef = React.useRef<SettingsStore | null>(null)
   const [dirty, setDirty] = React.useState(false)
   const [saving, setSaving] = React.useState(false)
@@ -51,6 +73,33 @@ export function SettingsPageClient() {
   const [twoFactorSetupOpen, setTwoFactorSetupOpen] = React.useState(false)
   const [twoFactorDisableOpen, setTwoFactorDisableOpen] = React.useState(false)
   const [deactivating, setDeactivating] = React.useState(false)
+  const [signInEvents, setSignInEvents] = React.useState<SignInEvent[]>([])
+  const [currentSignInId, setCurrentSignInId] = React.useState<string | null>(null)
+  const [sessionsLoading, setSessionsLoading] = React.useState(true)
+  const [sessionsError, setSessionsError] = React.useState<string | null>(null)
+  const [sessionsNonce, setSessionsNonce] = React.useState(0)
+  const [revoking, setRevoking] = React.useState(false)
+
+  const loadSessions = React.useCallback(async () => {
+    setSessionsLoading(true)
+    try {
+      const res = await apiRequest<SessionsResponse>("/api/sessions")
+      setSignInEvents(res.events)
+      setCurrentSignInId(res.currentSignInId)
+      setSessionsError(null)
+    } catch (err) {
+      setSessionsError(err instanceof Error ? err.message : "Please try again.")
+    } finally {
+      setSessionsLoading(false)
+    }
+  }, [])
+
+  // Fetch on mount and refresh whenever the Security tab is (re)opened.
+  React.useEffect(() => {
+    // Defer the fetch (and its synchronous loading-state update) out of the
+    // effect body to avoid cascading renders on mount.
+    void Promise.resolve().then(() => loadSessions())
+  }, [loadSessions, activeTab, sessionsNonce])
 
   // Keep snapshot + dirty state in sync.
   React.useEffect(() => {
@@ -113,6 +162,9 @@ export function SettingsPageClient() {
         },
       })
       if (!res.ok) throw new Error(res.error ?? "Could not save.")
+      // Refresh the JWT so the top bar and greeting show the new identity
+      // immediately instead of the cached session name.
+      await update()
       snapshotRef.current = settings
       setDirty(false)
       notify.success("Settings saved", "Your changes have been saved successfully.")
@@ -143,8 +195,23 @@ export function SettingsPageClient() {
       return
     }
     await logout()
-    notify.success("Account deactivated", "You've been signed out.")
-    router.replace("/login")
+  }
+
+  const handleSignOutEverywhere = async () => {
+    if (revoking) return
+    setRevoking(true)
+    try {
+      await apiRequest<{ ok: boolean; epoch: number }>("/api/sessions", { method: "DELETE" })
+      // Refresh the list before tearing down this session's client state.
+      await loadSessions()
+      await signOut({ callbackUrl: "/login" })
+    } catch (err) {
+      notify.error(
+        "Couldn’t sign out everywhere",
+        err instanceof Error ? err.message : "Please try again.",
+      )
+      setRevoking(false)
+    }
   }
 
   const renderTabContent = () => {
@@ -161,6 +228,13 @@ export function SettingsPageClient() {
           <>
             <SecurityCard
               twoFactorEnabled={user?.twoFactorEnabled ?? settings.preferences.twoFactor}
+              signInEvents={signInEvents}
+              currentSignInId={currentSignInId}
+              onSignOutEverywhere={handleSignOutEverywhere}
+              revoking={revoking}
+              sessionsLoading={sessionsLoading}
+              sessionsError={sessionsError}
+              onRetrySessions={() => setSessionsNonce((n) => n + 1)}
               onChangePassword={() => setPwOpen(true)}
               onEnableTwoFactor={() => setTwoFactorSetupOpen(true)}
               onDisableTwoFactor={() => setTwoFactorDisableOpen(true)}
@@ -194,7 +268,7 @@ export function SettingsPageClient() {
       case "team":
         if (user?.role !== "admin") {
           return (
-            <div className="flex flex-col items-center gap-2 rounded-2xl border border-border bg-card p-10 text-center">
+            <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed border-border bg-muted p-8 text-center">
               <span className="font-sans text-sm font-semibold text-foreground">
                 Team management is admin-only
               </span>
@@ -233,10 +307,10 @@ export function SettingsPageClient() {
   if (!hydrated) {
     return (
       <div className="flex flex-col gap-4">
-        <Skeleton className="h-12 w-full rounded-2xl" />
+        <Skeleton className="h-12 w-full rounded-lg" />
         <Skeleton className="h-11 w-full rounded-lg" />
-        <Skeleton className="h-72 w-full rounded-2xl" />
-        <Skeleton className="h-64 w-full rounded-2xl" />
+        <Skeleton className="h-72 w-full rounded-lg" />
+        <Skeleton className="h-64 w-full rounded-lg" />
       </div>
     )
   }
@@ -245,7 +319,7 @@ export function SettingsPageClient() {
     <>
       <SettingsHeader />
       <SettingsTabBar activeTab={activeTab} onTabChange={updateTab} />
-      <div className="flex flex-col gap-5 lg:flex-row lg:items-start">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
         <div className="flex flex-1 flex-col gap-4">
           {renderTabContent()}
         </div>

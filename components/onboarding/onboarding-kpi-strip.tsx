@@ -22,7 +22,7 @@ export function OnboardingKpiStrip({ tasks }: { tasks: OnboardingTask[] }) {
       {kpis.map((kpi) => (
         <div
           key={kpi.label}
-          className="flex flex-col gap-1 rounded-2xl border border-border bg-card px-5 py-4"
+          className="flex flex-col gap-1 rounded-lg border border-border bg-card px-4 py-3"
         >
           <span
             className={cn(

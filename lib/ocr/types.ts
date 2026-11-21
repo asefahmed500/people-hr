@@ -1,4 +1,11 @@
-export type OCRProviderName = "tesseract" | "google" | "aws" | "azure";
+/**
+ * All confidence values in this module are on a single 0-1 scale, where 1 means
+ * "certain". Values returned by Tesseract (0-100) are converted before they are
+ * stored on any of the types below.
+ */
+
+/** The only OCR engine actually implemented in this codebase. */
+export type OCRProviderName = "tesseract";
 
 export interface OCRConfig {
   provider: OCRProviderName;
@@ -62,6 +69,8 @@ export interface OCRResult {
   provider: OCRProviderName;
   language: string;
   needsReview: boolean;
+  /** Set when extraction was incomplete or unavailable (e.g. a scanned PDF). */
+  warning?: string;
 }
 
 export interface OCRField {
@@ -156,11 +165,13 @@ export interface ChunkMetadata {
   createdAt: Date;
 }
 
+/**
+ * Validation settings applied to image buffers before OCR. These describe
+ * checks only; no pixels are modified (see lib/ocr/preprocess.ts).
+ */
 export interface OCRPreprocessOptions {
-  deskew: boolean;
-  rotate: boolean;
-  denoise: boolean;
-  contrast: boolean;
-  normalizeResolution: boolean;
-  targetDpi: number;
+  /** Reject buffers larger than this many bytes. */
+  maxBytes: number;
+  /** Verify that the buffer starts with a recognized image magic header. */
+  verifyImageHeader: boolean;
 }

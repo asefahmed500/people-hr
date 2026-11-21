@@ -41,12 +41,16 @@ export function getAIEnv(): AIEnv {
 
 export function getLLMConfig() {
   const env = getAIEnv();
-  const apiKey = env.LLM_API_KEY || env.ZAI_API_KEY || env.ZHIPU_API_KEY || env.GLM_API_KEY || "";
-  const baseURL =
-    env.LLM_API_KEY && !env.ZAI_API_KEY && !env.ZHIPU_API_KEY && !env.GLM_API_KEY
-      ? env.LLM_BASE_URL
-      : "https://api.z.ai/api/paas/v4";
-  const model = env.LLM_MODEL === "gpt-4o-mini" && !env.LLM_API_KEY ? "glm-5.3" : env.LLM_MODEL;
+  // Resolve the key and endpoint from the SAME provider. The old logic could
+  // pick an OpenAI key but a Z.AI endpoint (or vice versa) whenever an
+  // unrelated alias was also set, silently sending credentials to the wrong
+  // host.
+  const hasOpenAI = !!env.LLM_API_KEY;
+  const apiKey = hasOpenAI
+    ? (env.LLM_API_KEY as string)
+    : env.ZAI_API_KEY || env.ZHIPU_API_KEY || env.GLM_API_KEY || "";
+  const baseURL = hasOpenAI ? env.LLM_BASE_URL : "https://api.z.ai/api/paas/v4";
+  const model = !hasOpenAI && env.LLM_MODEL === "gpt-4o-mini" ? "glm-5.3" : env.LLM_MODEL;
   return { apiKey, baseURL, model };
 }
 

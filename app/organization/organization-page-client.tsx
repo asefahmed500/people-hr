@@ -9,7 +9,9 @@ import { DepartmentsSection } from "@/components/organization/departments-sectio
 import { OfficesCard } from "@/components/organization/offices-card"
 import { ActionDialog } from "@/components/shared/dialog-parts"
 import { Field, TextArea, useForm } from "@/components/shared/field"
+import { StoreErrorState } from "@/components/shared/store-error-state"
 import { Skeleton } from "@/components/ui/skeleton"
+import { Input } from "@/components/ui/input"
 import { notify } from "@/lib/toast"
 import { exportToCsv } from "@/lib/export"
 import { type OrganizationStore, type Dept, type Office, defaultOrganizationStore } from "@/lib/data"
@@ -37,7 +39,7 @@ function generateInitials(name: string): string {
 export function OrganizationPageClient() {
   const { user } = useAuth()
   const canWrite = user?.role === "admin"
-  const { state: store, setState, hydrated } = useApiStore<OrganizationStore>(
+  const { state: store, setState, hydrated, error, retry } = useApiStore<OrganizationStore>(
     "/api/store/organization",
     () => defaultOrganizationStore,
   )
@@ -64,7 +66,7 @@ export function OrganizationPageClient() {
     }
     setState((prev) => ({ ...prev, companyName: next }))
     setCompanyDraft(null)
-    notify.success("Company name saved", next ? `Workspace is now “${next}”.` : "Company name cleared.")
+    notify.success("Company name saved", next ? `Workspace is now Ã¢â‚¬Å“${next}Ã¢â‚¬Â.` : "Company name cleared.")
   }
 
   const form = useForm({
@@ -107,8 +109,10 @@ export function OrganizationPageClient() {
                 ...d,
                 name: form.values.name,
                 leadName: form.values.headName,
-                leadRole: form.values.headRole || d.leadRole,
-                sub: form.values.description || d.sub,
+                // Recompute initials for a new head, and allow clearing fields.
+                leadInit: generateInitials(form.values.headName),
+                leadRole: form.values.headRole,
+                sub: form.values.description,
               }
             : d,
         ),
@@ -167,6 +171,7 @@ export function OrganizationPageClient() {
     }
     const count = Math.max(0, parseInt(officeForm.values.count, 10) || 0)
     const office: Office = {
+      id: editingOffice?.id ?? `of-${crypto.randomUUID()}`,
       city: officeForm.values.city.trim(),
       country: officeForm.values.country.trim(),
       count,
@@ -178,7 +183,10 @@ export function OrganizationPageClient() {
     // bars always stay proportional.
     const all = editingOffice
       ? store.offices.map((o) =>
-          o.city === editingOffice.city && o.country === editingOffice.country ? office : o,
+          (editingOffice.id && o.id === editingOffice.id) ||
+          (!editingOffice.id && o.city === editingOffice.city && o.country === editingOffice.country)
+            ? office
+            : o,
         )
       : [...store.offices, office]
     const maxCount = Math.max(1, ...all.map((o) => o.count))
@@ -200,27 +208,37 @@ export function OrganizationPageClient() {
     if (!deletingOffice) return
     setState((prev) => ({
       ...prev,
-      offices: prev.offices.filter(
-        (o) => !(o.city === deletingOffice.city && o.country === deletingOffice.country),
+      offices: prev.offices.filter((o) =>
+        deletingOffice.id && o.id
+          ? o.id !== deletingOffice.id
+          : !(o.city === deletingOffice.city && o.country === deletingOffice.country),
       ),
     }))
     notify.success(`Office "${deletingOffice.city}" deleted`)
     setDeletingOffice(null)
   }
 
+  if (error) {
+    return (
+      <DashboardShell activeHref="/organization" current="Organization" accentCurrent>
+        <StoreErrorState onRetry={retry} />
+      </DashboardShell>
+    )
+  }
+
   if (!hydrated) {
     return (
       <DashboardShell activeHref="/organization" current="Organization" accentCurrent>
-        <Skeleton className="h-12 w-full rounded-2xl" />
-        <div className="flex w-full gap-5">
-          <Skeleton className="h-[108px] flex-1 rounded-2xl" />
-          <Skeleton className="h-[108px] flex-1 rounded-2xl" />
-          <Skeleton className="h-[108px] flex-1 rounded-2xl" />
-          <Skeleton className="h-[108px] flex-1 rounded-2xl" />
+        <Skeleton className="h-12 w-full rounded-lg" />
+        <div className="flex w-full gap-4">
+          <Skeleton className="h-[108px] flex-1 rounded-lg" />
+          <Skeleton className="h-[108px] flex-1 rounded-lg" />
+          <Skeleton className="h-[108px] flex-1 rounded-lg" />
+          <Skeleton className="h-[108px] flex-1 rounded-lg" />
         </div>
-        <Skeleton className="h-[280px] w-full rounded-2xl" />
-        <Skeleton className="h-[200px] w-full rounded-2xl" />
-        <Skeleton className="h-[320px] w-full rounded-2xl" />
+        <Skeleton className="h-[280px] w-full rounded-lg" />
+        <Skeleton className="h-[200px] w-full rounded-lg" />
+        <Skeleton className="h-[320px] w-full rounded-lg" />
       </DashboardShell>
     )
   }
@@ -244,12 +262,12 @@ export function OrganizationPageClient() {
           onNewDept={canWrite ? handleNewDept : undefined}
         />
         {canWrite ? (
-          <div className="flex flex-col gap-1.5 rounded-2xl border border-border bg-card p-4 sm:flex-row sm:items-center sm:gap-3">
+          <div className="flex flex-col gap-1.5 rounded-lg border border-border bg-card p-4 sm:flex-row sm:items-center sm:gap-3">
             <label className="flex flex-1 flex-col gap-[5px] sm:flex-row sm:items-center sm:gap-3">
               <span className="shrink-0 font-sans text-xs font-medium leading-normal text-muted-foreground">
                 Company name
               </span>
-              <input
+              <Input
                 type="text"
                 value={companyNameValue}
                 maxLength={120}
@@ -260,8 +278,8 @@ export function OrganizationPageClient() {
                     e.currentTarget.blur()
                   }
                 }}
-                placeholder="e.g. Acme Inc. — used on HR letters and exports"
-                className="h-10 w-full rounded-lg border border-border bg-card px-3 font-sans text-[13.5px] leading-normal text-foreground outline-none transition-colors focus:border-primary/60 focus:ring-2 focus:ring-foreground/20"
+                placeholder="e.g. Acme Inc. Ã¢â‚¬â€ used on HR letters and exports"
+                className="h-9 w-full rounded-lg border border-border bg-card px-3 font-sans text-[13.5px] leading-normal text-foreground"
               />
             </label>
             <span className="shrink-0 font-sans text-[11.5px] leading-normal text-muted-foreground sm:w-[220px]">
@@ -318,7 +336,7 @@ export function OrganizationPageClient() {
         />
       </DashboardShell>
 
-      <ActionDialog
+      <ActionDialog width="wide"
         open={dialogOpen}
         onOpenChange={(open) => { setDialogOpen(open); if (!open) setEditingDept(null) }}
         title={editingDept ? "Edit department" : "New department"}
@@ -328,10 +346,10 @@ export function OrganizationPageClient() {
         <Field label="Department name" value={form.values.name} onChange={(v) => form.setValue("name", v)} required />
         <Field label="Department head" value={form.values.headName} onChange={(v) => form.setValue("headName", v)} required />
         <Field label="Head role" value={form.values.headRole} onChange={(v) => form.setValue("headRole", v)} />
-        <TextArea label="Description" value={form.values.description} onChange={(v) => form.setValue("description", v)} placeholder="Optional description" />
+        <TextArea label="Description" value={form.values.description} onChange={(v) => form.setValue("description", v)} placeholder="Optional description" error={form.errors.description} />
       </ActionDialog>
 
-      <ActionDialog
+      <ActionDialog width="wide"
         open={officeDialogOpen}
         onOpenChange={(open) => { setOfficeDialogOpen(open); if (!open) setEditingOffice(null) }}
         title={editingOffice ? "Edit office" : "Add office"}
@@ -385,8 +403,8 @@ export function OrganizationPageClient() {
             <AlertDialogDescription>
               <div className="mt-2 flex flex-col gap-2 text-left">
                 <p><strong>Code:</strong> {viewingDept?.code}</p>
-                <p><strong>Head:</strong> {viewingDept?.leadName} — {viewingDept?.leadRole}</p>
-                <p><strong>Teams:</strong> {viewingDept?.teams} · <strong>People:</strong> {viewingDept?.people} · <strong>Open:</strong> {viewingDept?.open}</p>
+                <p><strong>Head:</strong> {viewingDept?.leadName} Ã¢â‚¬â€ {viewingDept?.leadRole}</p>
+                <p><strong>Teams:</strong> {viewingDept?.teams} Ã‚Â· <strong>People:</strong> {viewingDept?.people} Ã‚Â· <strong>Open:</strong> {viewingDept?.open}</p>
                 {viewingDept?.sub ? <p><strong>Description:</strong> {viewingDept.sub}</p> : null}
               </div>
             </AlertDialogDescription>

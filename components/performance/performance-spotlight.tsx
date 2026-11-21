@@ -1,6 +1,7 @@
 import { Star, UserMinus } from "lucide-react"
 
 import type { Review, TeamRow } from "@/lib/data"
+import { Badge } from "@/components/ui/badge"
 
 type PerformanceSpotlightProps = {
   reviews?: Review[]
@@ -17,9 +18,9 @@ export function PerformanceSpotlight({ reviews = [], teamScores = [] }: Performa
     : 0
 
   return (
-    <div className="flex w-full gap-5">
+    <div className="flex w-full flex-col gap-4 lg:flex-row">
       <SpotlightCard avg={avg} total={total} cyclePct={cyclePct} teamsRanked={teamScores.length} />
-      <div className="flex w-[300px] shrink-0 flex-col gap-4">
+      <div className="flex w-full shrink-0 flex-col gap-4 sm:flex-row lg:w-[300px] lg:flex-col">
         <MetricCardComponent
           iconBg="bg-foreground/10"
           iconColor="text-foreground"
@@ -57,7 +58,7 @@ function SpotlightCard({
   teamsRanked: number
 }) {
   return (
-    <div className="flex flex-1 flex-col gap-6 rounded-2xl border border-foreground/20 bg-foreground/10 p-7">
+    <div className="flex flex-1 flex-col gap-4 rounded-lg border border-foreground/20 bg-foreground/10 p-4">
       <div className="flex flex-col gap-2">
         <span className="font-sans inline-block text-[11px] font-semibold uppercase leading-normal tracking-[0.8px] text-foreground">
           Current cycle · Snapshot
@@ -80,14 +81,14 @@ function SpotlightCard({
 
 function SubStat({ value, label }: { value: string; label: string }) {
   return (
-    <div className="flex items-center gap-1.5 rounded-full border border-foreground/10 bg-card px-3 py-1.5 shadow">
+    <Badge variant="outline" className="gap-1.5 border-border bg-card px-3 py-1.5">
       <span className="text-label text-primary">
         {value}
       </span>
       <span className="font-sans inline-block text-[11px] leading-normal text-muted-foreground">
         {label}
       </span>
-    </div>
+    </Badge>
   )
 }
 
@@ -111,15 +112,15 @@ function MetricCardComponent({
   star?: "purple" | "coral"
 }) {
   return (
-    <div className="flex flex-1 flex-col gap-3 rounded-2xl border border-border bg-card p-5 shadow-card">
+    <div className="flex flex-1 flex-col gap-3 rounded-lg border border-border bg-card p-4">
       <div className="flex items-center gap-3">
         <div
-          className={`flex size-[42px] shrink-0 items-center justify-center rounded-xl ${iconBg}`}
+          className={`flex size-[42px] shrink-0 items-center justify-center rounded-lg ${iconBg}`}
         >
           {star === "purple" ? (
-            <Star className={`size-5 ${iconColor}`} strokeWidth={2} />
+            <Star className={`size-5 ${iconColor}`} strokeWidth={2} aria-hidden="true" />
           ) : (
-            <UserMinus className={`size-5 ${iconColor}`} strokeWidth={2} />
+            <UserMinus className={`size-5 ${iconColor}`} strokeWidth={2} aria-hidden="true" />
           )}
         </div>
         <div className="flex flex-col gap-0.5">

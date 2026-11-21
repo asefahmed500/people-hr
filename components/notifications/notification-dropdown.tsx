@@ -13,6 +13,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { Button } from "@/components/ui/button"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 
 type NotificationDropdownProps = {
   items: Notification[]
@@ -42,41 +44,48 @@ export function NotificationDropdown({
 
   return (
     <DropdownMenu open={open} onOpenChange={setOpen}>
-      <DropdownMenuTrigger asChild>
-        <button
-          type="button"
-          aria-label={`Notifications${unreadCount > 0 ? ` (${unreadCount} unread)` : ""}`}
-          className={cn(
-            "relative flex size-10 items-center justify-center rounded-xl border transition-colors",
-            open
-              ? "border-primary bg-muted"
-              : "border-border bg-card hover:border-border",
-          )}
-        >
-          {unreadCount > 0 ? (
-            <>
-              <BellDot className="size-[18px] text-primary" strokeWidth={2} />
-              <span className="absolute -right-1.5 -top-1.5 flex min-w-[18px] items-center justify-center rounded-full border-2 border-card bg-foreground px-1 text-[10px] font-semibold leading-[18px] text-background shadow-sm">
-                {unreadCount > 9 ? "9+" : unreadCount}
-              </span>
-            </>
-          ) : (
-            <Bell className="size-[18px] text-secondary-foreground" strokeWidth={2} />
-          )}
-        </button>
-      </DropdownMenuTrigger>
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <DropdownMenuTrigger asChild>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                aria-label={`Notifications${unreadCount > 0 ? ` (${unreadCount} unread)` : ""}`}
+                className={cn(
+                  "relative size-9",
+                  open && "border-primary bg-muted",
+                )}
+              >
+                {unreadCount > 0 ? (
+                  <>
+                    <BellDot className="size-[18px] text-primary" strokeWidth={2} aria-hidden="true" />
+                    <span className="absolute -right-1.5 -top-1.5 flex min-w-[18px] items-center justify-center rounded-full border-2 border-card bg-foreground px-1 text-[10px] font-semibold leading-[18px] text-background">
+                      {unreadCount > 9 ? "9+" : unreadCount}
+                    </span>
+                  </>
+                ) : (
+                  <Bell className="size-[18px] text-secondary-foreground" strokeWidth={2} aria-hidden="true" />
+                )}
+              </Button>
+            </DropdownMenuTrigger>
+          </TooltipTrigger>
+          <TooltipContent>Notifications</TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
       <DropdownMenuContent
         align="end"
         sideOffset={10}
-        className="w-[380px] rounded-2xl border border-border bg-card p-0 shadow-card"
+        className="w-[min(380px,calc(100vw-2rem))] rounded-lg border border-border bg-card p-0"
       >
-        <div className="flex items-center justify-between border-b border-b-border px-5 py-3.5">
+        <div className="flex items-center justify-between border-b border-b-border px-4 py-3">
           <div className="flex items-center gap-2">
             <span className="font-sans text-[15px] font-semibold leading-normal text-foreground">
               Notifications
             </span>
             {unreadCount > 0 ? (
-              <span className="flex items-center justify-center rounded-full bg-foreground px-2 py-0.5 text-[10px] font-semibold leading-none text-background">
+              <span className="flex h-5 items-center justify-center rounded-full bg-foreground px-1.5 text-[10px] font-semibold leading-none text-background">
                 {unreadCount}
               </span>
             ) : null}
@@ -99,7 +108,7 @@ export function NotificationDropdown({
         </div>
         <div className="flex max-h-[400px] flex-col overflow-y-auto">
           {items.length === 0 ? (
-            <div className="flex flex-col items-center gap-2 px-5 py-10">
+            <div className="flex flex-col items-center gap-2 px-4 py-8">
               <Inbox className="size-8 text-muted-foreground" strokeWidth={1.5} />
               <span className="font-sans text-[13px] font-medium leading-normal text-muted-foreground">
                 No notifications yet
@@ -114,7 +123,7 @@ export function NotificationDropdown({
                 key={n.id}
                 onClick={() => handleClick(n)}
                 className={cn(
-                  "flex cursor-pointer flex-col gap-1.5 border-b border-b-border px-5 py-3.5 transition-colors focus:bg-muted",
+                  "flex cursor-pointer flex-col gap-1.5 border-b border-b-border px-4 py-3 transition-colors focus:bg-muted",
                   !n.read && "bg-muted",
                 )}
               >
@@ -150,7 +159,7 @@ export function NotificationDropdown({
             )}
         </div>
         {items.length > 0 ? (
-          <div className="border-t border-t-border px-5 py-2.5 text-center">
+          <div className="border-t border-t-border px-4 py-2 text-center">
             <span className="font-sans text-[11px] leading-normal text-muted-foreground">
               Click a notification to navigate
             </span>

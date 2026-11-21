@@ -8,11 +8,13 @@ import { DashboardShell } from "@/components/dashboard/dashboard-shell"
 import { ActionDialog } from "@/components/shared/dialog-parts"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { Field, SelectField, TextArea, useForm } from "@/components/shared/field"
+import { StoreErrorState } from "@/components/shared/store-error-state"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useApiStore } from "@/hooks/use-api-store"
 import { useAuth } from "@/hooks/use-auth"
 import { notify } from "@/lib/toast"
+import { DEPARTMENTS } from "@/lib/data/types"
 import {
   defaultAnnouncementsStore,
   type Announcement,
@@ -33,8 +35,13 @@ function fmtDate(ts: number): string {
   })
 }
 
+const audienceOptions = [
+  { value: "all", label: "Everyone" },
+  ...DEPARTMENTS.map((d) => ({ value: d, label: d })),
+]
+
 export function AnnouncementsPageClient() {
-  const { state, setState, hydrated } = useApiStore<AnnouncementsStore>(
+  const { state, setState, hydrated, error, retry } = useApiStore<AnnouncementsStore>(
     "/api/store/announcements",
     () => defaultAnnouncementsStore,
   )
@@ -101,12 +108,20 @@ export function AnnouncementsPageClient() {
     setDeleteTarget(null)
   }
 
+  if (error) {
+    return (
+      <DashboardShell activeHref="/announcements" current="Announcements">
+        <StoreErrorState onRetry={retry} />
+      </DashboardShell>
+    )
+  }
+
   if (!hydrated) {
     return (
       <DashboardShell activeHref="/announcements" current="Announcements">
         <Skeleton className="h-8 w-[220px] rounded-lg" />
-        <Skeleton className="mt-4 h-24 w-full rounded-2xl" />
-        <Skeleton className="mt-5 h-[300px] w-full rounded-2xl" />
+        <Skeleton className="mt-4 h-24 w-full rounded-lg" />
+        <Skeleton className="mt-5 h-[300px] w-full rounded-lg" />
       </DashboardShell>
     )
   }
@@ -134,7 +149,7 @@ export function AnnouncementsPageClient() {
         </div>
 
         {sorted.length === 0 ? (
-          <div className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-border bg-card py-16">
+          <div className="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border bg-muted py-16">
             <Megaphone className="size-8 text-muted-foreground" strokeWidth={1.5} />
             <p className="font-sans text-sm font-medium text-foreground">No announcements yet</p>
             <p className="font-sans text-[12.5px] text-muted-foreground">
@@ -148,12 +163,12 @@ export function AnnouncementsPageClient() {
             {sorted.map((a) => (
               <article
                 key={a.id}
-                className="flex flex-col gap-2 rounded-2xl border border-border bg-card p-5 shadow-card"
+                className="flex flex-col gap-2 rounded-lg border border-border bg-card p-4"
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex min-w-0 flex-wrap items-center gap-2">
                     {a.pinned ? (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2 py-0.5 font-sans text-[11px] font-medium text-amber-700 dark:text-amber-400">
+                      <span className="inline-flex items-center gap-1 rounded-full bg-foreground px-2 py-0.5 font-sans text-[11px] font-semibold text-background">
                         <Pin className="size-3" />
                         Pinned
                       </span>
@@ -180,7 +195,7 @@ export function AnnouncementsPageClient() {
                   {a.body}
                 </p>
                 <span className="font-sans text-[11.5px] text-muted-foreground">
-                  {a.author} · {fmtDate(a.createdAt)}
+                  {a.author} Â· {fmtDate(a.createdAt)}
                 </span>
               </article>
             ))}
@@ -188,11 +203,11 @@ export function AnnouncementsPageClient() {
         )}
       </DashboardShell>
 
-      <ActionDialog
+      <ActionDialog width="wide"
         open={composeOpen}
         onOpenChange={setComposeOpen}
         title="New announcement"
-        description="Everyone in the workspace will see this."
+        description={form.values.audience === "all" ? "Everyone in the workspace will see this." : `Only the ${form.values.audience} department will see this.`}
         submitLabel="Post announcement"
         submitting={submitting}
         onSubmit={handleCompose}
@@ -209,30 +224,22 @@ export function AnnouncementsPageClient() {
           label="Body"
           value={form.values.body}
           onChange={(v) => form.setValue("body", v)}
-          placeholder="Write the announcement…"
+          placeholder="Write the announcementâ€¦"
           rows={5}
+          error={form.errors.body}
         />
         <SelectField
           label="Audience"
           value={form.values.audience}
           onChange={(v) => form.setValue("audience", v)}
-          options={[
-            { value: "all", label: "Everyone" },
-            { value: "Engineering", label: "Engineering" },
-            { value: "Design", label: "Design" },
-            { value: "Product", label: "Product" },
-            { value: "Sales", label: "Sales" },
-            { value: "Marketing", label: "Marketing" },
-            { value: "People", label: "People" },
-            { value: "Finance", label: "Finance" },
-          ]}
+          options={audienceOptions}
         />
       </ActionDialog>
 
       <ConfirmDialog
         open={!!deleteTarget}
         onOpenChange={(o) => !o && setDeleteTarget(null)}
-        title={`Delete “${deleteTarget?.title ?? ""}”?`}
+        title={`Delete â€œ${deleteTarget?.title ?? ""}â€?`}
         description="This permanently removes the announcement for everyone."
         confirmLabel="Delete"
         destructive

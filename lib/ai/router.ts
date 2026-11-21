@@ -3,7 +3,7 @@ import {
   type AITaskClassification,
   type AIRequest,
 } from "./types";
-import { getAIEnv, getModelForTier } from "./env";
+import { getModelForTier } from "./env";
 
 const TIER_CONFIG: Record<
   AIModelTier,

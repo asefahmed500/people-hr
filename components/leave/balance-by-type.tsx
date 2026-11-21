@@ -1,23 +1,22 @@
 import type { Balances } from "@/lib/data"
-import { cn } from "@/lib/utils"
+import { Progress } from "@/components/ui/progress"
 
 type Balance = {
   label: string
   meta: string
   fillPct: number
-  fill: string
 }
 
-const BALANCE_MAP: Record<string, { label: string; fill: string }> = {
-  annual: { label: "Vacation", fill: "bg-primary" },
-  sick: { label: "Sick", fill: "bg-secondary-foreground" },
-  personal: { label: "Personal", fill: "bg-muted-foreground" },
-  parental: { label: "Parental", fill: "bg-foreground" },
+const BALANCE_MAP: Record<string, { label: string }> = {
+  annual: { label: "Vacation" },
+  sick: { label: "Sick" },
+  personal: { label: "Personal" },
+  parental: { label: "Parental" },
 }
 
 export function BalanceByType({ balances }: { balances?: Balances }) {
   const b = balances ?? { annual: null, sick: null, personal: null, parental: null }
-  const items: Balance[] = (Object.entries(BALANCE_MAP) as [keyof Balances, { label: string; fill: string }][]).map(
+  const items: Balance[] = (Object.entries(BALANCE_MAP) as [keyof Balances, { label: string }][]).map(
     ([key, meta]) => {
       const entry = b[key]
       const used = entry?.used ?? 0
@@ -28,13 +27,12 @@ export function BalanceByType({ balances }: { balances?: Balances }) {
         label: meta.label,
         meta: total > 0 ? `${used}d used · ${left}d left` : "No balance yet",
         fillPct,
-        fill: meta.fill,
       }
     },
   )
 
   return (
-    <div className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-5 shadow-card">
+    <div className="flex flex-col gap-4 rounded-lg border border-border bg-card p-4">
       <h2 className="text-h4">
         Balance by type
       </h2>
@@ -49,12 +47,7 @@ export function BalanceByType({ balances }: { balances?: Balances }) {
                 {balance.meta}
               </span>
             </div>
-            <div className="flex h-1.5 w-full rounded-full bg-muted">
-              <div
-                className={cn("h-full rounded-full", balance.fill)}
-                style={{ width: `${balance.fillPct}%` }}
-              />
-            </div>
+            <Progress value={balance.fillPct} className="h-1.5" />
           </div>
         ))}
       </div>

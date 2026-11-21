@@ -1,10 +1,11 @@
 import Link from "next/link"
+import { ArrowLeft } from "lucide-react"
 
 export default function PrivacyPage() {
   return (
-    <main className="mx-auto flex min-h-svh max-w-3xl flex-col gap-6 px-6 py-12">
-      <h1 className="text-h1">Privacy Policy</h1>
-      <div className="flex flex-col gap-4 font-sans text-[14px] leading-relaxed text-secondary-foreground">
+    <main className="mx-auto flex min-h-svh max-w-3xl flex-col items-center gap-6 px-6 py-16 text-center">
+      <h1 className="joi-statement">Privacy Policy</h1>
+      <div className="flex w-full flex-col gap-4 text-left font-sans text-[14px] leading-relaxed text-secondary-foreground">
         <p>Last updated: {new Date().toISOString().slice(0, 10)}</p>
         <p>
           PeopleHR stores the data you provide — such as your name, email and people records — to
@@ -21,8 +22,12 @@ export default function PrivacyPage() {
           Contact us through the support options in the app if you have privacy questions.
         </p>
       </div>
-      <Link href="/" className="font-sans text-[13px] font-semibold text-primary">
-        ← Back to PeopleHR
+      <Link
+        href="/"
+        className="mt-2 inline-flex items-center gap-1.5 font-sans text-[13px] font-semibold text-primary transition-colors hover:text-foreground"
+      >
+        <ArrowLeft className="size-4" strokeWidth={2} aria-hidden="true" />
+        Back to PeopleHR
       </Link>
     </main>
   )

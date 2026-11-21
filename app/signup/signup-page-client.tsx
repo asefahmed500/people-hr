@@ -3,11 +3,14 @@
 import * as React from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { ArrowRight, Eye, EyeOff } from "lucide-react"
+import { ArrowRight, Eye, EyeOff, Globe } from "lucide-react"
 import { z } from "zod"
 
 import { AuthBrandPanel } from "@/components/auth/auth-brand-panel"
 import { AuthInput } from "@/components/auth/auth-input"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import { useAuth } from "@/hooks/use-auth"
 import { notify } from "@/lib/toast"
 
@@ -124,15 +127,10 @@ export function SignupPageClient() {
                 type="button"
                 onClick={handleGoogle}
                 disabled={submitting}
-                className="flex h-12 w-full items-center justify-center gap-2.5 rounded-lg border border-border bg-card px-4 py-0 shadow-card transition-colors hover:bg-muted disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                className="flex h-9 w-full items-center justify-center gap-2.5 rounded-md border border-border bg-card px-4 transition-colors hover:bg-muted disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
               >
-                <svg className="size-5" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-                  <path fill="#FFC107" d="M43.611,20.083H42V20H24v8h11.303c-1.649,4.657-6.08,8-11.303,8c-6.627,0-12-5.373-12-12c0-6.627,5.373-12,12-12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C12.955,4,4,12.955,4,24c0,11.045,8.955,20,20,20c11.045,0,20-8.955,20-20C44,22.659,43.862,21.35,43.611,20.083z" />
-                  <path fill="#FF3D00" d="M6.306,14.691l6.571,4.819C14.655,15.108,18.961,12,24,12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C16.318,4,9.656,8.337,6.306,14.691z" />
-                  <path fill="#4CAF50" d="M24,44c5.166,0,9.86-1.977,13.409-5.192l-6.19-5.238C29.211,35.091,26.715,36,24,36c-5.202,0-9.619-3.317-11.283-7.946l-6.522,5.025C9.505,39.556,16.227,44,24,44z" />
-                  <path fill="#1976D2" d="M43.611,20.083H42V20H24v8h11.303c-0.792,2.237-2.231,4.166-4.087,5.571l6.19,5.238C36.971,39.205,44,34,44,24C44,22.659,43.862,21.35,43.611,20.083z" />
-                </svg>
-                <span className="font-sans text-sm font-semibold text-secondary-foreground">
+                <Globe className="size-4 text-foreground" strokeWidth={2} aria-hidden="true" />
+                <span className="font-sans text-sm font-medium text-secondary-foreground">
                   Sign up with Google
                 </span>
               </button>
@@ -207,12 +205,12 @@ export function SignupPageClient() {
               error={errors.confirm}
             />
 
-            <label className="flex items-start gap-2.5">
-              <input
-                type="checkbox"
+            <label htmlFor="signup-agree" className="flex items-start gap-2.5">
+              <Checkbox
+                id="signup-agree"
                 checked={values.agree}
-                onChange={(e) => update("agree", e.target.checked)}
-                className="mt-0.5 size-4 shrink-0 accent-primary"
+                onCheckedChange={(checked) => update("agree", checked === true)}
+                className="mt-0.5"
               />
               <span className="font-sans text-xs leading-normal text-muted-foreground">
                 I agree to the{" "}
@@ -231,19 +229,17 @@ export function SignupPageClient() {
             ) : null}
 
             {formError ? (
-              <div className="rounded-lg border border-border bg-muted px-3.5 py-2.5 font-sans text-[12.5px] text-foreground">
-                {formError}
-              </div>
+              <Alert className="bg-muted font-sans text-[12.5px] text-foreground">
+                <AlertDescription className="font-sans text-[12.5px] text-foreground">
+                  {formError}
+                </AlertDescription>
+              </Alert>
             ) : null}
 
-            <button
-              type="submit"
-              disabled={submitting}
-              className="mt-1 flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-primary font-sans text-[15px] font-medium text-primary-foreground shadow-card transition-colors hover:bg-primary/90 disabled:opacity-60"
-            >
+            <Button type="submit" disabled={submitting} className="mt-1 w-full">
               Create account
-              <ArrowRight className="size-[17px]" strokeWidth={2} />
-            </button>
+              <ArrowRight className="size-4" strokeWidth={2} aria-hidden="true" />
+            </Button>
           </form>
 
           <div className="mt-8 flex items-center justify-center gap-1.5">

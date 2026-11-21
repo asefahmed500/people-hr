@@ -6,8 +6,15 @@ import { Check, RotateCcw, ScanFace, X } from "lucide-react"
 import { apiRequest, ApiError } from "@/lib/api-client"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { Skeleton } from "@/components/ui/skeleton"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 import { notify } from "@/lib/toast"
-import { cn } from "@/lib/utils"
 
 type Enrollment = {
   userId: string
@@ -18,6 +25,12 @@ type Enrollment = {
   enrolledAt: string | null
   reviewedAt: string | null
   reviewedBy: string | null
+}
+
+const statusVariant: Record<Enrollment["status"], "secondary" | "outline" | "destructive"> = {
+  approved: "secondary",
+  pending: "outline",
+  rejected: "destructive",
 }
 
 /** Admin panel: approve / reject / reset employee face registrations. */
@@ -90,125 +103,139 @@ export function FaceRegistrationsCard({ onChanged }: { onChanged?: () => void })
   }
 
   return (
-    <div className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-6">
-      <div className="flex items-center gap-2">
-        <ScanFace className="size-4.5 text-primary" strokeWidth={2} />
-        <h3 className="text-h4">Face registrations</h3>
+    <TooltipProvider>
+      <div className="flex flex-col gap-4 rounded-lg border border-border bg-card p-4">
+        <div className="flex items-center gap-2">
+          <ScanFace className="size-4.5 text-primary" strokeWidth={2} aria-hidden="true" />
+          <h3 className="text-h4">Face registrations</h3>
+        </div>
+        <span className="font-sans text-[12px] leading-normal text-muted-foreground">
+          Employees register their own face; nothing becomes usable for check-ins until you approve it. Reset lets someone re-register (e.g. after a camera change).
+        </span>
+
+        {error ? (
+          <div className="flex items-center justify-between gap-3 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3">
+            <span className="font-sans text-[12.5px] text-destructive">{error}</span>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => void load()}
+              className="font-sans text-[12px] font-medium"
+            >
+              Retry
+            </Button>
+          </div>
+        ) : null}
+
+        {items === null && !error ? (
+          <div className="flex flex-col gap-2">
+            <Skeleton className="h-12 w-full rounded-lg" />
+            <Skeleton className="h-12 w-full rounded-lg" />
+          </div>
+        ) : null}
+
+        {items?.length === 0 ? (
+          <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed border-border bg-muted px-4 py-8 text-center">
+            <ScanFace className="size-5 shrink-0 text-muted-foreground" aria-hidden="true" strokeWidth={2} />
+            <p className="font-sans text-[13px] font-semibold text-foreground">No face registrations yet</p>
+            <p className="font-sans text-[12.5px] leading-normal text-muted-foreground">
+              Employees register from the face check-in card above.
+            </p>
+          </div>
+        ) : null}
+
+        {items && items.length > 0 ? (
+          <div className="flex flex-col divide-y divide-border">
+            {items.map((e) => (
+              <div key={e.userId} className="flex items-center gap-3 py-3">
+                <div className="flex min-w-0 flex-1 flex-col">
+                  <span className="truncate font-sans text-[13px] font-medium text-foreground">
+                    {e.userName}
+                    {!e.active ? " · inactive" : ""}
+                  </span>
+                  <span className="font-sans text-[11.5px] text-muted-foreground">
+                    {e.department ?? "No department"}
+                    {e.enrolledAt ? ` · registered ${new Date(e.enrolledAt).toLocaleDateString()}` : ""}
+                  </span>
+                </div>
+                <Badge variant={statusVariant[e.status]} className="shrink-0 text-[11px] font-semibold">
+                  {e.status === "approved" ? "Approved" : e.status === "pending" ? "Pending" : "Rejected"}
+                </Badge>
+                <div className="flex shrink-0 items-center gap-1">
+                  {e.status !== "approved" ? (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon-sm"
+                          disabled={busyId === e.userId || !e.active}
+                          onClick={() => void act(e.userId, "approve")}
+                          aria-label={`Approve ${e.userName}'s face registration`}
+                        >
+                          <Check className="size-3.5" aria-hidden="true" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Approve</TooltipContent>
+                    </Tooltip>
+                  ) : null}
+                  {e.status !== "rejected" ? (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon-sm"
+                          disabled={busyId === e.userId}
+                          onClick={() => void act(e.userId, "reject")}
+                          aria-label={`Reject ${e.userName}'s face registration`}
+                        >
+                          <X className="size-3.5" aria-hidden="true" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Reject</TooltipContent>
+                    </Tooltip>
+                  ) : null}
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon-sm"
+                        disabled={busyId === e.userId}
+                        onClick={() => setResetTarget(e)}
+                        aria-label={`Reset ${e.userName}'s face registration`}
+                      >
+                        <RotateCcw className="size-3.5" aria-hidden="true" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Reset (allow re-registration)</TooltipContent>
+                  </Tooltip>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : null}
+
+        <ConfirmDialog
+          open={!!resetTarget}
+          onOpenChange={(o) => {
+            if (!o) setResetTarget(null)
+          }}
+          title="Reset face registration?"
+          description={
+            resetTarget
+              ? `Delete ${resetTarget.userName}'s stored face so they can register again. Their check-in history is not affected.`
+              : undefined
+          }
+          confirmLabel="Reset"
+          destructive
+          onConfirm={() => {
+            if (resetTarget) void reset(resetTarget.userId)
+          }}
+        />
       </div>
-      <span className="font-sans text-[12px] leading-normal text-muted-foreground">
-        Employees register their own face; nothing becomes usable for check-ins until you approve it. Reset lets someone re-register (e.g. after a camera change).
-      </span>
-
-      {error ? (
-        <div className="flex items-center justify-between gap-3 rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3">
-          <span className="font-sans text-[12.5px] text-destructive">{error}</span>
-          <button
-            type="button"
-            onClick={() => void load()}
-            className="h-8 rounded-lg border border-border bg-card px-3 font-sans text-[12px] font-medium text-foreground hover:bg-muted"
-          >
-            Retry
-          </button>
-        </div>
-      ) : null}
-
-      {items === null && !error ? (
-        <div className="flex flex-col gap-2">
-          <Skeleton className="h-12 w-full rounded-xl" />
-          <Skeleton className="h-12 w-full rounded-xl" />
-        </div>
-      ) : null}
-
-      {items?.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-border px-4 py-8 text-center">
-          <span className="font-sans text-[12.5px] leading-normal text-muted-foreground">
-            No face registrations yet. Employees register from the face check-in card above.
-          </span>
-        </div>
-      ) : null}
-
-      {items && items.length > 0 ? (
-        <div className="flex flex-col divide-y divide-border">
-          {items.map((e) => (
-            <div key={e.userId} className="flex items-center gap-3 py-3">
-              <div className="flex min-w-0 flex-1 flex-col">
-                <span className="truncate font-sans text-[13px] font-medium text-foreground">
-                  {e.userName}
-                  {!e.active ? " · inactive" : ""}
-                </span>
-                <span className="font-sans text-[11.5px] text-muted-foreground">
-                  {e.department ?? "No department"}
-                  {e.enrolledAt ? ` · registered ${new Date(e.enrolledAt).toLocaleDateString()}` : ""}
-                </span>
-              </div>
-              <span
-                className={cn(
-                  "shrink-0 rounded-full px-2.5 py-0.5 font-sans text-[11px] font-semibold",
-                  e.status === "approved" && "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
-                  e.status === "pending" && "bg-amber-500/10 text-amber-700 dark:text-amber-400",
-                  e.status === "rejected" && "bg-destructive/10 text-destructive",
-                )}
-              >
-                {e.status === "approved" ? "Approved" : e.status === "pending" ? "Pending" : "Rejected"}
-              </span>
-              <div className="flex shrink-0 items-center gap-1">
-                {e.status !== "approved" ? (
-                  <button
-                    type="button"
-                    disabled={busyId === e.userId || !e.active}
-                    onClick={() => void act(e.userId, "approve")}
-                    title="Approve"
-                    aria-label={`Approve ${e.userName}'s face registration`}
-                    className="flex size-8 items-center justify-center rounded-lg border border-border bg-card text-emerald-600 hover:bg-muted disabled:opacity-50 dark:text-emerald-400"
-                  >
-                    <Check className="size-3.5" />
-                  </button>
-                ) : null}
-                {e.status !== "rejected" ? (
-                  <button
-                    type="button"
-                    disabled={busyId === e.userId}
-                    onClick={() => void act(e.userId, "reject")}
-                    title="Reject"
-                    aria-label={`Reject ${e.userName}'s face registration`}
-                    className="flex size-8 items-center justify-center rounded-lg border border-border bg-card text-destructive hover:bg-muted disabled:opacity-50"
-                  >
-                    <X className="size-3.5" />
-                  </button>
-                ) : null}
-                <button
-                  type="button"
-                  disabled={busyId === e.userId}
-                  onClick={() => setResetTarget(e)}
-                  title="Reset (allow re-registration)"
-                  aria-label={`Reset ${e.userName}'s face registration`}
-                  className="flex size-8 items-center justify-center rounded-lg border border-border bg-card text-secondary-foreground hover:bg-muted disabled:opacity-50"
-                >
-                  <RotateCcw className="size-3.5" />
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      ) : null}
-
-      <ConfirmDialog
-        open={!!resetTarget}
-        onOpenChange={(o) => {
-          if (!o) setResetTarget(null)
-        }}
-        title="Reset face registration?"
-        description={
-          resetTarget
-            ? `Delete ${resetTarget.userName}'s stored face so they can register again. Their check-in history is not affected.`
-            : undefined
-        }
-        confirmLabel="Reset"
-        destructive
-        onConfirm={() => {
-          if (resetTarget) void reset(resetTarget.userId)
-        }}
-      />
-    </div>
+    </TooltipProvider>
   )
 }

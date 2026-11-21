@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import type { ChatCompletionMessageParam, ChatCompletionMessageFunctionToolCall } from "openai/resources/chat/completions";
 import {
   type AIProvider,
   type AIRequest,
@@ -8,7 +9,57 @@ import {
   type AIToolCall,
   type AIToolDefinition,
 } from "./types";
-import { getLLMConfig } from "./env";
+import { getAIEnv, getLLMConfig } from "./env";
+
+/**
+ * Raised when no LLM credentials are configured. API routes can map this to
+ * HTTP 503 instead of a misleading generic failure.
+ */
+function toOutboundMessages(messages: AIRequest["messages"]): ChatCompletionMessageParam[] {
+  return messages.map((m) => {
+    if (m.role === "tool") {
+      return { role: "tool", content: m.content, tool_call_id: m.toolCallId ?? "" }
+    }
+    if (m.role === "assistant" && m.toolCalls?.length) {
+      return {
+        role: "assistant",
+        content: m.content,
+        tool_calls: m.toolCalls.map((tc) => ({
+          id: tc.id,
+          type: "function" as const,
+          function: { name: tc.name, arguments: tc.arguments },
+        })),
+      }
+    }
+    return { role: m.role, content: m.content }
+  })
+}
+
+export class AIUnavailableError extends Error {
+  readonly code = "AI_UNAVAILABLE";
+
+  constructor(message: string) {
+    super(message);
+    this.name = "AIUnavailableError";
+    Object.setPrototypeOf(this, AIUnavailableError.prototype);
+  }
+}
+
+/**
+ * Resolve a coherent (key, endpoint) pair. `getLLMConfig()` mixes an OpenAI
+ * `LLM_API_KEY` with the Z.AI base URL when both are configured; keep key and
+ * endpoint from the same provider (matching the assistant chat resolution).
+ */
+function resolveProviderConfig(): { apiKey: string; baseURL: string; model: string } {
+  const env = getAIEnv();
+  const zaiKey = env.ZAI_API_KEY || env.ZHIPU_API_KEY || env.GLM_API_KEY || "";
+  const apiKey = env.LLM_API_KEY || zaiKey;
+  const usingZaiAlias = !env.LLM_API_KEY && !!zaiKey;
+  const baseURL =
+    process.env.LLM_BASE_URL ||
+    (usingZaiAlias ? "https://api.z.ai/api/paas/v4" : "https://api.openai.com/v1");
+  return { apiKey, baseURL, model: getLLMConfig().model };
+}
 
 function buildTools(tools?: AIToolDefinition[]) {
   if (!tools?.length) return undefined;
@@ -33,7 +84,7 @@ export class OpenAICompatibleProvider implements AIProvider {
   private config: ReturnType<typeof getLLMConfig>;
 
   constructor(config?: { apiKey?: string; baseURL?: string }) {
-    const llm = getLLMConfig();
+    const llm = resolveProviderConfig();
     this.config = {
       apiKey: config?.apiKey || llm.apiKey,
       baseURL: config?.baseURL || llm.baseURL,
@@ -44,7 +95,9 @@ export class OpenAICompatibleProvider implements AIProvider {
   private getClient(): OpenAI {
     if (this.client) return this.client;
     if (!this.config.apiKey) {
-      throw new Error("No LLM API key configured. Set LLM_API_KEY or ZAI_API_KEY.");
+      throw new AIUnavailableError(
+        "The AI service is unavailable: no LLM API key configured. Set LLM_API_KEY or a Z.AI alias.",
+      );
     }
     this.client = new OpenAI({
       apiKey: this.config.apiKey,
@@ -69,23 +122,7 @@ export class OpenAICompatibleProvider implements AIProvider {
     const model = req.model || this.config.model;
     const requestId = req.requestId || crypto.randomUUID();
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const messages: any[] = req.messages.map((m) => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const msg: any = {
-        role: m.role,
-        content: m.content,
-      };
-      if (m.toolCallId) msg.tool_call_id = m.toolCallId;
-      if (m.toolCalls?.length) {
-        msg.tool_calls = m.toolCalls.map((tc) => ({
-          id: tc.id,
-          type: "function" as const,
-          function: { name: tc.name, arguments: tc.arguments },
-        }));
-      }
-      return msg;
-    });
+    const messages = toOutboundMessages(req.messages);
 
     const response = await client.chat.completions.create({
       model,
@@ -105,8 +142,9 @@ export class OpenAICompatibleProvider implements AIProvider {
       estimatedCost: 0,
     };
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const toolCalls: AIToolCall[] | undefined = choice.message.tool_calls?.map((tc: any) => ({
+    const toolCalls: AIToolCall[] | undefined = choice.message.tool_calls
+      ?.filter((tc): tc is ChatCompletionMessageFunctionToolCall => tc.type === "function")
+      .map((tc) => ({
       id: tc.id,
       name: tc.function.name,
       arguments: tc.function.arguments,
@@ -125,25 +163,11 @@ export class OpenAICompatibleProvider implements AIProvider {
   async *stream(req: AIRequest): AsyncGenerator<AIStreamChunk> {
     const client = this.getClient();
     const model = req.model || this.config.model;
-    const requestId = req.requestId || crypto.randomUUID();
+    // A streamed response does not need a local request id; callers that care
+    // can supply their own on the request.
+    void req.requestId;
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const messages: any[] = req.messages.map((m) => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const msg: any = {
-        role: m.role,
-        content: m.content,
-      };
-      if (m.toolCallId) msg.tool_call_id = m.toolCallId;
-      if (m.toolCalls?.length) {
-        msg.tool_calls = m.toolCalls.map((tc) => ({
-          id: tc.id,
-          type: "function" as const,
-          function: { name: tc.name, arguments: tc.arguments },
-        }));
-      }
-      return msg;
-    });
+    const messages = toOutboundMessages(req.messages);
 
     const stream = await client.chat.completions.create({
       model,

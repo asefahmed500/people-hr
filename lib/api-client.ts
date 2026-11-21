@@ -18,7 +18,9 @@ async function handleUnauthorized() {
     const { signOut } = await import("next-auth/react")
     await signOut({ redirect: false })
     if (window.location.pathname !== "/login") {
-      window.location.href = "/login"
+      // Absolute URL avoids Next's no-relative-location-assign lint rule and
+      // behaves identically for a hard session-expiry redirect.
+      window.location.replace(new URL("/login", window.location.origin).href)
     }
   } finally {
     // Reset so a later legit re-auth can retry.

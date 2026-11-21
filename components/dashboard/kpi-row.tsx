@@ -10,6 +10,7 @@ import {
   type LucideIcon,
 } from "lucide-react"
 
+import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
 import type { AttendanceStore, Employee } from "@/lib/data"
 
@@ -26,19 +27,16 @@ type Kpi = {
   deltaDirection: "up" | "down"
 }
 
-const deltaStyles: Record<Tone, { bg: string; icon: string; text: string }> = {
+const deltaStyles: Record<Tone, { icon: string; text: string }> = {
   forest: {
-    bg: "bg-foreground/10",
     icon: "text-secondary-foreground",
     text: "text-secondary-foreground",
   },
   amber: {
-    bg: "bg-foreground/10",
     icon: "text-secondary-foreground",
     text: "text-secondary-foreground",
   },
   coral: {
-    bg: "bg-foreground/10",
     icon: "text-foreground",
     text: "text-foreground",
   },
@@ -133,7 +131,7 @@ function KpiCard({ kpi }: { kpi: Kpi }) {
   const DeltaIcon = kpi.deltaDirection === "up" ? ArrowUpRight : ArrowDownRight
   const delta = deltaStyles[kpi.deltaTone]
   return (
-    <div className="flex flex-1 flex-col gap-3.5 rounded-2xl border border-border bg-card p-5 shadow-card">
+    <div className="flex flex-1 flex-col gap-3.5 rounded-lg border border-border bg-card p-4">
       <div className="flex items-center justify-between">
         <div
           className={cn(
@@ -141,24 +139,15 @@ function KpiCard({ kpi }: { kpi: Kpi }) {
             kpi.iconBg,
           )}
         >
-          <Icon className={cn("size-[19px]", kpi.iconColor)} strokeWidth={2} />
+          <Icon className={cn("size-[19px]", kpi.iconColor)} strokeWidth={2} aria-hidden="true" />
         </div>
-        <div
-          className={cn(
-            "flex items-center gap-[3px] rounded-full px-[7px] py-[3px]",
-            delta.bg,
-          )}
+        <Badge
+          variant="secondary"
+          className={cn("gap-[3px] bg-foreground/10 px-[7px] py-0 font-sans", delta.text)}
         >
-          <DeltaIcon className={cn("size-3", delta.icon)} strokeWidth={2} />
-          <span
-            className={cn(
-              "font-sans text-[11px] font-semibold leading-normal",
-              delta.text,
-            )}
-          >
-            {kpi.delta}
-          </span>
-        </div>
+          <DeltaIcon className={cn("size-3", delta.icon)} strokeWidth={2} aria-hidden="true" />
+          <span className="text-[11px] font-semibold leading-normal">{kpi.delta}</span>
+        </Badge>
       </div>
       <div className="flex flex-col gap-0.5">
         <div className="text-stat">

@@ -1,5 +1,7 @@
 "use client"
 
+import { BarChart3 } from "lucide-react"
+
 import { cn } from "@/lib/utils"
 import type { CheckIn } from "@/lib/data"
 
@@ -24,7 +26,7 @@ export function DeptHeatCard({ checkIns = [] }: { checkIns?: CheckIn[] }) {
   })
 
   return (
-    <div className="flex flex-1 flex-col gap-4 rounded-2xl border border-border bg-card p-6">
+    <div className="flex flex-1 flex-col gap-4 rounded-lg border border-border bg-card p-4">
       <div className="flex items-center justify-between">
         <h2 className="font-sans inline-block text-sm font-semibold text-foreground">
           Attendance by department
@@ -34,16 +36,18 @@ export function DeptHeatCard({ checkIns = [] }: { checkIns?: CheckIn[] }) {
         </span>
       </div>
       {tiles.length === 0 ? (
-        <p className="rounded-xl border border-dashed border-border bg-muted px-4 py-6 text-center font-sans text-xs text-muted-foreground">
-          No check-ins to break down yet.
-        </p>
+        <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed border-border bg-muted px-4 py-8 text-center">
+          <BarChart3 className="size-5 shrink-0 text-muted-foreground" aria-hidden="true" strokeWidth={2} />
+          <p className="font-sans text-[13px] font-semibold text-foreground">No check-ins to break down</p>
+          <p className="font-sans text-xs text-muted-foreground">Department rates appear here once people check in.</p>
+        </div>
       ) : (
         <div className="flex flex-wrap gap-3">
           {tiles.map((tile) => (
             <div
               key={tile.dept}
               className={cn(
-                "flex min-w-[150px] flex-1 flex-col gap-1 rounded-xl p-4",
+                "flex min-w-[150px] flex-1 flex-col gap-1 rounded-lg p-4",
                 tile.tileBg,
               )}
             >

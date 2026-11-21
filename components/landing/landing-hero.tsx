@@ -1,25 +1,31 @@
 import Link from "next/link"
-import { ArrowRight, Check, Play } from "lucide-react"
+import { ArrowRight, Check, Play, Sparkles } from "lucide-react"
+
+import { Badge } from "@/components/ui/badge"
 
 export function LandingHero() {
   return (
     <section className="flex w-full flex-col items-center gap-8 px-5 pb-14 pt-[72px] text-center sm:px-10 lg:px-20">
-      <div className="flex w-full max-w-[720px] flex-col items-center gap-[22px]">
-        <div className="flex w-fit items-center gap-2 rounded-full border border-foreground/20 bg-foreground/10 px-3.5 py-1.5">
-          <span className="size-[7px] shrink-0 rounded-full bg-primary" />
-          <span className="font-sans text-xs font-semibold uppercase tracking-[0.09em] text-primary">
-            The modern HR platform
-          </span>
-        </div>
+      <div className="flex w-full max-w-[900px] flex-col items-center gap-[22px]">
+        <Badge
+          variant="outline"
+          className="h-auto gap-2 rounded-md bg-card px-3.5 py-1.5 font-sans text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground"
+        >
+          <span className="size-[7px] shrink-0 rounded-full bg-foreground" aria-hidden="true" />
+          The modern HR platform
+        </Badge>
 
-        <h1 className="flex flex-wrap justify-center gap-x-[15px] text-[44px] font-semibold leading-[1.04] tracking-[-0.02em] text-foreground sm:text-[58px]">
-          <span>People ops that</span>
-          <span className="bg-clip-text bg-foreground text-transparent">
-            runs itself.
-          </span>
+        <h1 className="joi-display mx-auto max-w-[900px]">
+          People ops that{" "}
+          <Sparkles
+            className="mx-[0.1em] inline-block size-[0.68em] align-[-0.06em] text-foreground"
+            strokeWidth={2}
+            aria-hidden="true"
+          />{" "}
+          runs itself.
         </h1>
 
-        <p className="max-w-[520px] font-sans text-[15px] leading-[1.6] text-secondary-foreground sm:text-[17px]">
+        <p className="max-w-[520px] font-sans text-sm leading-[1.6] text-muted-foreground sm:text-[15px]">
           Onboarding, attendance, leave, payroll and performance in one calm
           workspace. Automations do the busywork so your team can focus on
           people.
@@ -29,22 +35,22 @@ export function LandingHero() {
           <div className="flex flex-col items-center gap-3 sm:flex-row">
             <Link
               href="/signup"
-              className="flex h-[52px] items-center gap-2 rounded-xl bg-primary px-[26px] font-sans text-[15px] font-medium text-primary-foreground shadow-card transition-colors hover:bg-primary/90"
+              className="flex h-9 items-center gap-2 rounded-md bg-primary px-4 font-sans text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
             >
               Start free trial
-              <ArrowRight className="size-[17px]" strokeWidth={2} />
+              <ArrowRight className="size-4" strokeWidth={2} aria-hidden="true" />
             </Link>
             <Link
               href="/login?callbackUrl=%2Fdashboard"
-              className="flex h-[52px] items-center gap-[9px] rounded-xl border border-border bg-card px-[22px] font-sans text-[15px] font-medium text-secondary-foreground shadow-card transition-colors hover:bg-muted"
+              className="flex h-9 items-center gap-2 rounded-md border border-border bg-card px-4 font-sans text-sm font-medium text-foreground transition-colors hover:bg-muted"
             >
-              <Play className="size-[18px] text-primary" strokeWidth={2} />
+              <Play className="size-4 text-foreground" strokeWidth={2} aria-hidden="true" />
               Explore the demo
             </Link>
           </div>
-          <div className="flex items-center gap-[7px]">
-            <Check className="size-[15px] text-primary" strokeWidth={2} />
-            <span className="font-sans text-[13px] leading-normal text-muted-foreground">
+          <div className="flex items-center gap-1.5">
+            <Check className="size-4 text-foreground" strokeWidth={2} aria-hidden="true" />
+            <span className="font-sans text-xs leading-normal text-muted-foreground">
               Free for 14 days · No credit card required
             </span>
           </div>

@@ -42,11 +42,11 @@ export function HeadcountChart({ employees }: { employees?: Employee[] }) {
     : "0.0 yrs"
   const active = empData.filter((e) => e.status !== "leave" && e.status !== "inactive").length
   const departed = empData.filter((e) => e.status === "inactive").length
-  const retention = total > 0 ? `${Math.round((active / total) * 1000) / 10}%` : "—"
+  const retention = total > 0 ? `${Math.round((active / total) * 1000) / 10}%` : "â€”"
   const netYTD = total - departed
 
   return (
-    <div className="relative flex flex-1 flex-col gap-5 rounded-2xl border border-border bg-card p-6 shadow-card">
+    <div className="relative flex flex-1 flex-col gap-5 rounded-lg border border-border bg-card p-4">
       <Header />
       <Plot months={months} max={max} />
       <Footer netYTD={netYTD} retention={retention} avgYrs={avgYrs} />
@@ -58,9 +58,9 @@ function Header() {
   return (
     <div className="flex items-start justify-between">
       <div className="flex flex-col gap-[3px]">
-        <h3 className="font-sans inline-block text-[15px] font-semibold leading-normal text-foreground">
+        <h2 className="font-sans inline-block text-[15px] font-semibold leading-normal text-foreground">
           Headcount growth
-        </h3>
+        </h2>
         <p className="font-sans inline-block text-[12.5px] leading-normal text-muted-foreground">
           Hires over the last 12 months
         </p>

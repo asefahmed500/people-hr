@@ -3,6 +3,9 @@
 import * as React from "react"
 import { CreditCard, Download, Receipt, ShieldAlert } from "lucide-react"
 
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { apiRequest } from "@/lib/api-client"
 import { exportToCsv } from "@/lib/export"
 import { notify } from "@/lib/toast"
@@ -52,41 +55,37 @@ export function BillingCard() {
   if (!state) {
     if (failed) {
       return (
-        <div className="flex flex-col items-start gap-3 rounded-2xl border border-border bg-card p-5">
+        <div className="flex flex-col items-start gap-3 rounded-lg border border-border bg-card p-4">
           <span className="font-sans text-[15px] font-semibold leading-normal text-foreground">
             Billing & invoices
           </span>
           <p className="font-sans text-[12.5px] leading-normal text-muted-foreground">
             Couldn’t load your billing details.
           </p>
-          <button
-            type="button"
-            onClick={retry}
-            className="rounded-lg border border-border bg-card px-3 py-1.5 font-sans text-[12px] font-medium text-primary"
-          >
+          <Button type="button" variant="outline" size="sm" onClick={retry}>
             Try again
-          </button>
+          </Button>
         </div>
       )
     }
     return (
-      <div className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-5">
+      <div className="flex flex-col gap-4 rounded-lg border border-border bg-card p-4">
         <span className="font-sans text-[15px] font-semibold leading-normal text-foreground">
           Billing & invoices
         </span>
-        <div className="h-16 animate-pulse rounded-xl bg-muted" />
+        <div className="h-16 animate-pulse rounded-lg bg-muted" />
       </div>
     )
   }
 
   return (
-    <div className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-5">
+    <div className="flex flex-col gap-4 rounded-lg border border-border bg-card p-4">
       <span className="font-sans text-[15px] font-semibold leading-normal text-foreground">
         Billing & invoices
       </span>
 
-      <div className="flex items-center gap-3 rounded-xl border border-border bg-muted p-3.5">
-        <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted">
+      <div className="flex items-center gap-3 rounded-lg border border-border bg-muted p-3">
+        <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-card">
           <CreditCard className="size-[16px] text-secondary-foreground" strokeWidth={2} />
         </div>
         <div className="flex min-w-0 flex-1 flex-col">
@@ -102,17 +101,14 @@ export function BillingCard() {
           </span>
         </div>
         {state.configured && state.portalUrl ? (
-          <a
-            href={state.portalUrl}
-            className="rounded-lg border border-border bg-card px-3 py-1.5 font-sans text-[12px] font-medium text-primary"
-          >
-            Manage
-          </a>
+          <Button asChild variant="outline" size="sm">
+            <a href={state.portalUrl}>Manage</a>
+          </Button>
         ) : null}
       </div>
 
       {!state.configured ? (
-        <div className="flex items-start gap-2.5 rounded-xl border border-dashed border-border bg-muted p-3.5">
+        <div className="flex items-start gap-2.5 rounded-lg border border-dashed border-border bg-muted p-3">
           <ShieldAlert className="mt-0.5 size-4 shrink-0 text-secondary-foreground" strokeWidth={2} />
           <p className="font-sans text-[12px] leading-normal text-muted-foreground">
             Billing isn’t live yet. Add <span className="font-mono text-secondary-foreground">STRIPE_SECRET_KEY</span>{" "}
@@ -126,16 +122,16 @@ export function BillingCard() {
           Recent invoices
         </span>
         {state.invoices.length === 0 ? (
-          <p className="rounded-xl border border-dashed border-border bg-muted px-4 py-5 text-center font-sans text-[12px] text-muted-foreground">
+          <p className="rounded-lg border border-dashed border-border bg-muted px-4 py-4 text-center font-sans text-[12px] text-muted-foreground">
             No invoices yet.
           </p>
         ) : (
           state.invoices.map((inv) => (
             <div
               key={inv.id}
-              className="flex items-center gap-3 rounded-xl border border-border bg-muted p-3"
+              className="flex items-center gap-3 rounded-lg border border-border bg-muted p-3"
             >
-              <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-muted">
+              <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-card">
                 <Receipt className="size-[14px] text-secondary-foreground" strokeWidth={2} />
               </div>
               <div className="flex min-w-0 flex-1 flex-col">
@@ -146,17 +142,25 @@ export function BillingCard() {
                   {inv.date} · {inv.amount}
                 </span>
               </div>
-              <span className="rounded-full bg-foreground/10 px-2 py-0.5 font-sans text-[10px] font-semibold text-secondary-foreground">
+              <Badge variant="secondary" className="h-5 bg-foreground/10 text-[10px] font-semibold text-secondary-foreground">
                 {inv.status}
-              </span>
-              <button
-                type="button"
-                aria-label={`Download ${inv.id}`}
-                onClick={() => handleDownload(inv)}
-                className="flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted"
-              >
-                <Download className="size-3.5" strokeWidth={2} />
-              </button>
+              </Badge>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-label={`Download ${inv.id}`}
+                      onClick={() => handleDownload(inv)}
+                    >
+                      <Download className="size-3.5" strokeWidth={2} aria-hidden="true" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Download invoice</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             </div>
           ))
         )}

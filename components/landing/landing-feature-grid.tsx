@@ -11,7 +11,7 @@ const features: Feature[] = [
   {
     icon: Zap,
     title: "Automated workflows",
-    desc: "Approvals, onboarding and reminders route themselves by your policies — no chasing.",
+    desc: "Approvals, onboarding and reminders route themselves by your policies â€” no chasing.",
   },
   {
     icon: PieChart,
@@ -31,14 +31,12 @@ export function LandingFeatureGrid() {
       id="product"
       className="flex w-full flex-col items-center gap-11 px-5 py-[92px] sm:px-10 lg:px-20"
     >
-      <div className="flex w-full max-w-[620px] flex-col items-center gap-3.5 text-center">
-        <p className="font-sans text-xs font-semibold uppercase tracking-[1.68px] text-primary">
+      <div className="flex w-full max-w-[700px] flex-col items-center gap-3.5 text-center">
+        <p className="font-sans text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
           Why teams switch
         </p>
-        <h2 className="text-[32px] font-semibold leading-[1.1] tracking-[-0.02em] text-foreground sm:text-[42px]">
-          Less admin, more people
-        </h2>
-        <p className="font-sans text-base leading-[1.6] text-secondary-foreground">
+        <h2 className="joi-statement">Less admin, more people</h2>
+        <p className="font-sans text-sm leading-[1.6] text-muted-foreground sm:text-[15px]">
           Everything you need to run a modern people team, built to feel calm
           instead of chaotic.
         </p>
@@ -50,15 +48,15 @@ export function LandingFeatureGrid() {
           return (
             <div
               key={feature.title}
-              className="flex flex-1 flex-col gap-4 rounded-2xl border border-border bg-card p-7 shadow-card"
+              className="flex flex-1 flex-col gap-4 rounded-lg border border-border bg-card p-5"
             >
-              <div className="flex size-[46px] items-center justify-center rounded-xl bg-foreground/10">
-                <Icon className="size-[22px] text-primary" strokeWidth={2} />
+              <div className="flex size-9 items-center justify-center rounded-md bg-muted">
+                <Icon className="size-5 text-foreground" strokeWidth={2} aria-hidden="true" />
               </div>
-              <h3 className="text-h3">
+              <h3 className="text-h3 font-semibold">
                 {feature.title}
               </h3>
-              <p className="font-sans text-sm leading-[1.6] text-secondary-foreground">
+              <p className="font-sans text-sm leading-[1.6] text-muted-foreground">
                 {feature.desc}
               </p>
             </div>

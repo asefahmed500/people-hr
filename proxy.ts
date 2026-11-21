@@ -18,6 +18,7 @@ const ADMIN_ONLY_ROUTES = [
   "/analytics",
   "/payroll",
   "/documents",
+  "/jobs",
 ]
 
 // Modules restricted to admins + managers.

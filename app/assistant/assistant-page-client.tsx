@@ -6,9 +6,10 @@ import { AssistantHeader } from "@/components/assistant/assistant-header"
 import { ChatHistoryPanel } from "@/components/assistant/chat-history-panel"
 import { ChatConversation } from "@/components/assistant/chat-conversation"
 import { Skeleton } from "@/components/ui/skeleton"
+import { StoreErrorState } from "@/components/shared/store-error-state"
 import { useApiStore } from "@/hooks/use-api-store"
 import { apiRequest } from "@/lib/api-client"
-import { consumePendingAction } from "@/lib/command-actions"
+import { consumePendingAction, onAction } from "@/lib/command-actions"
 import {
   type AssistantStore,
   type Conversation,
@@ -20,7 +21,7 @@ import {
 const uid = () => Math.random().toString(36).substring(2, 10)
 
 export function AssistantPageClient() {
-  const { state, setState, hydrated } = useApiStore<AssistantStore>(
+  const { state, setState, hydrated, error, retry } = useApiStore<AssistantStore>(
     "/api/store/assistant",
     () => defaultAssistantStore,
   )
@@ -136,19 +137,31 @@ export function AssistantPageClient() {
   }
 
   React.useEffect(() => {
-    if (consumePendingAction("ask-ai")) {
-      handleNewChat()
-    }
+    // Also listen while already on /assistant — a router push to the same
+    // route doesn't remount, so the mount-time consumer alone misses it.
+    const off = onAction((id) => {
+      if (id === "ask-ai") handleNewChat()
+    })
+    if (consumePendingAction("ask-ai")) handleNewChat()
+    return off
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  if (error) {
+    return (
+      <DashboardShell activeHref="/assistant" current="AI Assistant" accentCurrent>
+        <StoreErrorState onRetry={retry} />
+      </DashboardShell>
+    )
+  }
 
   if (!hydrated) {
     return (
       <DashboardShell activeHref="/assistant" current="AI Assistant" accentCurrent>
         <Skeleton className="h-8 w-[200px] rounded-lg" />
-        <div className="mt-4 flex gap-5">
-          <Skeleton className="h-[400px] w-[240px] rounded-2xl" />
-          <Skeleton className="h-[400px] flex-1 rounded-2xl" />
+        <div className="mt-4 flex gap-4">
+          <Skeleton className="h-[400px] w-[240px] rounded-lg" />
+          <Skeleton className="h-[400px] flex-1 rounded-lg" />
         </div>
       </DashboardShell>
     )
@@ -157,7 +170,7 @@ export function AssistantPageClient() {
   return (
     <DashboardShell activeHref="/assistant" current="AI Assistant" accentCurrent>
       <AssistantHeader />
-      <div className="flex flex-col gap-5 lg:flex-row lg:items-start">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
         <ChatHistoryPanel
           conversations={state.conversations}
           activeId={state.activeId}

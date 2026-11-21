@@ -1,21 +1,24 @@
+import { Progress } from "@/components/ui/progress"
+import { cn } from "@/lib/utils"
 import type { Payment } from "@/lib/data"
 
 type Row = {
   name: string
   fillPct: number
-  fill: string
+  indicatorClass: string
   amount: string
 }
 
+// Tailwind arbitrary variants recolor the shadcn Progress indicator per team.
 const DEPT_FILLS: Record<string, string> = {
-  Engineering: "bg-primary",
-  Sales: "bg-secondary-foreground",
-  Product: "bg-secondary-foreground",
-  Design: "bg-secondary-foreground",
-  Marketing: "bg-muted-foreground",
-  People: "bg-foreground",
-  Research: "bg-primary",
-  Finance: "bg-foreground",
+  Engineering: "",
+  Sales: "[&_[data-slot=progress-indicator]]:bg-secondary-foreground",
+  Product: "[&_[data-slot=progress-indicator]]:bg-secondary-foreground",
+  Design: "[&_[data-slot=progress-indicator]]:bg-secondary-foreground",
+  Marketing: "[&_[data-slot=progress-indicator]]:bg-muted-foreground",
+  People: "[&_[data-slot=progress-indicator]]:bg-foreground",
+  Research: "",
+  Finance: "[&_[data-slot=progress-indicator]]:bg-foreground",
 }
 
 const DEPT_ORDER = ["Engineering", "Sales", "Product", "Design", "Marketing", "People", "Research", "Finance"]
@@ -30,7 +33,7 @@ export function CostByDepartment({ payments }: { payments: Payment[] }) {
     .map((name) => ({
       name,
       fillPct: Math.round((deptTotals[name] / maxVal) * 100),
-      fill: DEPT_FILLS[name] ?? "bg-primary",
+      indicatorClass: DEPT_FILLS[name] ?? "",
       amount:
         deptTotals[name] >= 1_000_000
           ? `$${(deptTotals[name] / 1_000_000).toFixed(1)}M`
@@ -42,7 +45,7 @@ export function CostByDepartment({ payments }: { payments: Payment[] }) {
 
   if (rows.length === 0) {
     return (
-      <div className="flex flex-1 flex-col gap-5 rounded-2xl border border-border bg-card p-6 shadow-card">
+      <div className="flex flex-1 flex-col gap-4 rounded-lg border border-border bg-card p-4">
         <div className="flex flex-col gap-1">
           <h2 className="text-h3">Cost by department</h2>
           <span className="font-sans inline-block text-[12.5px] leading-normal text-muted-foreground">
@@ -56,7 +59,7 @@ export function CostByDepartment({ payments }: { payments: Payment[] }) {
     )
   }
   return (
-    <div className="flex flex-1 flex-col gap-5 rounded-2xl border border-border bg-card p-6 shadow-card">
+    <div className="flex flex-1 flex-col gap-4 rounded-lg border border-border bg-card p-4">
       <div className="flex flex-col gap-1">
         <h2 className="text-h3">
           Cost by department
@@ -71,12 +74,10 @@ export function CostByDepartment({ payments }: { payments: Payment[] }) {
             <span className="w-[90px] shrink-0 font-sans text-[13px] font-medium leading-normal text-secondary-foreground">
               {row.name}
             </span>
-            <div className="flex h-2 flex-1 overflow-clip rounded-full bg-muted">
-              <div
-                className={`h-full rounded-full ${row.fill}`}
-                style={{ width: `${row.fillPct}%` }}
-              />
-            </div>
+            <Progress
+              value={row.fillPct}
+              className={cn("h-2 flex-1", row.indicatorClass)}
+            />
             <span className="w-12 shrink-0 text-right font-sans text-[13px] font-semibold leading-normal text-foreground">
               {row.amount}
             </span>

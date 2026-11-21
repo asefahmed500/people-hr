@@ -11,10 +11,12 @@ import { DocumentList } from "@/components/documents/document-list"
 import { LetterPreview } from "@/components/documents/letter-preview"
 import { RichTextEditor } from "@/components/documents/rich-text-editor"
 import { Field, SelectField, useForm } from "@/components/shared/field"
+import { StoreErrorState } from "@/components/shared/store-error-state"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { useApiStore } from "@/hooks/use-api-store"
+import { useAuth } from "@/hooks/use-auth"
 import { notify } from "@/lib/toast"
 import { printDocument } from "@/lib/print-document"
 import {
@@ -28,7 +30,7 @@ import {
 } from "@/lib/data/documents"
 import type { Employee } from "@/lib/data/employees"
 
-const composeSchema = z
+const composeSchema = (t: DocumentType) => z
   .object({
     employeeName: z.string().min(1, "Select an employee"),
     jobTitle: z.string().min(1, "Job title is required"),
@@ -41,20 +43,19 @@ const composeSchema = z
     reason: z.string(),
   })
   .superRefine((v, ctx) => {
-    const t = composeType
     if (NEEDS_START.has(t) && !v.startDate) {
       ctx.addIssue({ code: "custom", path: ["startDate"], message: "Start date is required" })
     }
     if (NEEDS_END.has(t) && !v.endDate) {
       ctx.addIssue({ code: "custom", path: ["endDate"], message: "End date is required" })
     }
-    if (t === "salary-certificate" && !v.monthlySalary) {
+    if (SALARY_LETTERS.has(t) && !v.monthlySalary) {
       ctx.addIssue({ code: "custom", path: ["monthlySalary"], message: "Monthly salary is required" })
     }
     if (t === "noc" && !v.purpose.trim()) {
       ctx.addIssue({ code: "custom", path: ["purpose"], message: "State the purpose" })
     }
-    if (t === "warning" && !v.reason.trim()) {
+    if (REASON_LETTERS.has(t) && !v.reason.trim()) {
       ctx.addIssue({ code: "custom", path: ["reason"], message: "Describe the reason" })
     }
     if (v.startDate && v.endDate && v.endDate < v.startDate) {
@@ -69,15 +70,25 @@ function todayStr(): string {
   return new Date().toISOString().slice(0, 10)
 }
 
-const NEEDS_START = new Set<DocumentType>(["appointment", "offer", "experience", "internship", "appraisal"])
-const NEEDS_END = new Set<DocumentType>(["experience", "relieving", "internship"])
+function newDocumentMeta() {
+  return { id: `doc-${crypto.randomUUID()}`, createdAt: Date.now() }
+}
 
-// The schema above closes over the currently-composed type; kept in module
-// scope and assigned before validation runs.
-let composeType: DocumentType = "appointment"
+const NEEDS_START = new Set<DocumentType>([
+  "appointment", "offer", "experience", "internship", "appraisal",
+  "confirmation", "promotion", "transfer", "maternity", "paternity", "salary-revision",
+])
+const NEEDS_END = new Set<DocumentType>([
+  "experience", "relieving", "internship", "termination", "no-dues", "maternity", "paternity",
+])
+const SALARY_LETTERS = new Set<DocumentType>([
+  "salary-certificate", "salary-revision", "promotion",
+])
+const REASON_LETTERS = new Set<DocumentType>(["warning", "termination", "show-cause"])
 
 export function DocumentsPageClient() {
-  const { state, setState, hydrated } = useApiStore<DocumentsStore>(
+  const { user } = useAuth()
+  const { state, setState, hydrated, error: documentsError, retry: retryDocuments } = useApiStore<DocumentsStore>(
     "/api/store/documents",
     () => defaultDocumentsStore,
   )
@@ -87,6 +98,12 @@ export function DocumentsPageClient() {
     "/api/store/organization",
     () => ({ companyName: "", departments: [], offices: [], orgChart: [] }),
   )
+  const error = documentsError || employees.error || organization.error
+  const retry = () => {
+    retryDocuments()
+    employees.retry()
+    organization.retry()
+  }
   const companyName = organization.state.companyName?.trim() ?? ""
 
   const [mode, setMode] = React.useState<"list" | "compose">("list")
@@ -177,8 +194,7 @@ export function DocumentsPageClient() {
   }
 
   function validate(): boolean {
-    composeType = type
-    const parsed = composeSchema.safeParse(form.values)
+    const parsed = composeSchema(type).safeParse(form.values)
     if (!parsed.success) {
       const errs: Record<string, string> = {}
       for (const issue of parsed.error.issues) {
@@ -201,8 +217,9 @@ export function DocumentsPageClient() {
       return
     }
     const v = form.values
+    const meta = newDocumentMeta()
     const doc: HRDocument = {
-      id: `doc-${Date.now()}`,
+      id: meta.id,
       type,
       title: `${DOCUMENT_TYPE_LABELS[type]} — ${v.employeeName}`,
       refNo: nextRefNo(type, state.documents, new Date().getFullYear(), companyName || undefined),
@@ -212,12 +229,12 @@ export function DocumentsPageClient() {
       jobTitle: v.jobTitle,
       issueDate: v.issueDate || today,
       body,
-      createdBy: "HR",
-      createdAt: Date.now(),
+      createdBy: user?.name ?? "HR",
+      createdAt: meta.createdAt,
     }
     setState((prev) => ({ ...prev, documents: [doc, ...prev.documents] }))
     if (status === "issued") {
-      notify.success("Document issued", `${DOCUMENT_TYPE_LABELS[doc.type]} ${doc.refNo} issued to ${doc.employeeName}.`)
+      notify.success("Letter marked as issued", `${DOCUMENT_TYPE_LABELS[doc.type]} ${doc.refNo} — status updated.`)
     } else {
       notify.info("Draft saved", `${DOCUMENT_TYPE_LABELS[doc.type]} saved as draft.`)
     }
@@ -243,12 +260,20 @@ export function DocumentsPageClient() {
     setDeleteTarget(null)
   }
 
+  if (error) {
+    return (
+      <DashboardShell activeHref="/documents" current="Documents" accentCurrent>
+        <StoreErrorState onRetry={retry} />
+      </DashboardShell>
+    )
+  }
+
   if (!hydrated) {
     return (
       <DashboardShell activeHref="/documents" current="Documents" accentCurrent>
         <Skeleton className="h-8 w-[200px] rounded-lg" />
-        <Skeleton className="mt-4 h-24 w-full rounded-2xl" />
-        <Skeleton className="mt-5 h-[300px] w-full rounded-2xl" />
+        <Skeleton className="mt-4 h-24 w-full rounded-lg" />
+        <Skeleton className="mt-5 h-[300px] w-full rounded-lg" />
       </DashboardShell>
     )
   }
@@ -268,7 +293,7 @@ export function DocumentsPageClient() {
                 <div className="flex flex-col gap-1">
                   <h1 className="text-h2">New {DOCUMENT_TYPE_LABELS[type]}</h1>
                   <p className="font-sans text-[13px] text-muted-foreground">
-                    Ref {nextRefNo(type, state.documents)} · fields marked * are required
+                    Ref {nextRefNo(type, state.documents, new Date().getFullYear(), companyName || undefined)} · fields marked * are required
                   </p>
                 </div>
               </div>
@@ -284,7 +309,7 @@ export function DocumentsPageClient() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 gap-x-5 gap-y-3.5 rounded-2xl border border-border bg-card p-5 shadow-card md:grid-cols-3">
+            <div className="grid grid-cols-1 gap-x-4 gap-y-3 rounded-lg border border-border bg-card p-4 md:grid-cols-3">
               <SelectField
                 label="Employee"
                 required
@@ -305,14 +330,14 @@ export function DocumentsPageClient() {
               {NEEDS_END.has(type) ? (
                 <Field label="End / last working day" type="date" required value={form.values.endDate} onChange={(val) => form.setValue("endDate", val)} error={form.errors.endDate} />
               ) : null}
-              {["appointment", "offer", "salary-certificate", "appraisal"].includes(type) ? (
+              {SALARY_LETTERS.has(type) ? (
                 <Field label="Gross monthly salary" value={form.values.monthlySalary} onChange={(val) => form.setValue("monthlySalary", val)} error={form.errors.monthlySalary} placeholder="e.g. USD 6,500" />
               ) : null}
               {type === "noc" ? (
                 <Field label="Purpose of NOC" required value={form.values.purpose} onChange={(val) => form.setValue("purpose", val)} error={form.errors.purpose} placeholder="e.g. to apply for a tourist visa" />
               ) : null}
-              {type === "warning" ? (
-                <Field label="Reason for warning" required value={form.values.reason} onChange={(val) => form.setValue("reason", val)} error={form.errors.reason} placeholder="e.g. repeated late arrivals in July" />
+              {REASON_LETTERS.has(type) ? (
+                <Field label={type === "warning" ? "Reason for warning" : "Reason"} required value={form.values.reason} onChange={(val) => form.setValue("reason", val)} error={form.errors.reason} placeholder="e.g. repeated late arrivals in July" />
               ) : null}
             </div>
 
@@ -335,7 +360,7 @@ export function DocumentsPageClient() {
   return (
     <>
       <DashboardShell activeHref="/documents" current="Documents" accentCurrent>
-        <div className="flex flex-col gap-5">
+        <div className="flex flex-col gap-4">
           <DocumentsHeader onNewDocument={() => openCompose(type)} />
           <TemplateGallery onSelect={openCompose} />
           <div className="flex flex-col gap-3">

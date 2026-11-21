@@ -116,9 +116,19 @@ export function useAuth() {
 
   const logout = React.useCallback(async () => {
     clearClientState()
-    // Await the session-cookie teardown so callers can navigate AFTER the
-    // session is actually gone (avoids bouncing back into the app).
-    await signOut({ redirect: false })
+    // Use a real navigation, not router.replace: the Next router can replay a
+    // cached /dashboard response for a still-authenticated RSC payload, which
+    // made it look like sign-out "redirected back to the dashboard". An
+    // absolute callback URL avoids the NEXTAUTH_URL port mismatch (3001 vs the
+    // port actually serving the app).
+    const callbackUrl = typeof window === "undefined"
+      ? "/login"
+      : `${window.location.origin}/login`
+    try {
+      await signOut({ callbackUrl, redirect: true })
+    } catch {
+      if (typeof window !== "undefined") window.location.assign(callbackUrl)
+    }
   }, [])
 
   return {

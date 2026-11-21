@@ -1,20 +1,9 @@
 import type { OnboardingTask } from "@/lib/data"
+import { Progress } from "@/components/ui/progress"
 
 type DeptRow = {
   label: string
   fillPct: number
-  fill: string
-}
-
-const DEPT_FILLS: Record<string, string> = {
-  Engineering: "bg-primary",
-  Design: "bg-secondary-foreground",
-  Product: "bg-primary",
-  Sales: "bg-muted-foreground",
-  Marketing: "bg-secondary-foreground",
-  People: "bg-primary",
-  Research: "bg-secondary-foreground",
-  Finance: "bg-foreground",
 }
 
 export function OnboardingByDept({ tasks }: { tasks: OnboardingTask[] }) {
@@ -30,10 +19,9 @@ export function OnboardingByDept({ tasks }: { tasks: OnboardingTask[] }) {
     .map(([label, { total, done }]) => ({
       label,
       fillPct: total > 0 ? Math.round((done / total) * 100) : 0,
-      fill: DEPT_FILLS[label] ?? "bg-primary",
     }))
   return (
-    <div className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-5">
+    <div className="flex flex-col gap-4 rounded-lg border border-border bg-card p-4">
       <div className="flex flex-col gap-0.5">
         <h2 className="text-h4">
           Onboarding by department
@@ -43,17 +31,17 @@ export function OnboardingByDept({ tasks }: { tasks: OnboardingTask[] }) {
         </span>
       </div>
       <div className="flex flex-col gap-3">
+        {depts.length === 0 ? (
+          <p className="rounded-lg border border-dashed border-border bg-muted px-4 py-6 text-center font-sans text-[12.5px] text-muted-foreground">
+            No onboarding tasks yet.
+          </p>
+        ) : null}
         {depts.map((dept) => (
           <div key={dept.label} className="flex items-center gap-3">
             <span className="w-20 shrink-0 font-sans text-[12.5px] font-medium leading-normal text-secondary-foreground">
               {dept.label}
             </span>
-            <div className="flex h-1.5 flex-1 overflow-clip rounded-full bg-muted">
-              <div
-                className={`h-full rounded-full ${dept.fill}`}
-                style={{ width: `${dept.fillPct}%` }}
-              />
-            </div>
+            <Progress value={dept.fillPct} className="h-1.5 flex-1" />
             <span className="w-8 shrink-0 text-right font-sans text-[11.5px] font-semibold leading-normal text-secondary-foreground">
               {dept.fillPct} %
             </span>

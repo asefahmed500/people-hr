@@ -88,7 +88,7 @@ export function TwoFactorSetupDialog({
       {phase === "scan" ? (
         <>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={qr} alt="Scan this QR code with your authenticator app" className="mx-auto size-48 rounded-xl border border-border" />
+          <img src={qr} alt="Scan this QR code with your authenticator app" className="mx-auto size-48 rounded-lg border border-border" />
           <p className="text-center font-sans text-[12px] leading-normal text-muted-foreground">
             Can’t scan? Manual key: <span className="font-mono text-secondary-foreground">{secret}</span>
           </p>
@@ -99,7 +99,7 @@ export function TwoFactorSetupDialog({
             onChange={(v) => form.setValue("code", v)}
             required
           />
-          <div className="rounded-xl border border-border bg-muted p-3">
+          <div className="rounded-lg border border-border bg-muted p-3">
             <p className="mb-2 font-sans text-[12px] font-semibold text-foreground">
               Save these backup codes — each can be used once.
             </p>

@@ -21,7 +21,7 @@ export function PipelineFunnelCard({ candidates }: { candidates: Candidate[] }) 
   }
 
   return (
-    <div className="flex flex-1 flex-col gap-5 rounded-2xl border border-border bg-card p-6">
+    <div className="flex flex-1 flex-col gap-4 rounded-lg border border-border bg-card p-4">
       <h2 className="text-h3">
         Candidate pipeline
       </h2>
@@ -36,7 +36,7 @@ export function PipelineFunnelCard({ candidates }: { candidates: Candidate[] }) 
             >
               <div
                 className={cn(
-                  "flex h-[52px] w-full items-center justify-between rounded-xl px-5 py-0",
+                  "flex h-[52px] w-full items-center justify-between rounded-lg px-4 py-0",
                   meta.fill,
                 )}
               >

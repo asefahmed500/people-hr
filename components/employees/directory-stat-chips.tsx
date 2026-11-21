@@ -21,9 +21,9 @@ export function DirectoryStatChips({ employees }: { employees: Employee[] }) {
       {chips.map((chip) => (
         <div
           key={chip.label}
-          className="flex items-center gap-3.5 rounded-2xl border border-border bg-card px-5 py-3.5 shadow-sm"
+          className="flex items-center gap-3 rounded-lg border border-border bg-card px-4 py-3"
         >
-          <span className={`size-2.5 shrink-0 rounded-full ${chip.dot}`} />
+          <span className={`size-2.5 shrink-0 rounded-full ${chip.dot}`} aria-hidden="true" />
           <div className="flex flex-col">
             <span className="font-sans inline-block text-lg font-semibold leading-tight text-foreground">
               {chip.value}

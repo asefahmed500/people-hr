@@ -1,7 +1,8 @@
 import * as React from "react"
-import { cn } from "@/lib/utils"
 import { Filter } from "lucide-react"
 import type { Review } from "@/lib/data"
+import { Button } from "@/components/ui/button"
+import { Separator } from "@/components/ui/separator"
 
 type DepartmentFilterBarProps = {
   activeDept: string
@@ -43,14 +44,14 @@ export function DepartmentFilterBar({ activeDept, onDeptChange, reviews = [] }: 
   }, [deptCounts, reviews.length])
 
   return (
-    <div className="flex w-full flex-wrap items-center gap-3 rounded-2xl border border-border bg-card px-4 py-3 shadow-card">
-      <div className="flex shrink-0 items-center gap-2 pl-0 pr-2 py-0">
-        <Filter className="size-[15px] shrink-0 text-muted-foreground" strokeWidth={2} />
+    <div className="flex w-full flex-wrap items-center gap-3 rounded-lg border border-border bg-card px-4 py-3">
+      <div className="flex shrink-0 items-center gap-2 py-0 pl-0 pr-2">
+        <Filter className="size-[15px] shrink-0 text-muted-foreground" strokeWidth={2} aria-hidden="true" />
         <span className="font-sans inline-block text-[12.5px] font-semibold leading-normal text-secondary-foreground">
           Department
         </span>
       </div>
-      <span className="flex h-6 w-px shrink-0 flex-col bg-border" />
+      <Separator orientation="vertical" className="h-6" />
       <div className="flex flex-wrap items-center gap-2">
         {chips.map((chip) => (
           <Chip
@@ -78,35 +79,34 @@ function Chip({
 }) {
   if (isActive) {
     return (
-      <button
+      <Button
         type="button"
         onClick={onClick}
-        className="flex shrink-0 items-center gap-2 rounded-full bg-foreground px-3.5 py-1.5"
+        className="h-auto shrink-0 gap-2 rounded-full px-3.5 py-1.5"
       >
-        <span className="font-sans inline-block text-[12.5px] font-medium leading-normal text-background">
+        <span className="font-sans inline-block text-[12.5px] font-medium leading-normal">
           {chip.label}
         </span>
-        <span className="font-sans inline-block text-[11.5px] font-medium leading-normal text-background/80">
+        <span className="font-sans inline-block text-[11.5px] font-medium leading-normal opacity-80">
           {chip.count}
         </span>
-      </button>
+      </Button>
     )
   }
   return (
-    <button
+    <Button
       type="button"
+      variant="outline"
       onClick={onClick}
-      className={cn(
-        "flex shrink-0 items-center gap-2 rounded-full border border-border bg-card px-3.5 py-1.5",
-      )}
+      className="h-auto shrink-0 gap-2 rounded-full px-3.5 py-1.5 text-secondary-foreground"
     >
-      {chip.dot ? <span className={`size-2.5 shrink-0 rounded-full ${chip.dot}`} /> : null}
-      <span className="font-sans inline-block text-[12.5px] font-medium leading-normal text-secondary-foreground">
+      {chip.dot ? <span className={`size-2.5 shrink-0 rounded-full ${chip.dot}`} aria-hidden="true" /> : null}
+      <span className="font-sans inline-block text-[12.5px] font-medium leading-normal">
         {chip.label}
       </span>
       <span className="font-sans inline-block text-[11.5px] font-medium leading-normal text-muted-foreground">
         {chip.count}
       </span>
-    </button>
+    </Button>
   )
 }

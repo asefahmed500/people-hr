@@ -68,6 +68,15 @@ export async function POST(request: Request) {
     )
   }
 
+  // Names participate in shared-module ownership matching — make them unique.
+  const sameName = await prisma.user.findFirst({
+    where: { name: { equals: name, mode: "insensitive" } },
+    select: { id: true },
+  })
+  if (sameName) {
+    return NextResponse.json({ ok: false, error: "That name is already in use." }, { status: 409 })
+  }
+
   const passwordHash = await bcrypt.hash(password, 10)
   try {
     await prisma.user.create({

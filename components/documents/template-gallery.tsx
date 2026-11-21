@@ -11,6 +11,15 @@ import {
   FileCheck,
   AlertTriangle,
   TrendingUp,
+  CheckCircle2,
+  ArrowUpRight,
+  ArrowRightLeft,
+  CircleSlash,
+  Eye,
+  HeartHandshake,
+  Baby,
+  UserRound,
+  Banknote,
   type LucideIcon,
 } from "lucide-react"
 
@@ -27,6 +36,16 @@ const TYPE_ICONS: Record<DocumentType, LucideIcon> = {
   noc: FileCheck,
   warning: AlertTriangle,
   appraisal: TrendingUp,
+  confirmation: CheckCircle2,
+  promotion: ArrowUpRight,
+  transfer: ArrowRightLeft,
+  termination: CircleSlash,
+  "show-cause": Eye,
+  appreciation: HeartHandshake,
+  "no-dues": FileCheck,
+  maternity: Baby,
+  paternity: UserRound,
+  "salary-revision": Banknote,
 }
 
 const TYPE_DESCRIPTIONS: Record<DocumentType, string> = {
@@ -40,6 +59,16 @@ const TYPE_DESCRIPTIONS: Record<DocumentType, string> = {
   noc: "No objection for external activities",
   warning: "Formal first-level disciplinary notice",
   appraisal: "Communicate promotion or revised pay",
+  confirmation: "Confirm employment after probation",
+  promotion: "Recognise a promotion and revised pay",
+  transfer: "Announce an internal department move",
+  termination: "Formally conclude an employment",
+  "show-cause": "Request a written explanation",
+  appreciation: "Recognise outstanding contribution",
+  "no-dues": "Certify settlement of all dues",
+  maternity: "Confirm maternity leave entitlement",
+  paternity: "Confirm paternity leave entitlement",
+  "salary-revision": "Communicate a revised salary",
 }
 
 type TemplateGalleryProps = {
@@ -56,10 +85,10 @@ export function TemplateGallery({ onSelect }: TemplateGalleryProps) {
             key={type}
             type="button"
             onClick={() => onSelect(type)}
-            className="group flex flex-col items-start gap-2 rounded-xl border border-border bg-card p-4 text-left shadow-xs transition-colors hover:bg-muted/50"
+            className="group flex flex-col items-start gap-2 rounded-lg border border-border bg-card p-4 text-left transition-colors hover:bg-muted"
           >
-            <span className="flex size-8 items-center justify-center rounded-lg border border-border bg-gradient-to-b from-white to-[#ececea] dark:from-[#262626] dark:to-[#1c1c1c]">
-              <Icon className="size-4 text-secondary-foreground" strokeWidth={2} />
+            <span className="flex size-8 items-center justify-center rounded-lg border border-border bg-muted">
+              <Icon className="size-4 text-secondary-foreground" strokeWidth={2} aria-hidden="true" />
             </span>
             <span className="font-sans text-[13px] font-medium leading-snug text-foreground">
               {DOCUMENT_TYPE_LABELS[type]}

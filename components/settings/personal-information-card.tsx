@@ -13,7 +13,25 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Button } from "@/components/ui/button"
 import { notify } from "@/lib/toast"
+import { apiRequest } from "@/lib/api-client"
+
+const ALLOWED_AVATAR_TYPES = ["image/png", "image/jpeg", "image/webp"]
+const MAX_AVATAR_BYTES = 300 * 1024
+
+function readFileAsDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => {
+      if (typeof reader.result === "string") resolve(reader.result)
+      else reject(new Error("Couldn't read that image."))
+    }
+    reader.onerror = () => reject(new Error("Couldn't read that image."))
+    reader.readAsDataURL(file)
+  })
+}
 
 export function PersonalInformationCard({
   personal,
@@ -22,10 +40,11 @@ export function PersonalInformationCard({
 }: {
   personal: PersonalInfo
   onChange: (field: string, value: string) => void
-  /** Department drives manager data-scoping — only admins may change it. */
+  /** Department drives manager data-scoping â€” only admins may change it. */
   canEditDepartment?: boolean
 }) {
   const fileInputRef = React.useRef<HTMLInputElement>(null)
+  const [uploading, setUploading] = React.useState(false)
   const initials = personal.fullName
     ? personal.fullName
         .split(" ")
@@ -35,68 +54,90 @@ export function PersonalInformationCard({
         .slice(0, 2)
     : "AA"
 
-  const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Persist straight to the real User record, then mirror into the settings
+  // document so the preview stays in sync on the next page load.
+  const persistAvatar = async (value: string) => {
+    setUploading(true)
+    try {
+      const res = await apiRequest<{ ok: boolean; error?: string }>("/api/user/profile", {
+        method: "PATCH",
+        body: { avatar: value },
+      })
+      if (!res.ok) throw new Error(res.error ?? "Couldn't update your photo.")
+      onChange("avatar", value)
+      notify.success(value ? "Photo updated" : "Photo removed", "Your profile photo has been updated.")
+    } catch (err) {
+      notify.error(
+        "Couldn't update your photo",
+        err instanceof Error ? err.message : "Please try again.",
+      )
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  const handlePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
+    e.target.value = ""
     if (!file) return
-    if (file.size > 300 * 1024) {
-      notify.error("Image too large", "Pick an image under 300 KB.")
-      e.target.value = ""
+    if (!ALLOWED_AVATAR_TYPES.includes(file.type)) {
+      notify.error("Unsupported image", "Choose a PNG, JPEG, or WebP image.")
       return
     }
-    const reader = new FileReader()
-    reader.onload = () => {
-      if (typeof reader.result === "string") {
-        onChange("avatar", reader.result)
-      }
+    if (file.size > MAX_AVATAR_BYTES) {
+      notify.error("Image too large", "Pick an image under 300 KB.")
+      return
     }
-    reader.readAsDataURL(file)
-    e.target.value = ""
+    try {
+      const dataUrl = await readFileAsDataUrl(file)
+      await persistAvatar(dataUrl)
+    } catch (err) {
+      notify.error("Couldn't read image", err instanceof Error ? err.message : "Please try again.")
+    }
   }
 
   return (
-    <div className="flex flex-col gap-5 rounded-2xl border border-border bg-card p-6">
+    <div className="flex flex-col gap-4 rounded-lg border border-border bg-card p-4">
       <h2 className="font-sans inline-block text-[15px] font-semibold leading-normal text-foreground">
         Personal information
       </h2>
-      <div className="flex h-fit items-center gap-3.5">
-        <div className="flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-border bg-muted">
+      <div className="flex h-fit items-center gap-3">
+        <Avatar className="size-14">
           {personal.avatar ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={personal.avatar} alt="" className="size-full object-cover" />
-          ) : (
-            <span className="font-sans text-lg font-semibold leading-normal text-primary">
-              {initials}
-            </span>
-          )}
-        </div>
+            <AvatarImage src={personal.avatar} alt="" />
+          ) : null}
+          <AvatarFallback className="text-lg font-semibold text-primary">
+            {initials}
+          </AvatarFallback>
+        </Avatar>
         <div className="flex items-center gap-2">
-          <button
+          <Button
             type="button"
+            variant="outline"
+            size="sm"
             onClick={() => fileInputRef.current?.click()}
-            className="flex items-center rounded-lg border border-border bg-card px-3 py-[7px] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+            disabled={uploading}
           >
-            <span className="font-sans text-[12.5px] font-medium leading-normal text-primary">
-              Change photo
-            </span>
-          </button>
+            {uploading ? "Savingâ€¦" : "Change photo"}
+          </Button>
           <input
             ref={fileInputRef}
             type="file"
-            accept="image/*"
+            accept="image/png,image/jpeg,image/webp"
             className="hidden"
             onChange={handlePhotoChange}
           />
           {personal.avatar ? (
             <AlertDialog>
               <AlertDialogTrigger asChild>
-                <button
+                <Button
                   type="button"
-                  className="flex items-center px-3 py-[7px] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                  variant="ghost"
+                  size="sm"
+                  disabled={uploading}
                 >
-                  <span className="font-sans text-[12.5px] leading-normal text-muted-foreground">
-                    Remove
-                  </span>
-                </button>
+                  Remove
+                </Button>
               </AlertDialogTrigger>
               <AlertDialogContent>
                 <AlertDialogHeader>
@@ -107,7 +148,7 @@ export function PersonalInformationCard({
                 </AlertDialogHeader>
                 <AlertDialogFooter>
                   <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction onClick={() => onChange("avatar", "")}>
+                  <AlertDialogAction onClick={() => void persistAvatar("")}>
                     Remove
                   </AlertDialogAction>
                 </AlertDialogFooter>
@@ -116,11 +157,11 @@ export function PersonalInformationCard({
           ) : null}
         </div>
       </div>
-      <div className="flex h-fit gap-3.5">
+      <div className="flex h-fit gap-3">
         <Field label="Full name" value={personal.fullName} field="fullName" onChange={onChange} />
         <Field label="Email" value={personal.email} field="email" onChange={onChange} />
       </div>
-      <div className="flex h-fit gap-3.5">
+      <div className="flex h-fit gap-3">
         <Field label="Job title" value={personal.jobTitle} field="jobTitle" onChange={onChange} />
         {canEditDepartment ? (
           <Field
@@ -134,9 +175,9 @@ export function PersonalInformationCard({
             <span className="font-sans inline-block text-xs font-medium leading-normal text-muted-foreground">
               Department
             </span>
-            <div className="flex h-10 items-center rounded-lg border border-border bg-muted px-3 py-2.5">
+            <div className="flex h-9 items-center rounded-lg border border-border bg-muted px-3 py-2.5">
               <span className="w-full truncate font-sans text-[13.5px] leading-normal text-muted-foreground">
-                {personal.department || "—"}
+                {personal.department || "â€”"}
               </span>
             </div>
             <span className="font-sans text-[11px] leading-normal text-muted-foreground">
@@ -165,7 +206,7 @@ function Field({
       <span className="font-sans inline-block text-xs font-medium leading-normal text-muted-foreground">
         {label}
       </span>
-      <div className="flex h-10 items-center rounded-lg border border-border bg-card px-3 py-2.5 transition-colors focus-within:border-primary/60 focus-within:ring-2 focus-within:ring-foreground/20">
+      <div className="flex h-9 items-center rounded-lg border border-border bg-card px-3 py-2.5 transition-colors focus-within:border-primary/60 focus-within:ring-2 focus-within:ring-foreground/20">
         <input
           type="text"
           value={value}

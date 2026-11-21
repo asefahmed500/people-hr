@@ -2,6 +2,8 @@
 
 import { Download, Play } from "lucide-react"
 
+import { Button } from "@/components/ui/button"
+
 export function PayrollHeader({
   employeeCount,
   onExport,
@@ -24,26 +26,14 @@ export function PayrollHeader({
         </p>
       </div>
       <div className="flex shrink-0 items-center gap-2.5">
-        <button
-          type="button"
-          onClick={onExport}
-          className="flex h-10 items-center gap-2 rounded-lg border border-border bg-card px-4 transition-colors hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
-        >
-          <Download className="size-4 text-secondary-foreground" strokeWidth={2} />
-          <span className="font-sans text-[13px] font-medium leading-normal text-secondary-foreground">
-            Export report
-          </span>
-        </button>
-        <button
-          type="button"
-          onClick={onRunPayroll}
-          className="flex h-10 items-center gap-2 rounded-lg border border-border bg-gradient-to-b from-white to-[#ececea] shadow-xs transition-colors hover:to-[#e2e2df]"
-        >
-          <Play className="size-4 text-secondary-foreground" strokeWidth={2} />
-          <span className="font-sans text-[13px] font-medium leading-normal text-secondary-foreground">
-            Run payroll
-          </span>
-        </button>
+        <Button type="button" variant="outline" onClick={onExport}>
+          <Download className="size-4 text-secondary-foreground" strokeWidth={2} aria-hidden="true" />
+          Export report
+        </Button>
+        <Button type="button" onClick={onRunPayroll}>
+          <Play className="size-4" strokeWidth={2} aria-hidden="true" />
+          Run payroll
+        </Button>
       </div>
     </div>
   )

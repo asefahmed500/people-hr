@@ -11,6 +11,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
+import { Button } from "@/components/ui/button"
 
 export function DangerZoneCard({
   onDeactivate,
@@ -20,7 +21,7 @@ export function DangerZoneCard({
   submitting?: boolean
 }) {
   return (
-    <div className="flex flex-col rounded-2xl border border-border bg-muted p-6">
+    <div className="flex flex-col rounded-lg border border-border bg-muted p-4">
       <h2 className="mx-0 mb-3 mt-0 font-sans inline-block text-[15px] font-semibold leading-normal text-foreground">
         Danger zone
       </h2>
@@ -35,14 +36,9 @@ export function DangerZoneCard({
         </div>
         <AlertDialog>
           <AlertDialogTrigger asChild>
-            <button
-              type="button"
-              className="mx-0 my-0 ml-6 flex shrink-0 items-center rounded-lg border border-border bg-card px-3.5 py-2"
-            >
-              <span className="font-sans text-[13px] font-medium leading-normal text-foreground">
-                Deactivate
-              </span>
-            </button>
+            <Button type="button" variant="outline" size="sm" className="ml-6 shrink-0">
+              Deactivate
+            </Button>
           </AlertDialogTrigger>
           <AlertDialogContent>
             <AlertDialogHeader>

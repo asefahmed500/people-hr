@@ -14,6 +14,7 @@ export type Dept = {
 }
 
 export type Office = {
+  id?: string
   city: string
   country: string
   count: number

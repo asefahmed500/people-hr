@@ -1,5 +1,7 @@
 import { Download, Plus } from "lucide-react"
 
+import { Button } from "@/components/ui/button"
+
 export function LeaveHeader({
   onRequestClick,
   dateLabel,
@@ -21,26 +23,27 @@ export function LeaveHeader({
         </p>
       </div>
       <div className="flex w-full items-center gap-2.5 sm:w-auto">
-        <button
+        <Button
           type="button"
+          variant="outline"
           onClick={onExport}
-          className="flex h-10 items-center justify-center gap-2 rounded-lg border border-border bg-card px-4 transition-colors hover:bg-muted sm:flex-none"
+          className="h-9 px-4 sm:flex-none"
         >
-          <Download className="size-4 text-secondary-foreground" strokeWidth={2} />
+          <Download className="size-4 text-secondary-foreground" strokeWidth={2} aria-hidden="true" />
           <span className="hidden sm:inline font-sans text-[13px] font-medium leading-normal text-secondary-foreground">
             Export
           </span>
-        </button>
-        <button
+        </Button>
+        <Button
           type="button"
           onClick={onRequestClick}
-          className="flex h-10 flex-1 items-center justify-center gap-2 rounded-lg bg-secondary-foreground px-4 shadow-card sm:flex-none"
+          className="h-9 flex-1 px-4 sm:flex-none"
         >
-          <Plus className="size-4 text-background" strokeWidth={2} />
-          <span className="font-sans text-[13px] font-medium leading-normal text-background">
+          <Plus className="size-4" strokeWidth={2} aria-hidden="true" />
+          <span className="font-sans text-[13px] font-medium leading-normal">
             Request leave
           </span>
-        </button>
+        </Button>
       </div>
     </div>
   )

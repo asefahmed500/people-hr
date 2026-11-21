@@ -1,15 +1,20 @@
 import type {
   OCRConfig,
   OCRProviderName,
-  OCRResult,
   OCRPreprocessOptions,
 } from "./types";
 import { getAIEnv } from "../ai/env";
 
+/**
+ * Tesseract is the only OCR engine wired up in this codebase. The
+ * `OCR_PROVIDER` environment variable is intentionally ignored — reporting a
+ * different provider would be a false claim about how text was extracted.
+ */
 export function getOCRConfig(): OCRConfig {
   const env = getAIEnv();
+  const provider: OCRProviderName = "tesseract";
   return {
-    provider: env.OCR_PROVIDER as OCRProviderName,
+    provider,
     language: "eng",
     confidenceThreshold: env.OCR_CONFIDENCE_THRESHOLD,
     maxPages: env.OCR_MAX_PAGES,
@@ -18,12 +23,8 @@ export function getOCRConfig(): OCRConfig {
 }
 
 export const DEFAULT_PREPROCESS_OPTIONS: OCRPreprocessOptions = {
-  deskew: true,
-  rotate: true,
-  denoise: true,
-  contrast: true,
-  normalizeResolution: true,
-  targetDpi: 300,
+  maxBytes: 50 * 1024 * 1024,
+  verifyImageHeader: true,
 };
 
 export function needsOCR(text: string | null | undefined): boolean {

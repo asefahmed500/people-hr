@@ -32,55 +32,110 @@ import { HeadcountChart } from "@/components/dashboard/headcount-chart"
 import { InsightsPanel } from "@/components/dashboard/insights-panel"
 import { AttendanceCard } from "@/components/dashboard/attendance-card"
 import { RecentHires } from "@/components/dashboard/recent-hires"
+import { RecentActivity } from "@/components/dashboard/recent-activity"
 import { RecruitmentPipeline } from "@/components/dashboard/recruitment-pipeline"
+import { StoreErrorState } from "@/components/shared/store-error-state"
 
 export function DashboardPageClient() {
   const router = useRouter()
   const { user } = useAuth()
-  const todayISO = toISO(new Date())
 
-  const { state: leaveStore, setState: setLeaveStore, hydrated: leaveHydrated } = useApiStore<LeaveStore>(
+  const {
+    state: leaveStore,
+    setState: setLeaveStore,
+    hydrated: leaveHydrated,
+    error: leaveError,
+    retry: retryLeave,
+  } = useApiStore<LeaveStore>(
     "/api/store/leave",
     () => defaultLeaveStore,
   )
 
-  const { state: employees, setState: setEmployees, hydrated: employeesHydrated } = useApiStore<Employee[]>(
+  const {
+    state: employees,
+    hydrated: employeesHydrated,
+    error: employeesError,
+    retry: retryEmployees,
+  } = useApiStore<Employee[]>(
     "/api/store/employees",
     () => defaultEmployees,
   )
 
-  const { state: recruitment, hydrated: recruitmentHydrated } = useApiStore<RecruitmentStore>(
+  const {
+    state: recruitment,
+    hydrated: recruitmentHydrated,
+    error: recruitmentError,
+    retry: retryRecruitment,
+  } = useApiStore<RecruitmentStore>(
     "/api/store/recruitment",
     () => defaultRecruitmentStore,
   )
 
-  const { state: attendance, hydrated: attendanceHydrated } = useApiStore<AttendanceStore>(
+  const {
+    state: attendance,
+    hydrated: attendanceHydrated,
+    error: attendanceError,
+    retry: retryAttendance,
+  } = useApiStore<AttendanceStore>(
     "/api/store/attendance",
     () => ({ checkIns: defaultCheckIns }),
   )
 
-  const { state: projects, hydrated: projectsHydrated } = useApiStore<ProjectsStore>(
+  const {
+    state: projects,
+    hydrated: projectsHydrated,
+    error: projectsError,
+    retry: retryProjects,
+  } = useApiStore<ProjectsStore>(
     "/api/store/projects",
     () => defaultProjectsStore,
   )
 
-  const { state: organization, hydrated: organizationHydrated } = useApiStore<OrganizationStore>(
+  const {
+    state: organization,
+    hydrated: organizationHydrated,
+    error: organizationError,
+    retry: retryOrganization,
+  } = useApiStore<OrganizationStore>(
     "/api/store/organization",
     () => defaultOrganizationStore,
   )
 
-  const { state: goals, hydrated: goalsHydrated } = useApiStore<GoalsStore>(
+  const {
+    state: goals,
+    hydrated: goalsHydrated,
+    error: goalsError,
+    retry: retryGoals,
+  } = useApiStore<GoalsStore>(
     "/api/store/goals",
     () => defaultGoalsStore,
   )
 
-  const { state: performance, hydrated: performanceHydrated } = useApiStore<PerformanceStore>(
+  const {
+    state: performance,
+    hydrated: performanceHydrated,
+    error: performanceError,
+    retry: retryPerformance,
+  } = useApiStore<PerformanceStore>(
     "/api/store/performance",
     () => defaultPerformanceStore,
   )
 
   const hydrated =
     leaveHydrated && employeesHydrated && recruitmentHydrated && attendanceHydrated && projectsHydrated && organizationHydrated && goalsHydrated && performanceHydrated
+  const error =
+    leaveError || employeesError || recruitmentError || attendanceError || projectsError ||
+    organizationError || goalsError || performanceError
+  const retry = () => {
+    retryLeave()
+    retryEmployees()
+    retryRecruitment()
+    retryAttendance()
+    retryProjects()
+    retryOrganization()
+    retryGoals()
+    retryPerformance()
+  }
 
   const canManageLeave = user?.role === "admin" || user?.role === "manager"
 
@@ -96,13 +151,8 @@ export function DashboardPageClient() {
       ),
       balances: adjustBalance(prev.balances, req, req.days),
     }))
-    // Only mark "on leave" when the approved window actually covers today —
-    // never permanently.
-    if (todayISO >= req.startDate && todayISO <= req.endDate) {
-      setEmployees((prev) =>
-        prev.map((e) => (e.id === req.employeeId ? { ...e, status: "leave" as const } : e)),
-      )
-    }
+    // Employees' leave status is derived from live approved requests by the
+    // API â€” no privileged cross-module write needed here.
     notify.success("Leave approved", `Approved ${req.employeeName}'s ${req.days}-day request.`)
 
   }
@@ -124,16 +174,21 @@ export function DashboardPageClient() {
   const onOpenBoard = () => router.push("/recruitment")
   const onOpenAssistant = () => router.push("/assistant")
 
+  if (error) {
+    // page.tsx already provides the DashboardShell for this route.
+    return <StoreErrorState onRetry={retry} />
+  }
+
   if (!hydrated) {
     return (
       <div className="flex flex-col gap-4 sm:gap-6">
-        <Skeleton className="h-20 w-full rounded-2xl" />
-        <Skeleton className="h-24 w-full rounded-2xl" />
-        <Skeleton className="h-[300px] w-full rounded-2xl" />
+        <Skeleton className="h-20 w-full rounded-lg border border-border bg-muted" />
+        <Skeleton className="h-24 w-full rounded-lg border border-border bg-muted" />
+        <Skeleton className="h-[300px] w-full rounded-lg border border-border bg-muted" />
         <div className="grid w-full grid-cols-1 gap-6 lg:grid-cols-3">
-          <Skeleton className="h-48 rounded-2xl" />
-          <Skeleton className="h-48 rounded-2xl" />
-          <Skeleton className="h-48 rounded-2xl" />
+          <Skeleton className="h-48 rounded-lg border border-border bg-muted" />
+          <Skeleton className="h-48 rounded-lg border border-border bg-muted" />
+          <Skeleton className="h-48 rounded-lg border border-border bg-muted" />
         </div>
       </div>
     )
@@ -145,7 +200,7 @@ export function DashboardPageClient() {
         employeeCount={canManageLeave ? employees.length : undefined}
         pendingLeave={pending.length}
         // Department counts come from the organization module, which is
-        // admin-only — managers would otherwise render "0 departments".
+        // admin-only â€” managers would otherwise render "0 departments".
         departmentCount={user?.role === "admin" ? organization.departments.length : undefined}
       />
       <KpiRow
@@ -155,7 +210,7 @@ export function DashboardPageClient() {
         openRoles={recruitment.openings.length}
         interviews={recruitment.candidates.filter((c) => c.stage === "interview").length}
       />
-      <div className="flex w-full flex-col gap-6 xl:h-[392px] xl:flex-row">
+      <div className="flex w-full flex-col gap-6 xl:flex-row">
         <HeadcountChart employees={employees} />
         <InsightsPanel
           onOpenAssistant={onOpenAssistant}
@@ -177,6 +232,7 @@ export function DashboardPageClient() {
         />
         <RecentHires employees={employees} onViewAll={canManageLeave ? onViewAllHires : undefined} />
       </div>
+      <RecentActivity />
       {user?.role === "admin" ? (
         <RecruitmentPipeline candidates={recruitment.candidates} openings={recruitment.openings} onOpenBoard={onOpenBoard} />
       ) : null}
@@ -184,12 +240,6 @@ export function DashboardPageClient() {
   )
 }
 
-function toISO(d: Date) {
-  const y = d.getFullYear()
-  const m = String(d.getMonth() + 1).padStart(2, "0")
-  const day = String(d.getDate()).padStart(2, "0")
-  return `${y}-${m}-${day}`
-}
 
 function LeaveRequestsCard({
   pending,
@@ -203,18 +253,18 @@ function LeaveRequestsCard({
   canManage: boolean
 }) {
   return (
-    <div className="flex flex-col gap-3.5 rounded-2xl border border-border bg-card p-[22px] shadow-card">
+    <div className="flex flex-col gap-3.5 rounded-lg border border-border bg-card p-4">
       <div className="flex items-center justify-between">
-        <h3 className="font-sans inline-block text-[15px] font-semibold leading-normal text-foreground">
+        <h2 className="font-sans inline-block text-[15px] font-semibold leading-normal text-foreground">
           Leave requests
-        </h3>
+        </h2>
         <span className="inline-block rounded-full bg-foreground/10 px-2 py-[3px] font-sans text-[11px] font-semibold leading-normal text-secondary-foreground">
           {pending.length} pending
         </span>
       </div>
       {pending.length === 0 ? (
         <div className="rounded-xl border border-dashed border-border bg-muted px-4 py-6 text-center font-sans text-[12.5px] text-muted-foreground">
-          No pending requests. You’re all caught up.
+          No pending requests. Youâ€™re all caught up.
         </div>
       ) : (
         <div className="flex flex-col gap-2.5">
@@ -241,7 +291,7 @@ function LeaveRequestsCard({
                     onClick={() => onApprove(req.id)}
                     className="flex size-[30px] shrink-0 items-center justify-center rounded-lg bg-foreground/10 text-secondary-foreground hover:bg-foreground/20"
                   >
-                    <Check className="size-[15px]" strokeWidth={2} />
+                    <Check className="size-[15px]" strokeWidth={2} aria-hidden="true" />
                   </button>
                   <button
                     type="button"
@@ -249,7 +299,7 @@ function LeaveRequestsCard({
                     onClick={() => onDecline(req.id)}
                     className="flex size-[30px] shrink-0 items-center justify-center rounded-lg bg-foreground/10 text-foreground hover:bg-foreground/20"
                   >
-                    <X className="size-[15px]" strokeWidth={2} />
+                    <X className="size-[15px]" strokeWidth={2} aria-hidden="true" />
                   </button>
                 </>
               ) : (

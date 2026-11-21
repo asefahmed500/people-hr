@@ -1,5 +1,6 @@
 import { Check } from "lucide-react"
 
+import { Separator } from "@/components/ui/separator"
 import type { Payment } from "@/lib/data"
 import { cn } from "@/lib/utils"
 
@@ -65,7 +66,7 @@ export function PayRunSummary({
   ]
 
   return (
-    <div className="flex w-full flex-col gap-6 rounded-2xl border border-border bg-card p-6 shadow-card">
+    <div className="flex w-full flex-col gap-4 rounded-lg border border-border bg-card p-4">
       <div className="flex">
         {figures.map((fig, idx) => (
           <div key={fig.label} className="contents">
@@ -85,12 +86,12 @@ export function PayRunSummary({
               </span>
             </div>
             {idx < figures.length - 1 ? (
-              <span className="flex w-px shrink-0 flex-col bg-border" />
+              <Separator orientation="vertical" className="h-auto" />
             ) : null}
           </div>
         ))}
       </div>
-      <span className="flex h-px w-full flex-col bg-border" />
+      <Separator />
       <div className="flex items-center">
         {steps.map((step, idx) => (
           <StepItem key={step.title} step={step} last={idx === steps.length - 1} />

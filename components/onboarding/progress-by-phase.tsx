@@ -1,17 +1,10 @@
 import type { OnboardingTask } from "@/lib/data"
+import { Progress } from "@/components/ui/progress"
 
 type PhaseBar = {
   label: string
   meta: string
   fillPct: number
-  fill: string
-}
-
-const PHASE_FILLS: Record<string, string> = {
-  pre: "bg-primary",
-  w1: "bg-secondary-foreground",
-  m1: "bg-muted-foreground",
-  ramped: "bg-primary",
 }
 
 const PHASE_LABELS: Record<string, string> = {
@@ -36,11 +29,10 @@ export function ProgressByPhase({ tasks }: { tasks: OnboardingTask[] }) {
       label: PHASE_LABELS[phase],
       meta: `${count} · ${pct}%`,
       fillPct: pct,
-      fill: PHASE_FILLS[phase],
     }
   })
   return (
-    <div className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-5">
+    <div className="flex flex-col gap-4 rounded-lg border border-border bg-card p-4">
       <div className="flex flex-col gap-0.5">
         <h2 className="text-h4">
           Progress by phase
@@ -60,12 +52,7 @@ export function ProgressByPhase({ tasks }: { tasks: OnboardingTask[] }) {
                 {phase.meta}
               </span>
             </div>
-            <div className="flex h-1.5 w-full overflow-clip rounded-full bg-muted">
-              <div
-                className={`h-full rounded-full ${phase.fill}`}
-                style={{ width: `${phase.fillPct}%` }}
-              />
-            </div>
+            <Progress value={phase.fillPct} className="h-1.5" />
           </div>
         ))}
       </div>

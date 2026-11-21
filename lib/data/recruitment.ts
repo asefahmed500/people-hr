@@ -8,6 +8,8 @@ export type Candidate = {
   department: string
   appliedAt: string
   stage: CandidateStage
+  /** Sourcing channel captured in the candidate dialog. */
+  source?: string
 }
 
 export type Opening = {

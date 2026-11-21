@@ -27,6 +27,10 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 
 type Member = {
   id: string
@@ -93,7 +97,7 @@ export function TeamMembersCard() {
       setInviteOpen(false)
       form.reset({ name: "", email: "", role: "employee", department: "" })
     } catch (err) {
-      notify.error("Couldn’t add member", err instanceof Error ? err.message : "Please try again.")
+      notify.error("Couldnâ€™t add member", err instanceof Error ? err.message : "Please try again.")
     } finally {
       setSubmitting(false)
     }
@@ -106,7 +110,7 @@ export function TeamMembersCard() {
       setMembers((prev) => prev.map((x) => (x.id === m.id ? { ...x, role } : x)))
       notify.success("Role updated", `${m.name} is now a ${role}.`)
     } catch (err) {
-      notify.error("Couldn’t update role", err instanceof Error ? err.message : "Please try again.")
+      notify.error("Couldnâ€™t update role", err instanceof Error ? err.message : "Please try again.")
     }
   }
 
@@ -122,7 +126,7 @@ export function TeamMembersCard() {
       notify.success("Member removed", `${removeTarget.name} was removed from the workspace.`)
       setRemoveTarget(null)
     } catch (err) {
-      notify.error("Couldn’t remove member", err instanceof Error ? err.message : "Please try again.")
+      notify.error("Couldnâ€™t remove member", err instanceof Error ? err.message : "Please try again.")
     } finally {
       setSubmitting(false)
     }
@@ -130,11 +134,11 @@ export function TeamMembersCard() {
 
   if (!isAdmin) {
     return (
-      <div className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-5">
+      <div className="flex flex-col gap-3 rounded-lg border border-border bg-card p-4">
         <span className="font-sans text-[15px] font-semibold leading-normal text-foreground">
           Team members
         </span>
-        <p className="rounded-xl border border-dashed border-border bg-muted px-4 py-6 text-center font-sans text-xs text-muted-foreground">
+        <p className="rounded-lg border border-dashed border-border bg-muted px-4 py-6 text-center font-sans text-xs text-muted-foreground">
           Only admins can manage team members.
         </p>
       </div>
@@ -142,38 +146,32 @@ export function TeamMembersCard() {
   }
 
   return (
-    <div className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-5">
+    <div className="flex flex-col gap-3 rounded-lg border border-border bg-card p-4">
       <div className="flex items-center justify-between">
         <span className="font-sans text-[15px] font-semibold leading-normal text-foreground">
           Team members
         </span>
-        <button
-          type="button"
-          onClick={() => setInviteOpen(true)}
-          className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 border border-border bg-gradient-to-b from-white to-[#ececea] shadow-xs transition-colors hover:to-[#e2e2df]"
-        >
-          <UserPlus className="size-3.5 text-secondary-foreground" strokeWidth={2} />
-          <span className="font-sans text-[12px] font-medium leading-normal text-secondary-foreground">
-            Invite
-          </span>
-        </button>
+        <Button type="button" size="sm" onClick={() => setInviteOpen(true)}>
+          <UserPlus className="size-3.5" strokeWidth={2} aria-hidden="true" />
+          Invite
+        </Button>
       </div>
       {members.length === 0 ? (
-        <p className="rounded-xl border border-dashed border-border bg-muted px-4 py-6 text-center font-sans text-xs text-muted-foreground">
-          No team members yet — invite someone to get started.
+        <p className="rounded-lg border border-dashed border-border bg-muted px-4 py-6 text-center font-sans text-xs text-muted-foreground">
+          No team members yet â€” invite someone to get started.
         </p>
       ) : (
         <div className="flex flex-col gap-2">
           {members.map((m) => (
             <div
               key={m.id}
-              className="flex items-center gap-3 rounded-xl border border-border bg-muted p-3"
+              className="flex items-center gap-3 rounded-lg border border-border bg-muted p-3"
             >
-              <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-foreground/10">
-                <span className="font-sans text-[12px] font-semibold text-primary">
+              <Avatar className="size-9">
+                <AvatarFallback className="bg-foreground/10 text-[12px] font-semibold text-primary">
                   {m.initials}
-                </span>
-              </div>
+                </AvatarFallback>
+              </Avatar>
               <div className="flex min-w-0 flex-1 flex-col">
                 <span className="font-sans text-[13px] font-medium leading-normal text-foreground">
                   {m.name}
@@ -181,12 +179,13 @@ export function TeamMembersCard() {
                 </span>
                 <span className="font-sans text-[11.5px] leading-normal text-muted-foreground">
                   {m.email}
-                  {m.department ? ` · ${m.department}` : ""}
+                  {m.department ? ` Â· ${m.department}` : ""}
                 </span>
               </div>
-              <span
+              <Badge
+                variant="secondary"
                 className={cn(
-                  "rounded-full px-2 py-0.5 font-sans text-[10px] font-semibold capitalize",
+                  "h-5 text-[10px] font-semibold capitalize",
                   m.role === "admin"
                     ? "bg-foreground/10 text-primary"
                     : m.role === "manager"
@@ -195,21 +194,29 @@ export function TeamMembersCard() {
                 )}
               >
                 {m.role}
-              </span>
+              </Badge>
               <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <button
-                    type="button"
-                    aria-label={`${m.name} options`}
-                    className="flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted"
-                  >
-                    <MoreHorizontal className="size-3.5" strokeWidth={2} />
-                  </button>
-                </DropdownMenuTrigger>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-sm"
+                          aria-label={`${m.name} options`}
+                        >
+                          <MoreHorizontal className="size-3.5" strokeWidth={2} aria-hidden="true" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                    </TooltipTrigger>
+                    <TooltipContent>Member options</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
                 <DropdownMenuContent align="end">
                   <DropdownMenuItem asChild>
                     <a href={`mailto:${m.email}`} className="flex items-center gap-2 font-sans text-[13px]">
-                      <Mail className="size-3.5" /> Send email
+                      <Mail className="size-3.5" aria-hidden="true" /> Send email
                     </a>
                   </DropdownMenuItem>
                   {m.id !== me?.id && m.role !== "admin" && (
@@ -242,7 +249,7 @@ export function TeamMembersCard() {
         </div>
       )}
 
-      <ActionDialog
+      <ActionDialog width="wide"
         open={inviteOpen}
         onOpenChange={setInviteOpen}
         title="Invite a team member"
@@ -269,7 +276,7 @@ export function TeamMembersCard() {
           value={form.values.department}
           onChange={(v) => form.setValue("department", v)}
           options={[
-            { value: "", label: "— Select department —" },
+            { value: "", label: "â€” Select department â€”" },
             ...DEPARTMENTS.map((d) => ({ value: d, label: d })),
           ]}
         />

@@ -3,6 +3,10 @@
 import * as React from "react"
 import { BotMessageSquare, Send } from "lucide-react"
 
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import type { ChatMessage } from "@/lib/data"
 
 type ChatConversationProps = {
@@ -45,10 +49,10 @@ export function ChatConversation({
   }
 
   return (
-    <div className="flex min-w-0 flex-1 flex-col gap-5 rounded-2xl border border-border bg-card p-6">
-      <div ref={scrollRef} className="flex max-h-[480px] min-h-[320px] flex-1 flex-col gap-5 overflow-y-auto pr-1">
+    <div className="flex min-w-0 flex-1 flex-col gap-4 rounded-lg border border-border bg-card p-4">
+      <div ref={scrollRef} className="flex max-h-[480px] min-h-[320px] flex-1 flex-col gap-4 overflow-y-auto pr-1">
         {msgs.length === 0 ? (
-          <div className="flex flex-1 flex-col items-center justify-center gap-5">
+          <div className="flex flex-1 flex-col items-center justify-center gap-4">
             <p className="font-sans text-[13.5px] leading-normal text-muted-foreground">
               Start a conversation by typing a message below or choosing a prompt.
             </p>
@@ -59,7 +63,7 @@ export function ChatConversation({
                   type="button"
                   onClick={() => onSelectPrompt?.(prompt)}
                   disabled={thinking}
-                  className="rounded-lg border border-border bg-muted px-3.5 py-2 text-left font-sans text-[12.5px] text-secondary-foreground transition-colors hover:bg-muted/60 hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:opacity-60"
+                  className="rounded-lg border border-border bg-muted px-3 py-2 text-left font-sans text-[12.5px] text-secondary-foreground transition-colors hover:bg-muted/60 hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:opacity-60"
                 >
                   {prompt}
                 </button>
@@ -76,7 +80,7 @@ export function ChatConversation({
           )
         )}
       </div>
-      <div className="flex shrink-0 items-center gap-2.5 rounded-xl border border-border bg-card px-3.5 py-2.5">
+      <div className="flex shrink-0 items-center gap-2 rounded-lg border border-border bg-card px-3 py-2">
         <input
           type="text"
           value={input}
@@ -87,21 +91,29 @@ export function ChatConversation({
           aria-label="Message"
           className="flex-1 border-0 bg-transparent font-sans text-[13.5px] leading-normal text-foreground outline-none placeholder:text-muted-foreground disabled:opacity-60"
         />
-        <span className="flex shrink-0 items-center gap-1.5 rounded-full border border-border bg-muted px-2.5 py-1">
-          <BotMessageSquare className="size-3 text-primary" strokeWidth={2} />
-          <span className="font-sans text-[11px] font-semibold leading-normal text-secondary-foreground">
+        <Badge variant="outline" className="h-5 shrink-0 gap-1 bg-muted">
+          <BotMessageSquare className="size-3 text-primary" strokeWidth={2} aria-hidden="true" />
+          <span className="text-[10px] font-semibold leading-none text-secondary-foreground">
             PeopleHR AI
           </span>
-        </span>
-        <button
-          type="button"
-          aria-label="Send message"
-          onClick={handleSend}
-          disabled={thinking || !input.trim()}
-          className="flex size-9 shrink-0 items-center justify-center rounded-full border border-border bg-gradient-to-b from-white to-[#ececea] shadow-xs transition-opacity hover:to-[#e2e2df] disabled:opacity-50"
-        >
-          <Send className="size-4 text-secondary-foreground" strokeWidth={2} />
-        </button>
+        </Badge>
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                size="icon"
+                aria-label="Send message"
+                onClick={handleSend}
+                disabled={thinking || !input.trim()}
+                className="shrink-0 rounded-full"
+              >
+                <Send className="size-4" strokeWidth={2} aria-hidden="true" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Send message</TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
       </div>
       <span className="text-center font-sans text-[11px] leading-normal text-muted-foreground">
         AI can make mistakes. Verify important info.
@@ -125,9 +137,11 @@ function UserMessage({ text }: { text: string }) {
 function AssistantMessage({ text, thinking }: { text: string; thinking: boolean }) {
   return (
     <div className="flex items-start gap-2.5">
-      <div className="flex size-[30px] shrink-0 items-center justify-center rounded-full bg-foreground/10">
-        <BotMessageSquare className="size-3.5 text-primary" strokeWidth={1.8} />
-      </div>
+      <Avatar className="size-[30px]">
+        <AvatarFallback className="bg-foreground/10">
+          <BotMessageSquare className="size-3.5 text-primary" strokeWidth={1.8} aria-hidden="true" />
+        </AvatarFallback>
+      </Avatar>
       <div className="flex max-w-[78%] flex-col rounded-tl border border-border bg-card px-4 py-3">
         {thinking ? (
           <span className="flex items-center gap-1 py-0.5">

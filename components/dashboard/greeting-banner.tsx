@@ -26,7 +26,7 @@ export function GreetingBanner({
   return (
     <div className="flex w-full shrink-0 flex-col gap-4 sm:flex-row sm:items-center sm:gap-6">
       <div className="flex flex-1 flex-col justify-center gap-1.5">
-        <h1 className="inline-block text-2xl font-semibold leading-[1.1] tracking-[-0.02em] text-foreground sm:text-3xl">
+        <h1 className="text-h1 inline-block">
           {greeting}, {userName}
         </h1>
         <p className="font-sans inline-block text-sm leading-normal text-secondary-foreground">
@@ -47,15 +47,15 @@ function AiInsightCard({ pendingLeave }: { pendingLeave: number }) {
       ? `${pendingLeave} leave request${pendingLeave === 1 ? "" : "s"} waiting for your approval.`
       : "You’re all caught up — no pending approvals."
   return (
-    <div className="flex w-full shrink-0 flex-col items-start gap-[13px] rounded-2xl bg-foreground p-4 shadow-card sm:w-[400px]">
-      <div className="flex size-[34px] shrink-0 items-center justify-center rounded-lg bg-background/15">
-        <BotMessageSquare className="size-[18px] text-background" strokeWidth={2} />
+    <div className="flex w-full shrink-0 flex-col items-start gap-[13px] rounded-lg border border-border bg-muted p-4 sm:w-[400px]">
+      <div className="flex size-[34px] shrink-0 items-center justify-center rounded-lg bg-foreground/10">
+        <BotMessageSquare className="size-[18px] text-primary" strokeWidth={2} aria-hidden="true" />
       </div>
       <div className="flex min-w-0 flex-1 flex-col gap-1">
-        <span className="font-sans inline-block text-[10.5px] font-semibold uppercase leading-normal tracking-[0.09em] text-background/60">
+        <span className="font-sans inline-block text-[10.5px] font-semibold uppercase leading-normal tracking-[0.09em] text-muted-foreground">
           AI Insight
         </span>
-        <p className="font-sans inline-block h-fit w-full text-[13px] leading-[1.45] text-background">
+        <p className="font-sans inline-block h-fit w-full text-[13px] leading-[1.45] text-foreground">
           {line}
         </p>
       </div>

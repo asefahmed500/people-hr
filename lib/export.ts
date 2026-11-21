@@ -5,9 +5,13 @@ type ExportColumn<T> = {
 }
 
 function escapeCsv(value: string): string {
-  const needsQuotes = /[",\n]/.test(value)
-  const escaped = value.replace(/"/g, '""')
-  return needsQuotes ? `"${escaped}"` : escaped
+  // Neutralise spreadsheet formula injection: a cell beginning with = + - @
+  // (or a control character) is executed by Excel/Sheets when the CSV is
+  // opened. Prefixing with an apostrophe keeps it literal text.
+  let safe = value.replace(/^[=+\-@\t\r]/, "'$&")
+  const needsQuotes = /[",\n]/.test(safe)
+  safe = safe.replace(/"/g, '""')
+  return needsQuotes ? `"${safe}"` : safe
 }
 
 export function toCsv<T extends Record<string, unknown>>(

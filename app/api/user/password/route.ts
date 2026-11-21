@@ -4,6 +4,7 @@ import bcrypt from "bcryptjs"
 import { prisma } from "@/lib/db"
 import { auth } from "@/lib/auth"
 import { rateLimit } from "@/lib/rate-limit"
+import { bumpSessionEpoch } from "@/lib/login-history"
 
 // Change the signed-in user's password (verifies the current one).
 export async function POST(request: Request) {
@@ -38,5 +39,7 @@ export async function POST(request: Request) {
 
   const hash = await bcrypt.hash(next, 10)
   await prisma.user.update({ where: { id: user.id }, data: { password: hash } })
+  // Other sessions must not survive a password change.
+  await bumpSessionEpoch(user.id).catch(() => {})
   return NextResponse.json({ ok: true })
 }

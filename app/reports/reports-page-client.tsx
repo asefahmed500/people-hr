@@ -8,6 +8,7 @@ import { ScheduledReports } from "@/components/reports/scheduled-reports"
 import { RecentReports } from "@/components/reports/recent-reports"
 import { ActionDialog } from "@/components/shared/dialog-parts"
 import { Field, SelectField, useForm } from "@/components/shared/field"
+import { StoreErrorState } from "@/components/shared/store-error-state"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
   AlertDialog,
@@ -20,13 +21,22 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { notify } from "@/lib/toast"
+import { pushNotification } from "@/lib/stores/notifications"
 import { exportToCsv } from "@/lib/export"
 import { useApiStore } from "@/hooks/use-api-store"
 import { useAuth } from "@/hooks/use-auth"
 import {
   type ReportsStore,
   type ScheduledReport,
+  type Employee,
+  type LeaveStore,
+  type PayrollStore,
+  type AttendanceStore,
+  type RecruitmentStore,
   defaultReportsStore,
+  defaultLeaveStore,
+  defaultPayrollStore,
+  defaultRecruitmentStore,
 } from "@/lib/data"
 
 const CADENCES = [
@@ -49,7 +59,7 @@ const FORMAT_LABELS: Record<string, string> = {
   slides: "Slides",
 }
 
-// Template titles → valid report types (the titles aren't a clean slug).
+// Template titles â†’ valid report types (the titles aren't a clean slug).
 function typeFromTitle(title: string): string {
   const t = title.toLowerCase()
   if (t.includes("payroll")) return "payroll"
@@ -61,10 +71,32 @@ function typeFromTitle(title: string): string {
 export function ReportsPageClient() {
   const { user } = useAuth()
   const canWrite = user?.role === "admin"
-  const { state, setState, hydrated } = useApiStore<ReportsStore>(
+  const { state, setState, hydrated, error: reportsError, retry: retryReports } = useApiStore<ReportsStore>(
     "/api/store/reports",
     () => defaultReportsStore,
   )
+  // Reports are generated from the real workspace documents, not from the
+  // report schedule itself.
+  const employees = useApiStore<Employee[]>("/api/store/employees", () => [])
+  const leave = useApiStore<LeaveStore>("/api/store/leave", () => defaultLeaveStore)
+  const payroll = useApiStore<PayrollStore>("/api/store/payroll", () => defaultPayrollStore)
+  const attendance = useApiStore<AttendanceStore>("/api/store/attendance", () => ({ checkIns: [] }))
+  const recruitment = useApiStore<RecruitmentStore>("/api/store/recruitment", () => defaultRecruitmentStore)
+  const error =
+    reportsError ||
+    employees.error ||
+    leave.error ||
+    payroll.error ||
+    attendance.error ||
+    recruitment.error
+  const retry = () => {
+    retryReports()
+    employees.retry()
+    leave.retry()
+    payroll.retry()
+    attendance.retry()
+    recruitment.retry()
+  }
 
   const [dialogOpen, setDialogOpen] = React.useState(false)
   const [editTarget, setEditTarget] = React.useState<ScheduledReport | null>(null)
@@ -136,7 +168,7 @@ export function ReportsPageClient() {
     })
     notify.success(
       editTarget ? "Report updated" : "Report created",
-      `“${payload.name}” is scheduled ${payload.cadence}.`,
+      `â€œ${payload.name}â€ will be generated in-app ${payload.cadence} and appear under Recent exports with a notification. No email is sent.`,
     )
     if (!editTarget) {
     }
@@ -166,38 +198,91 @@ export function ReportsPageClient() {
     )
   }
 
-  function handleGenerateNow(report: ScheduledReport) {
-    exportToCsv(`${report.name.replace(/\s+/g, "-").toLowerCase()}-report`, [
-      { id: report.id, name: report.name, type: report.type, format: report.format, cadence: report.cadence, nextRun: report.nextRun, recipients: report.recipients },
-    ], [
-      { key: "name", label: "Report" },
-      { key: "type", label: "Type" },
-      { key: "format", label: "Format" },
-      { key: "cadence", label: "Cadence" },
-      { key: "nextRun", label: "Next run" },
-      { key: "recipients", label: "Recipients" },
-    ])
-    notify.success("Report generated", `${report.name} downloaded as CSV.`)
+  /** Pull live rows from the module that owns this report's subject. */
+  function reportRows(type: string): Record<string, unknown>[] {
+    switch (type) {
+      case "payroll":
+        return payroll.state.payments.map((p) => ({
+          Name: p.name, Department: p.department, Role: p.role,
+          Gross: p.gross, Deductions: p.deductions, Status: p.status,
+        }))
+      case "attendance":
+        return attendance.state.checkIns.map((c) => ({
+          Name: c.name, Department: c.dept, Date: c.date ?? "",
+          Time: c.time, Status: c.status,
+        }))
+      case "recruitment":
+        return recruitment.state.candidates.map((c) => ({
+          Name: c.name, Role: c.role, Department: c.department,
+          Stage: c.stage, Applied: c.appliedAt,
+        }))
+      case "leave":
+        return leave.state.requests.map((r) => ({
+          Employee: r.employeeName, Type: r.type, Status: r.status,
+          From: r.startDate, To: r.endDate, Days: r.days, Reason: r.reason,
+        }))
+      case "engagement":
+      case "headcount":
+      default:
+        return employees.state.map((e) => ({
+          Name: e.name, Email: e.email, Department: e.department,
+          Role: e.role, Status: e.status, Location: e.location,
+        }))
+    }
   }
 
-  function handleDownloadRecent(name: string) {
-    exportToCsv("recent-report", [
-      { name, downloadedAt: new Date().toISOString().slice(0, 10) },
-    ], [
-      { key: "name", label: "Report" },
-      { key: "downloadedAt", label: "Downloaded" },
-    ])
-    notify.success("Report downloaded", `${name} downloaded as CSV.`)
+  function downloadRows(filename: string, rows: Record<string, unknown>[]) {
+    // Never fabricate a data row. Export an empty CSV with a header instead.
+    const columns = rows.length
+      ? Object.keys(rows[0]).map((key) => ({ key, label: key }))
+      : [{ key: "Result", label: "Result" }]
+    exportToCsv(filename, rows, columns)
+  }
+
+  function handleGenerateNow(report: ScheduledReport) {
+    const rows = reportRows(report.type)
+    downloadRows(`${report.name.replace(/\s+/g, "-").toLowerCase()}-report`, rows)
+    const record = {
+      id: `r-${crypto.randomUUID()}`,
+      name: report.name,
+      date: new Date().toISOString().slice(0, 10),
+      size: `${rows.length} row${rows.length === 1 ? "" : "s"}`,
+      status: "ready" as const,
+      tone: report.tone,
+      reportType: report.type,
+    }
+    setState((prev) => ({ ...prev, recent: [record, ...prev.recent].slice(0, 20) }))
+    pushNotification({
+      type: "report_generated",
+      title: "Report generated",
+      description: `${report.name} (${rows.length} rows) is ready under Recent exports.`,
+      href: "/reports",
+    })
+    notify.success("Report generated", `${report.name} (${rows.length} rows) downloaded as CSV.`)
+  }
+
+  function handleDownloadRecent(name: string, reportType?: string) {
+    const rows = reportRows(reportType ?? typeFromTitle(name))
+    downloadRows(name.replace(/\s+/g, "-").toLowerCase(), rows)
+    notify.success("Report downloaded", `${name} (${rows.length} rows) downloaded as CSV.`)
+  }
+
+  if (error) {
+    return (
+      <DashboardShell activeHref="/reports" current="Reports" accentCurrent>
+        <StoreErrorState onRetry={retry} />
+      </DashboardShell>
+    )
   }
 
   if (!hydrated) {
     return (
       <DashboardShell activeHref="/reports" current="Reports" accentCurrent>
         <Skeleton className="h-8 w-[200px] rounded-lg" />
-        <Skeleton className="mt-4 h-24 w-full rounded-2xl" />
-        <div className="mt-5 flex gap-5">
-          <Skeleton className="h-[300px] flex-1 rounded-2xl" />
-          <Skeleton className="h-[300px] w-[420px] rounded-2xl" />
+        <Skeleton className="mt-4 h-24 w-full rounded-lg" />
+        <div className="mt-4 flex gap-4">
+          <Skeleton className="h-[300px] flex-1 rounded-lg" />
+          <Skeleton className="h-[300px] w-full rounded-lg lg:w-[420px]" />
         </div>
       </DashboardShell>
     )
@@ -215,7 +300,7 @@ export function ReportsPageClient() {
               : undefined
           }
         />
-        <div className="flex flex-col gap-5 lg:flex-row lg:items-start">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
           <ScheduledReports
             scheduled={state.scheduled}
             onGenerateNow={canWrite ? handleGenerateNow : undefined}
@@ -240,15 +325,16 @@ export function ReportsPageClient() {
         </div>
       </DashboardShell>
 
-      <ActionDialog
+      <ActionDialog width="wide"
         open={dialogOpen}
         onOpenChange={(o) => { setDialogOpen(o); if (!o) setEditTarget(null) }}
         title={editTarget ? "Edit report" : "New report"}
+        description="Scheduled reports are generated in the app on their cadence and appear under Recent exports with a notification. No emails are sent."
         submitLabel={editTarget ? "Save changes" : "Create"}
         onSubmit={handleSaveReport}
       >
         <Field label="Report name" value={form.values.name} onChange={(v) => form.setValue("name", v)} required />
-        <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <SelectField
             label="Type"
             value={form.values.type}
@@ -267,7 +353,7 @@ export function ReportsPageClient() {
             options={FORMATS}
           />
         </div>
-        <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <SelectField
             label="Cadence"
             value={form.values.cadence}
@@ -275,17 +361,17 @@ export function ReportsPageClient() {
             options={CADENCES}
           />
           <Field
-            label="Recipients"
+            label="Audience (label only)"
             value={form.values.recipients}
             onChange={(v) => form.setValue("recipients", v)}
-            placeholder="People team · 4"
+            placeholder="People team Â· 4"
           />
         </div>
         <Field
           label="Next run"
           value={form.values.nextRun}
           onChange={(v) => form.setValue("nextRun", v)}
-          placeholder="e.g. Tomorrow 09:00"
+          placeholder="e.g. 2026-12-01 or Monthly"
         />
       </ActionDialog>
 

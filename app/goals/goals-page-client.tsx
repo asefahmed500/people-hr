@@ -6,8 +6,10 @@ import { DashboardShell } from "@/components/dashboard/dashboard-shell"
 import { GoalsHeader } from "@/components/goals/goals-header"
 import { GoalsKpiStrip } from "@/components/goals/goals-kpi-strip"
 import { ObjectivesGrid } from "@/components/goals/objectives-grid"
+import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { ActionDialog } from "@/components/shared/dialog-parts"
 import { Field, TextArea, useForm } from "@/components/shared/field"
+import { StoreErrorState } from "@/components/shared/store-error-state"
 import { Skeleton } from "@/components/ui/skeleton"
 import { notify } from "@/lib/toast"
 import { useApiStore } from "@/hooks/use-api-store"
@@ -25,13 +27,13 @@ import {
 const KR_STEPS = [0, 25, 50, 75, 100]
 
 export function GoalsPageClient() {
-  const { state, setState, hydrated } = useApiStore<GoalsStore>(
+  const { state, setState, hydrated, error, retry } = useApiStore<GoalsStore>(
     "/api/store/goals",
     () => defaultGoalsStore,
   )
   const { user } = useAuth()
   const canEdit = !!user
-  // Goals are scoped to the owner on the server — non-admins can't reassign
+  // Goals are scoped to the owner on the server â€” non-admins can't reassign
   // an objective to someone else, so the owner field stays locked to them.
   const canReassign = user?.role === "admin"
 
@@ -92,11 +94,11 @@ export function GoalsPageClient() {
       description: v.description,
     })
     setState((prev) => ({ objectives: [...prev.objectives, obj] }))
-    notify.success("Goal created", `“${obj.title}” added to objectives.`)
+    notify.success("Goal created", `â€œ${obj.title}â€ added to objectives.`)
     setNewGoalOpen(false)
   }
 
-  // Clicking a KR cycles its progress: 0 → 25 → 50 → 75 → 100 → 0.
+  // Clicking a KR cycles its progress: 0 â†’ 25 â†’ 50 â†’ 75 â†’ 100 â†’ 0.
   function handleCycleKr(objId: string, krIdx: number) {
     setState((prev) => ({
       objectives: prev.objectives.map((o) => {
@@ -115,6 +117,7 @@ export function GoalsPageClient() {
         return recompute(o, krs)
       }),
     }))
+    notify.success("Key result updated", "Objective progress recalculated.")
   }
 
   function handleRemoveKr(objId: string, krId: string) {
@@ -125,6 +128,7 @@ export function GoalsPageClient() {
         return recompute(o, krs)
       }),
     }))
+    notify.success("Key result removed", "Objective progress recalculated.")
   }
 
   function handleAddKr() {
@@ -143,7 +147,7 @@ export function GoalsPageClient() {
         return recompute(o, krs)
       }),
     }))
-    notify.success("Key result added", `“${label}” added to ${krTarget.title}.`)
+    notify.success("Key result added", `â€œ${label}â€ added to ${krTarget.title}.`)
     krForm.reset({ label: "", pct: "50" })
     setKrTarget(null)
   }
@@ -153,18 +157,26 @@ export function GoalsPageClient() {
     setState((prev) => ({
       objectives: prev.objectives.filter((o) => o.id !== deleteTarget.id),
     }))
-    notify.success("Objective deleted", `“${deleteTarget.title}” was removed.`)
+    notify.success("Objective deleted", `â€œ${deleteTarget.title}â€ was removed.`)
     setDeleteTarget(null)
+  }
+
+  if (error) {
+    return (
+      <DashboardShell activeHref="/goals" current="Goals" accentCurrent>
+        <StoreErrorState onRetry={retry} />
+      </DashboardShell>
+    )
   }
 
   if (!hydrated) {
     return (
       <DashboardShell activeHref="/goals" current="Goals" accentCurrent>
-        <Skeleton className="h-12 w-full rounded-2xl" />
-        <Skeleton className="h-20 w-full rounded-2xl" />
-        <div className="grid grid-cols-2 gap-5">
-          <Skeleton className="h-[300px] rounded-2xl" />
-          <Skeleton className="h-[300px] rounded-2xl" />
+        <Skeleton className="h-12 w-full rounded-lg" />
+        <Skeleton className="h-20 w-full rounded-lg" />
+        <div className="grid grid-cols-2 gap-4">
+          <Skeleton className="h-[300px] rounded-lg" />
+          <Skeleton className="h-[300px] rounded-lg" />
         </div>
       </DashboardShell>
     )
@@ -189,7 +201,7 @@ export function GoalsPageClient() {
         }
         onDelete={canEdit ? setDeleteTarget : undefined}
       />
-      <ActionDialog
+      <ActionDialog width="wide"
         open={newGoalOpen}
         onOpenChange={setNewGoalOpen}
         title="New goal"
@@ -230,13 +242,14 @@ export function GoalsPageClient() {
           value={goalForm.values.description}
           onChange={(v) => goalForm.setValue("description", v)}
           placeholder="Brief description of this objective..."
+          error={goalForm.errors.description}
         />
       </ActionDialog>
-      <ActionDialog
+      <ActionDialog width="wide"
         open={!!editTarget}
         onOpenChange={(o) => { if (!o) setEditTarget(null) }}
         title="Edit objective"
-        description={editTarget ? `Update “${editTarget.title}”.` : ""}
+        description={editTarget ? `Update â€œ${editTarget.title}â€.` : ""}
         submitLabel="Save changes"
         onSubmit={() => {
           if (!editTarget) return
@@ -259,7 +272,7 @@ export function GoalsPageClient() {
                 : o,
             ),
           }))
-          notify.success("Objective updated", `“${v.title.trim()}” saved.`)
+          notify.success("Objective updated", `â€œ${v.title.trim()}â€ saved.`)
           setEditTarget(null)
         }}
       >
@@ -296,13 +309,14 @@ export function GoalsPageClient() {
           value={goalForm.values.description}
           onChange={(v) => goalForm.setValue("description", v)}
           placeholder="Brief description of this objective..."
+          error={goalForm.errors.description}
         />
       </ActionDialog>
-      <ActionDialog
+      <ActionDialog width="wide"
         open={!!krTarget}
         onOpenChange={(o) => !o && setKrTarget(null)}
         title="Add key result"
-        description={krTarget ? `Add a key result to “${krTarget.title}”` : ""}
+        description={krTarget ? `Add a key result to â€œ${krTarget.title}â€` : ""}
         submitLabel="Add key result"
         onSubmit={handleAddKr}
       >
@@ -320,20 +334,15 @@ export function GoalsPageClient() {
           onChange={(v) => krForm.setValue("pct", v)}
         />
       </ActionDialog>
-      <ActionDialog
+      <ConfirmDialog
         open={!!deleteTarget}
         onOpenChange={(o) => !o && setDeleteTarget(null)}
         title="Delete objective"
-        description={`Delete “${deleteTarget?.title}” and all of its key results?`}
-        submitLabel="Delete"
-        submitVariant="destructive"
-        onSubmit={handleDeleteObjective}
-      >
-        <p className="font-sans text-[12.5px] leading-normal text-secondary-foreground">
-          This removes the objective and its {deleteTarget?.krs.length ?? 0} key result
-          {deleteTarget?.krs.length === 1 ? "" : "s"}. This can’t be undone.
-        </p>
-      </ActionDialog>
+        description={`Delete â€œ${deleteTarget?.title}â€ and all of its key results? This removes the objective and its ${deleteTarget?.krs.length ?? 0} key result${deleteTarget?.krs.length === 1 ? "" : "s"}. This canâ€™t be undone.`}
+        confirmLabel="Delete"
+        destructive
+        onConfirm={handleDeleteObjective}
+      />
     </DashboardShell>
   )
 }

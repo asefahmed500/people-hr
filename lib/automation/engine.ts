@@ -3,7 +3,6 @@ import type {
   AutomationEvent,
   AutomationAction,
   AutomationContext,
-  AutomationRule,
 } from "./rules";
 import { getRulesForModule } from "./rules";
 import { pushNotification } from "../stores/notifications";

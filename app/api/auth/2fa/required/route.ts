@@ -2,7 +2,7 @@ import { NextResponse } from "next/server"
 import bcrypt from "bcryptjs"
 
 import { prisma } from "@/lib/db"
-import { rateLimit, isLoginLocked, recordLoginFailure, recordLoginSuccess } from "@/lib/rate-limit"
+import { rateLimit, isLoginLocked, recordLoginFailure } from "@/lib/rate-limit"
 
 const DUMMY_HASH = "$2a$10$0000000000000000000000000000000000000000000000000000000"
 
@@ -41,6 +41,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid credentials." }, { status: 401 })
   }
 
-  recordLoginSuccess(email)
+  // Do NOT clear the account lockout here. This is only a password pre-check;
+  // the login is not complete until authorize() verifies the 2FA code. Clearing
+  // it here would let an attacker reset the TOTP-attempt counter on demand by
+  // re-running this endpoint with the (known) correct password.
   return NextResponse.json({ twoFactorRequired: user.twoFactorEnabled === true })
 }

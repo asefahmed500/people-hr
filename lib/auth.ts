@@ -5,7 +5,13 @@ import Credentials from "next-auth/providers/credentials"
 import bcrypt from "bcryptjs"
 
 import { prisma } from "@/lib/db"
+import { recordActivity } from "@/lib/activity"
 import { isLoginLocked, recordLoginFailure, recordLoginSuccess } from "@/lib/rate-limit"
+import {
+  getSessionEpoch,
+  recordSignInEvent,
+  signInMetaFromRequest,
+} from "@/lib/login-history"
 
 // A bcrypt hash compared against when the account doesn't exist, so the
 // failed-login response time can't reveal which emails have accounts.
@@ -14,6 +20,7 @@ const DUMMY_BCRYPT_HASH = bcrypt.hashSync("timing-equalizer", 10)
 const googleId = process.env.AUTH_GOOGLE_ID
 const googleSecret = process.env.AUTH_GOOGLE_SECRET
 const googleConfigured =
+  process.env.NEXT_PUBLIC_GOOGLE_ENABLED === "true" &&
   !!googleId &&
   !!googleSecret &&
   googleId !== "placeholder-google-client-id" &&
@@ -32,7 +39,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         password: { label: "Password", type: "password" },
         token: { label: "2FA code", type: "text" },
       },
-      async authorize(credentials) {
+      async authorize(credentials, request) {
         const email = typeof credentials?.email === "string" ? credentials.email : ""
         const password = typeof credentials?.password === "string" ? credentials.password : ""
         const token = typeof credentials?.token === "string" ? credentials.token : ""
@@ -61,16 +68,61 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         // code is claimed atomically (used: false → used: true) so two
         // concurrent sign-ins can never burn the same code.
         if (user.twoFactorEnabled) {
-          const { verifyTotp } = await import("@/lib/totp")
+          const { verifyTotp, hashBackupCode } = await import("@/lib/totp")
           if (user.totpSecret && verifyTotp(token, user.totpSecret)) {
             // ok
           } else {
+            const codeHash = hashBackupCode(token)
             const claimed = await prisma.backupCode.updateMany({
-              where: { userId: user.id, code: token.trim(), used: false },
+              where: { userId: user.id, code: codeHash, used: false },
               data: { used: true },
             })
-            if (claimed.count === 0) return null
+            if (claimed.count === 0) {
+              // Upgrade legacy plaintext rows on first use: accept the code,
+              // then replace it with a digest in the same atomic claim.
+              const legacy = await prisma.backupCode.findFirst({
+                where: { userId: user.id, code: token.trim(), used: false },
+                select: { id: true },
+              })
+              const migrated = legacy
+                ? await prisma.backupCode.updateMany({
+                    where: { id: legacy.id, used: false },
+                    data: { used: true, code: codeHash },
+                  })
+                : { count: 0 }
+              if (migrated.count === 0) {
+                // A valid password with a bad 2FA code is still a failed login.
+                // Without this, the 6-digit TOTP space (and backup codes) can be
+                // brute-forced forever while the password lockout stays pristine.
+                recordLoginFailure(email)
+                return null
+              }
+            }
           }
+        }
+
+        // Durable audit trail for this successful credentials sign-in. The
+        // helpers are best-effort so a storage hiccup can never block login.
+        const meta = signInMetaFromRequest(request)
+        const signIn = await recordSignInEvent(user.id, meta)
+
+        // Mirror the sign-in into the workspace activity log. Best-effort:
+        // an audit failure must never block an otherwise valid login.
+        try {
+          await recordActivity({
+            actor: {
+              id: user.id,
+              name: user.name,
+              role: user.role,
+              department: user.department,
+            },
+            action: "auth",
+            module: "auth",
+            summary: "Signed in",
+          })
+        } catch {
+          // recordActivity already swallows its own errors — this is belt
+          // and braces in case the helper is changed later.
         }
 
         recordLoginSuccess(email)
@@ -84,6 +136,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           department: user.department,
           managerId: user.managerId,
           twoFactorEnabled: user.twoFactorEnabled,
+          signInId: signIn.id,
+          sessionEpoch: signIn.epoch,
         }
       },
     }),
@@ -100,30 +154,42 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         token.department = (user as { department?: string }).department ?? null
         token.managerId = (user as { managerId?: string }).managerId ?? null
         token.twoFactorEnabled = (user as { twoFactorEnabled?: boolean }).twoFactorEnabled ?? false
+        const issuedEpoch = (user as { sessionEpoch?: number }).sessionEpoch
+        if (typeof issuedEpoch === "number") token.epoch = issuedEpoch
+        const issuedSignInId = (user as { signInId?: string }).signInId
+        if (typeof issuedSignInId === "string") token.signInId = issuedSignInId
         token.lastRefresh = Date.now()
       }
-      // Periodically re-read from DB so profile/role changes propagate
-      // without requiring a fresh sign-in (every 60s for demo responsiveness).
-      const last = (token.lastRefresh as number) ?? 0
-      if (token.id && Date.now() - last > 60_000) {
-        const dbUser = await prisma.user.findUnique({
+      if (!token.id) return token
+
+      // Revocation and deactivation must take effect on the NEXT request, not
+      // at the old 60s profile-refresh interval — a stolen token or a
+      // deactivated account must not stay usable for a minute.
+      const [dbUser, epoch] = await Promise.all([
+        prisma.user.findUnique({
           where: { id: token.id as string },
           select: { id: true, name: true, email: true, role: true, initials: true, department: true, managerId: true, twoFactorEnabled: true, deactivatedAt: true },
-        })
-        if (!dbUser || dbUser.deactivatedAt) {
-          // Account was deactivated mid-session — drop the whole token so the
-          // user is signed out instead of limping on with a dead session.
-          return null
-        }
-        token.name = dbUser.name
-        token.email = dbUser.email
-        token.role = dbUser.role
-        token.initials = dbUser.initials
-        token.department = dbUser.department
-        token.managerId = dbUser.managerId
-        token.twoFactorEnabled = dbUser.twoFactorEnabled
-        token.lastRefresh = Date.now()
+        }),
+        getSessionEpoch(token.id as string),
+      ])
+      if (!dbUser || dbUser.deactivatedAt) return null
+      // Tokens with no epoch (Google OAuth / legacy sessions) are left alone.
+      if (typeof epoch === "number") {
+        if (typeof token.epoch === "number" && token.epoch !== epoch) return null
+        token.epoch = epoch
       }
+
+      // dbUser is already read on every request for revocation checks, so keep
+      // identity and role current immediately. Waiting for a 60s window left
+      // the top bar, greeting and 2FA switch stale after profile changes.
+      token.name = dbUser.name
+      token.email = dbUser.email
+      token.role = dbUser.role
+      token.initials = dbUser.initials
+      token.department = dbUser.department
+      token.managerId = dbUser.managerId
+      token.twoFactorEnabled = dbUser.twoFactorEnabled
+      token.lastRefresh = Date.now()
       return token
     },
     async session({ session, token }) {
@@ -134,6 +200,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         session.user.department = (token.department as string | null) ?? null
         session.user.managerId = (token.managerId as string | null) ?? null
         session.user.twoFactorEnabled = (token.twoFactorEnabled as boolean) ?? false
+        if (typeof token.signInId === "string") session.user.signInId = token.signInId
       }
       return session
     },
@@ -149,6 +216,8 @@ declare module "next-auth" {
       department: string | null
       managerId: string | null
       twoFactorEnabled: boolean
+      /** Id of the sign-in event that issued this token, for the "Current" marker. */
+      signInId?: string
     } & DefaultSession["user"]
   }
 }

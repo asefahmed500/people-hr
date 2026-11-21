@@ -1,6 +1,8 @@
-import { X } from "lucide-react"
+import { Briefcase, X } from "lucide-react"
 
 import type { Opening } from "@/lib/data"
+import { Button } from "@/components/ui/button"
+import { Progress } from "@/components/ui/progress"
 
 export function OpenRolesByDept({
   openings,
@@ -17,14 +19,16 @@ export function OpenRolesByDept({
   const max = Math.max(1, ...rows.map((r) => r.count))
 
   return (
-    <div className="flex flex-1 flex-col gap-4 rounded-2xl border border-border bg-card p-6">
+    <div className="flex flex-1 flex-col gap-4 rounded-lg border border-border bg-card p-4">
       <h2 className="text-h4">
         Open roles by department
       </h2>
       <div className="flex flex-col gap-3">
         {rows.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-border bg-muted px-4 py-6 text-center font-sans text-[12.5px] text-muted-foreground">
-            No open roles yet.
+          <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed border-border bg-muted px-4 py-8 text-center">
+            <Briefcase className="size-5 shrink-0 text-muted-foreground" aria-hidden="true" strokeWidth={2} />
+            <p className="font-sans text-[13px] font-semibold text-foreground">No open roles yet</p>
+            <p className="font-sans text-[12.5px] text-muted-foreground">Post a role to start your pipeline.</p>
           </div>
         ) : null}
         {rows.map((row) => (
@@ -37,12 +41,7 @@ export function OpenRolesByDept({
                 {row.count} open
               </span>
             </div>
-            <div className="flex h-1.5 w-full overflow-clip rounded-full bg-border">
-              <div
-                className="h-full rounded-full bg-primary"
-                style={{ width: `${(row.count / max) * 100}%` }}
-              />
-            </div>
+            <Progress value={(row.count / max) * 100} className="h-1.5" />
           </div>
         ))}
       </div>
@@ -62,14 +61,16 @@ export function OpenRolesByDept({
                 </span>
               </div>
               {onCloseOpening ? (
-                <button
+                <Button
                   type="button"
+                  variant="ghost"
+                  size="icon-xs"
                   aria-label={`Close ${o.title}`}
                   onClick={() => onCloseOpening(o.id)}
-                  className="flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-opacity hover:bg-muted hover:text-foreground group-hover:opacity-100"
+                  className="shrink-0 text-muted-foreground opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100 focus-visible:opacity-100"
                 >
-                  <X className="size-3.5" strokeWidth={2} />
-                </button>
+                  <X className="size-3.5" strokeWidth={2} aria-hidden="true" />
+                </Button>
               ) : null}
             </div>
           ))}

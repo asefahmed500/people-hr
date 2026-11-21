@@ -1,5 +1,7 @@
 import { Info } from "lucide-react"
 
+import { Progress } from "@/components/ui/progress"
+import { cn } from "@/lib/utils"
 import type { Payment } from "@/lib/data"
 
 export function PayBreakdown({ payments }: { payments: Payment[] }) {
@@ -7,11 +9,19 @@ export function PayBreakdown({ payments }: { payments: Payment[] }) {
   const D = payments.reduce((s, p) => s + p.deductions, 0)
   const taxesPct = G > 0 ? Math.round((D / G) * 100) : 0
   const rows = [
-    { label: "Net pay", pct: Math.max(0, 100 - taxesPct), fill: "bg-primary" },
-    { label: "Taxes & deductions", pct: taxesPct, fill: "bg-muted-foreground" },
+    {
+      label: "Net pay",
+      pct: Math.max(0, 100 - taxesPct),
+      indicatorClass: "",
+    },
+    {
+      label: "Taxes & deductions",
+      pct: taxesPct,
+      indicatorClass: "[&_[data-slot=progress-indicator]]:bg-muted-foreground",
+    },
   ]
   return (
-    <div className="flex w-[300px] shrink-0 flex-col gap-5 rounded-2xl border border-border bg-card p-6 shadow-card">
+    <div className="flex w-full shrink-0 flex-col gap-4 rounded-lg border border-border bg-card p-4 lg:w-[300px]">
       <div className="flex flex-col gap-1">
         <h2 className="text-h3">
           Pay breakdown
@@ -31,17 +41,15 @@ export function PayBreakdown({ payments }: { payments: Payment[] }) {
                 {row.pct}%
               </span>
             </div>
-            <div className="flex h-1.5 w-full overflow-clip rounded-full bg-muted">
-              <div
-                className={`h-full rounded-full ${row.fill}`}
-                style={{ width: `${row.pct}%` }}
-              />
-            </div>
+            <Progress
+              value={row.pct}
+              className={cn("h-1.5", row.indicatorClass)}
+            />
           </div>
         ))}
       </div>
       <div className="flex items-start gap-2 border-t border-t-border px-0 pb-0 pt-1">
-        <Info className="mx-0 mb-0 mt-px size-3.5 shrink-0 text-muted-foreground" strokeWidth={2} />
+        <Info className="mx-0 mb-0 mt-px size-3.5 shrink-0 text-muted-foreground" strokeWidth={2} aria-hidden="true" />
         <span className="font-sans inline-block text-[11.5px] leading-normal text-muted-foreground">
           Net pay and deductions as a share of gross pay.
         </span>

@@ -12,7 +12,7 @@ export function RecruitmentKpiStrip({
   const kpis = [
     { value: String(openRoles), label: "Open roles", valueColor: "text-primary" },
     { value: String(candidates), label: "Candidates", valueColor: "text-foreground" },
-    { value: String(interviews), label: "Interviews this wk", valueColor: "text-foreground" },
+    { value: String(interviews), label: "In interviews", valueColor: "text-foreground" },
     { value: String(aged), label: "Roles aging 45d+", valueColor: "text-foreground" },
   ]
   return (
@@ -20,7 +20,7 @@ export function RecruitmentKpiStrip({
       {kpis.map((kpi) => (
         <div
           key={kpi.label}
-          className="flex flex-col gap-1 rounded-2xl border border-border bg-card px-5 py-4"
+          className="flex flex-col gap-1 rounded-lg border border-border bg-card px-4 py-3"
         >
           <span
             className={`inline-block text-[28px] font-semibold leading-none ${kpi.valueColor}`}

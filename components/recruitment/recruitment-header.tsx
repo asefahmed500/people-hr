@@ -2,6 +2,7 @@ import { Plus, UserPlus } from "lucide-react"
 
 import { FilterButton, type FilterOption } from "@/components/shared/filter-button"
 import { ExportButton } from "@/components/shared/export-button"
+import { Button } from "@/components/ui/button"
 
 export function RecruitmentHeader({
   onPostClick,
@@ -36,26 +37,18 @@ export function RecruitmentHeader({
           ariaLabel="Filter by role"
         />
         <ExportButton onClick={onExport} label="Export" />
-        <button
-          type="button"
-          onClick={onAddCandidate}
-          className="flex h-10 flex-1 items-center justify-center gap-2 rounded-lg border border-border bg-card px-4 sm:flex-none"
-        >
-          <UserPlus className="size-4 text-secondary-foreground" strokeWidth={2} />
+        <Button type="button" variant="outline" onClick={onAddCandidate} className="h-9 flex-1 px-4 sm:flex-none">
+          <UserPlus className="size-4 text-secondary-foreground" strokeWidth={2} aria-hidden="true" />
           <span className="font-sans text-[13px] font-medium leading-normal text-secondary-foreground">
             Add candidate
           </span>
-        </button>
-        <button
-          type="button"
-          onClick={onPostClick}
-          className="flex h-10 flex-1 items-center justify-center gap-2 rounded-lg border border-border bg-gradient-to-b from-white to-[#ececea] px-4 shadow-xs transition-colors hover:to-[#e2e2df] sm:flex-none"
-        >
-          <Plus className="size-4 text-secondary-foreground" strokeWidth={2} />
+        </Button>
+        <Button type="button" variant="secondary" onClick={onPostClick} className="h-9 flex-1 px-4 sm:flex-none">
+          <Plus className="size-4 text-secondary-foreground" strokeWidth={2} aria-hidden="true" />
           <span className="font-sans text-[13px] font-medium leading-normal text-foreground">
             Post a job
           </span>
-        </button>
+        </Button>
       </div>
     </div>
   )

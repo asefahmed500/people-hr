@@ -10,6 +10,7 @@ import { OnboardingByDept } from "@/components/onboarding/onboarding-by-dept"
 import { ActionDialog } from "@/components/shared/dialog-parts"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { Field, SelectField } from "@/components/shared/field"
+import { StoreErrorState } from "@/components/shared/store-error-state"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useApiStore } from "@/hooks/use-api-store"
 import { useAuth } from "@/hooks/use-auth"
@@ -20,7 +21,7 @@ import { exportToCsv } from "@/lib/export"
 import { scopeDepartments } from "@/lib/role-scope"
 
 export function OnboardingPageClient() {
-  const { state, setState, hydrated } = useApiStore<OnboardingStore>(
+  const { state, setState, hydrated, error, retry } = useApiStore<OnboardingStore>(
     "/api/store/onboarding",
     () => defaultOnboardingStore,
   )
@@ -35,20 +36,28 @@ export function OnboardingPageClient() {
   const [hireDept, setHireDept] = useState("")
   const [deleteTask, setDeleteTask] = useState<OnboardingTask | null>(null)
 
+  if (error) {
+    return (
+      <DashboardShell activeHref="/onboarding" current="Onboarding" accentCurrent>
+        <StoreErrorState onRetry={retry} />
+      </DashboardShell>
+    )
+  }
+
   if (!hydrated) {
     return (
       <DashboardShell activeHref="/onboarding" current="Onboarding" accentCurrent>
         <Skeleton className="h-8 w-[200px] rounded-lg" />
-        <div className="mt-4 flex gap-5">
+        <div className="mt-4 flex gap-4">
           {Array.from({ length: 4 }).map((_, i) => (
-            <Skeleton key={i} className="h-[100px] flex-1 rounded-2xl" />
+            <Skeleton key={i} className="h-[100px] flex-1 rounded-lg" />
           ))}
         </div>
-        <div className="mt-5 flex gap-5">
-          <Skeleton className="h-[400px] flex-1 rounded-2xl" />
-          <div className="flex w-[340px] shrink-0 flex-col gap-5">
-            <Skeleton className="h-[300px] rounded-2xl" />
-            <Skeleton className="h-[250px] rounded-2xl" />
+        <div className="mt-5 flex gap-4">
+          <Skeleton className="h-[400px] flex-1 rounded-lg" />
+          <div className="flex w-full shrink-0 flex-col gap-4 lg:w-[340px]">
+            <Skeleton className="h-[300px] rounded-lg" />
+            <Skeleton className="h-[250px] rounded-lg" />
           </div>
         </div>
       </DashboardShell>
@@ -79,7 +88,7 @@ export function OnboardingPageClient() {
         t.hireName === hireName ? { ...t, phase: nextPhase, done: false } : t,
       ),
     }))
-    notify.success(`${hireName} → ${nextPhase}`, "Moved to the next onboarding phase.")
+    notify.success(`${hireName} â†’ ${nextPhase}`, "Moved to the next onboarding phase.")
 
   }
 
@@ -107,7 +116,7 @@ export function OnboardingPageClient() {
         }
       />
       <OnboardingKpiStrip tasks={state.tasks} />
-      <div className="flex flex-col gap-5 lg:flex-row lg:items-start">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
         <OnboardingJourney
           tasks={state.tasks}
           onToggleTask={canWrite ? handleToggleTask : undefined}
@@ -121,12 +130,12 @@ export function OnboardingPageClient() {
               : undefined
           }
         />
-        <div className="flex w-full shrink-0 flex-col gap-5 lg:w-[340px]">
+        <div className="flex w-full shrink-0 flex-col gap-4 lg:w-[340px]">
           <ProgressByPhase tasks={state.tasks} />
           <OnboardingByDept tasks={state.tasks} />
         </div>
       </div>
-      <ActionDialog
+      <ActionDialog width="wide"
         open={addOpen}
         onOpenChange={setAddOpen}
         title="Add new hire"
@@ -193,7 +202,7 @@ export function OnboardingPageClient() {
         open={!!deleteTask}
         onOpenChange={(o) => { if (!o) setDeleteTask(null) }}
         title="Delete onboarding task"
-        description={deleteTask ? `Delete “${deleteTask.label}” for ${deleteTask.hireName}? This can’t be undone.` : undefined}
+        description={deleteTask ? `Delete â€œ${deleteTask.label}â€ for ${deleteTask.hireName}? This canâ€™t be undone.` : undefined}
         confirmLabel="Delete"
         destructive
         onConfirm={() => {
@@ -201,7 +210,7 @@ export function OnboardingPageClient() {
             setState((prev) => ({
               tasks: prev.tasks.filter((t) => t.id !== deleteTask.id),
             }))
-            notify.success("Task deleted", `Removed “${deleteTask.label}”.`)
+            notify.success("Task deleted", `Removed â€œ${deleteTask.label}â€.`)
 
           }
           setDeleteTask(null)

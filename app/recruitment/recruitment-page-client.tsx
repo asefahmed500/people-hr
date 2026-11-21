@@ -45,6 +45,7 @@ import { cn } from "@/lib/utils"
 import { ActionDialog } from "@/components/shared/dialog-parts"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { Field, SelectField, useForm } from "@/components/shared/field"
+import { StoreErrorState } from "@/components/shared/store-error-state"
 import { RecruitmentHeader } from "@/components/recruitment/recruitment-header"
 import { RecruitmentKpiStrip } from "@/components/recruitment/recruitment-kpi-strip"
 import { PipelineFunnelCard } from "@/components/recruitment/pipeline-funnel-card"
@@ -61,13 +62,36 @@ import {
 export function RecruitmentPageClient() {
   const { user } = useAuth()
   const canWrite = user?.role === "admin"
-  const { state: store, setState: setStore, hydrated: recruitmentHydrated } = useApiStore<RecruitmentStore>(
+  const {
+    state: store,
+    setState: setStore,
+    hydrated: recruitmentHydrated,
+    error: recruitmentError,
+    retry: retryRecruitment,
+  } = useApiStore<RecruitmentStore>(
     "/api/store/recruitment",
     () => defaultRecruitmentStore,
   )
-  const { state: employees, setState: setEmployees, hydrated: employeesHydrated } = useApiStore<Employee[]>("/api/store/employees", () => defaultEmployees)
-  const { setState: setLeave, hydrated: leaveHydrated } = useApiStore<LeaveStore>("/api/store/leave", () => defaultLeaveStore)
+  const {
+    state: employees,
+    setState: setEmployees,
+    hydrated: employeesHydrated,
+    error: employeesError,
+    retry: retryEmployees,
+  } = useApiStore<Employee[]>("/api/store/employees", () => defaultEmployees)
+  const {
+    setState: setLeave,
+    hydrated: leaveHydrated,
+    error: leaveError,
+    retry: retryLeave,
+  } = useApiStore<LeaveStore>("/api/store/leave", () => defaultLeaveStore)
   const hydrated = recruitmentHydrated && employeesHydrated && leaveHydrated
+  const error = recruitmentError || employeesError || leaveError
+  const retry = () => {
+    retryRecruitment()
+    retryEmployees()
+    retryLeave()
+  }
   const [postOpen, setPostOpen] = React.useState(false)
   const [candidateOpen, setCandidateOpen] = React.useState(false)
   const [editingCandidate, setEditingCandidate] = React.useState<Candidate | null>(null)
@@ -116,7 +140,7 @@ export function RecruitmentPageClient() {
       ),
     }))
     if (c) {
-      notify.success(`${c.name} → ${stageMeta[stage].label}`)
+      notify.success(`${c.name} Ã¢â€ â€™ ${stageMeta[stage].label}`)
       // Hired candidates become employees in the directory + get a leave balance.
       if (stage === "hired") {
         // Guard against re-hiring someone who is already hired, and against
@@ -127,7 +151,7 @@ export function RecruitmentPageClient() {
         if (!alreadyHired) {
           const emp = newEmployee({
             name: c.name,
-            // No email is known at hire time — leave it empty rather than
+            // No email is known at hire time Ã¢â‚¬â€ leave it empty rather than
             // fabricating one. It can be filled in via the Employees page.
             email: "",
             department: c.department as Employee["department"],
@@ -144,7 +168,7 @@ export function RecruitmentPageClient() {
                 ? prev
                 : [emp, ...prev],
             )
-            // The balance is keyed by the new employee's id — only seed it
+            // The balance is keyed by the new employee's id Ã¢â‚¬â€ only seed it
             // when the directory row was actually added, otherwise a re-hire
             // of a deduped name would leave an orphan balance entry behind.
             setLeave((prev) => ({
@@ -196,12 +220,17 @@ export function RecruitmentPageClient() {
     notify.success("Pipeline exported", `${visibleCandidates.length} candidates downloaded as CSV.`)
   }
 
+  if (error) {
+    // page.tsx already provides the DashboardShell for this route.
+    return <StoreErrorState onRetry={retry} />
+  }
+
   if (!hydrated) {
     return (
       <>
-        <Skeleton className="h-12 w-full rounded-2xl" />
-        <Skeleton className="h-20 w-full rounded-2xl" />
-        <Skeleton className="h-[420px] w-full rounded-2xl" />
+        <Skeleton className="h-12 w-full rounded-lg" />
+        <Skeleton className="h-20 w-full rounded-lg" />
+        <Skeleton className="h-[420px] w-full rounded-lg" />
       </>
     )
   }
@@ -230,7 +259,7 @@ export function RecruitmentPageClient() {
         aged={store.openings.filter((o) => o.postedDaysAgo > 45).length}
       />
       <PipelineFunnelCard candidates={store.candidates} />
-      <div className="flex flex-col gap-5 lg:flex-row lg:items-start">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
         <OpenRolesByDept
             openings={store.openings}
             onCloseOpening={
@@ -242,7 +271,7 @@ export function RecruitmentPageClient() {
                 : undefined
             }
           />
-        <div className="flex w-full flex-col gap-5 lg:w-[300px] lg:shrink-0">
+        <div className="flex w-full flex-col gap-4 lg:w-[300px] lg:shrink-0">
           <ConversionRateCard
             rate={
               store.candidates.length === 0
@@ -267,7 +296,7 @@ export function RecruitmentPageClient() {
           onDragStart={onDragStart}
           onDragEnd={onDragEnd}
         >
-          <div className="flex gap-3.5 overflow-x-auto pb-2">
+          <div className="flex gap-3 overflow-x-auto pb-2">
                         {stageOrder.map((stage) => (
               <KanbanColumn
                 key={stage}
@@ -334,7 +363,7 @@ export function RecruitmentPageClient() {
         title="Remove candidate"
         description={
           removeTarget
-            ? `Remove ${removeTarget.name} from the ${removeTarget.role} pipeline? This can’t be undone.`
+            ? `Remove ${removeTarget.name} from the ${removeTarget.role} pipeline? This canÃ¢â‚¬â„¢t be undone.`
             : undefined
         }
         confirmLabel="Remove"
@@ -376,7 +405,7 @@ export function RecruitmentPageClient() {
         title="Close opening"
         description={
           closingOpening
-            ? `Close the “${closingOpening.title}” opening? It will be removed from the board.`
+            ? `Close the Ã¢â‚¬Å“${closingOpening.title}Ã¢â‚¬Â opening? It will be removed from the board.`
             : undefined
         }
         confirmLabel="Close opening"
@@ -387,7 +416,7 @@ export function RecruitmentPageClient() {
               ...prev,
               openings: prev.openings.filter((o) => o.id !== closingOpening.id),
             }))
-            notify.success("Opening closed", `“${closingOpening.title}” was removed.`)
+            notify.success("Opening closed", `Ã¢â‚¬Å“${closingOpening.title}Ã¢â‚¬Â was removed.`)
           }
           setClosingOpening(null)
         }}
@@ -416,8 +445,8 @@ function KanbanColumn({
       ref={setNodeRef}
       data-stage={stage}
       className={cn(
-        "flex min-w-[230px] flex-1 flex-col gap-2.5 rounded-2xl border p-3.5 transition-colors",
-        isOver ? "border-primary bg-muted" : "border-border bg-muted",
+        "flex min-w-[230px] flex-1 flex-col gap-2.5 rounded-lg border bg-card p-3 transition-colors",
+        isOver ? "border-primary" : "border-border",
       )}
     >
       <div className="flex items-center justify-between">
@@ -443,7 +472,7 @@ function KanbanColumn({
         {candidates.length === 0 ? (
           <div
             className={cn(
-              "rounded-lg border border-dashed bg-card p-3 text-center font-sans text-[11px] text-muted-foreground",
+              "rounded-lg border border-dashed bg-muted p-3 text-center font-sans text-[11px] text-muted-foreground",
               isOver ? "border-primary" : "border-border",
             )}
           >
@@ -585,7 +614,7 @@ function CandidateDialog({
     role: candidate?.role ?? "",
     department: candidate?.department ?? "Engineering",
     stage: candidate ? (candidate.stage as string) : "applied",
-    source: "careers-page",
+    source: candidate?.source ?? "careers-page",
   })
 
   // Always-mounted dialog: re-sync the form every time it opens so edits
@@ -597,7 +626,7 @@ function CandidateDialog({
       role: candidate?.role ?? "",
       department: candidate?.department ?? "Engineering",
       stage: candidate ? (candidate.stage as string) : "applied",
-      source: "careers-page",
+      source: candidate?.source ?? "careers-page",
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open])
@@ -622,6 +651,7 @@ function CandidateDialog({
         department: form.values.department,
         appliedAt: candidate?.appliedAt ?? "Today",
         stage: (isEdit ? form.values.stage : "applied") as Candidate["stage"],
+        source: form.values.source,
       })
       onOpenChange(false)
     } finally {
@@ -629,7 +659,7 @@ function CandidateDialog({
     }
   }
   return (
-    <ActionDialog
+    <ActionDialog width="wide"
       open={open}
       onOpenChange={onOpenChange}
       title={isEdit ? "Edit candidate" : "Add candidate"}
@@ -654,7 +684,7 @@ function CandidateDialog({
         required
         error={form.errors.role}
       />
-      <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <SelectField
           label="Department"
           value={form.values.department}
@@ -662,32 +692,19 @@ function CandidateDialog({
           options={DEPARTMENTS.map((d) => ({ value: d, label: d }))}
           required
         />
-        {isEdit ? (
-          <SelectField
-            label="Stage"
-            value={form.values.stage}
-            onChange={(v) => form.setValue("stage", v)}
-            options={[
-              { value: "applied", label: "Applied" },
-              { value: "screening", label: "Screening" },
-              { value: "interview", label: "Interview" },
-              { value: "offer", label: "Offer" },
-              { value: "hired", label: "Hired" },
-            ]}
-          />
-        ) : (
-          <SelectField
-            label="Source"
-            value={form.values.source}
-            onChange={(v) => form.setValue("source", v)}
-            options={[
-              { value: "careers-page", label: "Careers page" },
-              { value: "referral", label: "Referral" },
-              { value: "linkedin", label: "LinkedIn" },
-              { value: "agency", label: "Agency" },
-            ]}
-          />
-        )}
+        {/* Stage is intentionally not editable here: moving to "Hired" must go
+            through moveTo() so the employee + leave balance side effects run. */}
+        <SelectField
+          label="Source"
+          value={form.values.source}
+          onChange={(v) => form.setValue("source", v)}
+          options={[
+            { value: "careers-page", label: "Careers page" },
+            { value: "referral", label: "Referral" },
+            { value: "linkedin", label: "LinkedIn" },
+            { value: "agency", label: "Agency" },
+          ]}
+        />
       </div>
     </ActionDialog>
   )
@@ -739,7 +756,7 @@ function PostJobDialog({
     }
   }
   return (
-    <ActionDialog
+    <ActionDialog width="wide"
       open={open}
       onOpenChange={onOpenChange}
       title="Post a job"
@@ -756,7 +773,7 @@ function PostJobDialog({
         required
         error={form.errors.title}
       />
-      <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <SelectField
           label="Department"
           value={form.values.department}

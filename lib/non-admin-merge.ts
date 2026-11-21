@@ -9,6 +9,8 @@
 // from the stored document untouched, and rows INSIDE the scope are validated
 // (added/changed rows must be owned by the writer).
 
+import { isOwnRecord } from "@/lib/role-scope"
+
 export type UserCtx = {
   id: string
   name: string
@@ -69,18 +71,17 @@ const ARRAY_MODULES: Record<string, ArrayModuleConfig> = {
     // would let them self-assign ratings or erase feedback.
     readOnlyFor: ["employee"],
   },
-  onboarding: { arrayKey: "tasks", nameFields: ["hireName"], deptField: "hireDept" },
-  attendance: { arrayKey: "checkIns", nameFields: ["name"], deptField: "dept" },
+  // Employees have a read-only onboarding view (and are redirected away from
+  // the page); reject their writes to the module as well.
+  onboarding: { arrayKey: "tasks", nameFields: ["hireName"], deptField: "hireDept", readOnlyFor: ["employee"] },
+  // Check-ins are verified by face. Employees must not be able to write
+  // arbitrary self-reported rows through the generic store API.
+  attendance: { arrayKey: "checkIns", nameFields: ["name"], deptField: "dept", readOnlyFor: ["employee"] },
 }
 
 /** True when a stored/incoming row is inside the user's read scope. */
 function inScope(row: Row, config: ArrayModuleConfig, ctx: UserCtx): boolean {
-  const names = config.nameFields.map((f) => String(row[f] ?? ""))
-  const isSelf =
-    names.includes(ctx.name) ||
-    (config.idField ? String(row[config.idField]) === ctx.id : false) ||
-    (config.emailField && ctx.email ? String(row[config.emailField]) === ctx.email : false)
-  if (isSelf) return true
+  if (isOwnRecord(row, { id: ctx.id, email: ctx.email, name: ctx.name })) return true
   if (isManager(ctx) && config.deptField && ctx.department) {
     return String(row[config.deptField] ?? "") === ctx.department
   }
@@ -131,6 +132,14 @@ function mergeArrayModule(
     if ((added || changed) && !inScope(row, config, ctx)) {
       return { ok: false, error: "You can only change your own records." }
     }
+    // A manager's NEW rows must be in their own department. inScope() matches
+    // on owner name first, so a crafted row could otherwise claim someone
+    // else's department while still passing the ownership check.
+    if (added && isManager(ctx) && ctx.department && config.deptField) {
+      if (String(row[config.deptField] ?? "") !== ctx.department) {
+        return { ok: false, error: "You can only create records in your own department." }
+      }
+    }
     // Prevent non-admins from hijacking rows by changing the dept field
     if (changed && prev && config.deptField && !isAdmin(ctx)) {
       if (String(prev[config.deptField] ?? "") !== String(row[config.deptField] ?? "")) {
@@ -142,7 +151,10 @@ function mergeArrayModule(
   // Rebuild: preserve out-of-scope stored rows untouched, take the incoming
   // slice for everything else.
   const preserved = storedArr.filter((row) => !inScope(row, config, ctx))
-  const effective = [...preserved, ...incomingArr]
+  // The caller's filtered view can echo an unchanged out-of-scope row. Keep it
+  // once, not once in each half of the rebuild.
+  const preservedIds = new Set(preserved.map((r) => String(r.id)))
+  const effective = [...preserved, ...incomingArr.filter((r) => !preservedIds.has(String(r.id)))]
 
   // Nothing else in the doc may change.
   const merged = { ...storedObj, [config.arrayKey]: effective } as object
@@ -199,6 +211,19 @@ function mergeEmployees(
         error: "Id, email and department can only be changed by an admin.",
       }
     }
+    // Payroll/employment fields are privileged. Non-admins have no UI for them;
+    // allowing them here would let an employee set their own salary or status.
+    if (changed && prev) {
+      // `name` is identity for several modules' row scoping — let the User row
+      // own it (profile route keeps the directory in sync).
+      const privileged = ["salary", "role", "status", "hiredAt", "hiredDaysAgo", "name"]
+      if (privileged.some((field) => !deepEqual(prev[field], row[field]))) {
+        return {
+          ok: false,
+          error: "Employment details can only be changed by an admin.",
+        }
+      }
+    }
   }
 
   // Employees may not create or remove directory rows at all — self-service
@@ -217,7 +242,8 @@ function mergeEmployees(
   }
 
   const preserved = storedArr.filter((row) => !inScope(row, cfg, ctx))
-  const effective = [...preserved, ...incomingArr]
+  const preservedIds = new Set(preserved.map((r) => String(r.id)))
+  const effective = [...preserved, ...incomingArr.filter((r) => !preservedIds.has(String(r.id)))]
   return { ok: true, data: effective as unknown as object }
 }
 
@@ -249,12 +275,14 @@ function mergeLeave(
   const incomingArr = inc.requests ?? []
 
   const isOwn = (r: Row): boolean =>
-    String(r.employeeId ?? "") === ctx.id || String(r.employeeName ?? "") === ctx.name
+    isOwnRecord(r, { id: ctx.id, email: ctx.email, name: ctx.name })
 
   const inLeaveScope = (r: Row): boolean => {
     if (isOwn(r)) return true
     if (isManager(ctx) && ctx.department) {
-      return deptOf(String(r.employeeName ?? r.name ?? "")) === ctx.department
+      return (
+        deptOf(String(r.employeeId ?? "")) ?? deptOf(String(r.employeeName ?? ""))
+      ) === ctx.department
     }
     return false
   }
@@ -276,7 +304,10 @@ function mergeLeave(
     const prev = s.get(id)
     if (!prev || deepEqual(prev, row)) continue
     if (!inLeaveScope(row)) return { ok: false, error: "You can only change your own requests." }
-    if (isEmployee(ctx) && prev.status !== "pending") {
+    // Employees may only ever edit a request that was pending AND remains
+    // pending. Checking only the previous status allowed self-approval:
+    // pending -> approved passed and inflated the balance.
+    if (isEmployee(ctx) && (prev.status !== "pending" || row.status !== "pending")) {
       return { ok: false, error: "You can only edit a pending request." }
     }
     // Ownership fields route dept resolution + balance accounting; changing
@@ -289,18 +320,24 @@ function mergeLeave(
     }
   }
 
-  // Removed: scoped rows missing from the incoming slice. Employees can only
-  // cancel their own pending; managers can remove dept requests.
+  // Removed: scoped rows missing from the incoming slice. Non-admins may only
+  // cancel PENDING requests — removing an approved one would consume balance
+  // days permanently (the server rejects balance decreases, so nobody could
+  // ever refund them). Managers must use the admin flow for that.
   for (const [id, row] of s) {
     if (i.has(id) || !inLeaveScope(row)) continue
-    if (isEmployee(ctx) && row.status !== "pending") {
+    if (row.status !== "pending") {
       return { ok: false, error: "You can only cancel a pending request." }
     }
   }
 
   // Requests: preserve out-of-scope rows, take the incoming slice.
   const preservedRequests = storedArr.filter((r) => !inLeaveScope(r))
-  const effectiveRequests = [...preservedRequests, ...incomingArr]
+  const preservedRequestIds = new Set(preservedRequests.map((r) => String(r.id)))
+  const effectiveRequests = [
+    ...preservedRequests,
+    ...incomingArr.filter((r) => !preservedRequestIds.has(String(r.id))),
+  ]
 
   // --- Server-side business rules for the writer's OWN pending requests ---
   const BUCKET: Record<string, string> = { vac: "annual", sick: "sick", pers: "personal", par: "parental" }
@@ -345,12 +382,17 @@ function mergeLeave(
     if (!bucket) continue
     const bal = (sto.balances?.[ctx.id] ?? inc.balances?.[ctx.id]) as Balances | undefined
     if (!bal || typeof bal[bucket] !== "object") continue
+    // `bal[bucket].used` already has the days of every APPROVED request
+    // deducted (that is what approval does). Counting approved requests again
+    // here double-charges them and makes any new request look over-budget.
+    // Only outstanding PENDING requests are reservations that still need to be
+    // held against the remaining balance.
     const usedElsewhere = effectiveRequests
       .filter(
         (r) =>
           String(r.id) !== idA &&
           String(r.employeeId ?? "") === ctx.id &&
-          r.status !== "declined" &&
+          r.status === "pending" &&
           BUCKET[String(r.type)] === bucket,
       )
       .reduce((sum, r) => sum + daysOf(r), 0)
@@ -358,7 +400,10 @@ function mergeLeave(
     if (daysOf(a) > remaining) {
       return {
         ok: false,
-        error: `Not enough ${bucket} balance: ${Math.max(0, remaining)} day(s) remaining.`,
+        // Report the actual entitlement remaining (excluding other pending
+        // reservations), otherwise a second request in the same write makes
+        // the message claim "0 days remaining" despite a full entitlement.
+        error: `Not enough ${bucket} balance: ${Math.max(0, bal[bucket].total - bal[bucket].used)} day(s) available${usedElsewhere > 0 ? ` (${usedElsewhere} already reserved in pending requests)` : ""}.`,
       }
     }
   }
@@ -366,6 +411,21 @@ function mergeLeave(
   // Balances: start from stored, overlay incoming changes. Incoming is usually
   // the user's filtered view ({ [userId]: own }) so overlaying is safe; changes
   // are validated per key.
+  // A balance may only increase by exactly the days of requests that this
+  // write transitioned to "approved". Without this cap, a non-admin could set
+  // `used` to any value and mint leave entitlement.
+  const BUCKET_FOR_TYPE: Record<string, string> = { vac: "annual", sick: "sick", pers: "personal", par: "parental" }
+  const approvalDelta = new Map<string, number>()
+  for (const row of i.values()) {
+    const before = s.get(String(row.id))
+    if (row.status !== "approved" || before?.status === "approved") continue
+    const bucket = BUCKET_FOR_TYPE[String(row.type)]
+    if (!bucket) continue
+    const employeeKey = String(row.employeeId ?? "")
+    const deltaKey = `${employeeKey}:${bucket}`
+    approvalDelta.set(deltaKey, (approvalDelta.get(deltaKey) ?? 0) + daysOf(row))
+  }
+
   const mergedBalances: Record<string, unknown> = { ...(sto.balances ?? {}) }
   for (const [key, value] of Object.entries(inc.balances ?? {})) {
     if (deepEqual(sto.balances?.[key], value)) continue
@@ -377,7 +437,7 @@ function mergeLeave(
           [...i.values()].some(
             (r) =>
               String(r.employeeId ?? "") === key &&
-              deptOf(String(r.employeeName ?? "")) === ctx.department,
+              (deptOf(String(r.employeeId ?? "")) ?? deptOf(String(r.employeeName ?? ""))) === ctx.department,
           )))
     if (!allowed) return { ok: false, error: "You can only change your own balance." }
     // Non-admins can only change `used`, not `total` (entitlement)
@@ -386,8 +446,20 @@ function mergeLeave(
       const incoming = value as Record<string, { used: number; total: number }>
       const locked: Record<string, { used: number; total: number }> = {}
       for (const bucket of Object.keys(incoming)) {
+        const storedUsed = Number(stored[bucket]?.used ?? 0)
+        const incomingUsed = Number(incoming[bucket]?.used ?? storedUsed)
+        // Consumed days may only go UP via an approval. Accepting an arbitrary
+        // client-supplied decrease lets any employee (or a manager editing a
+        // department row) erase their used leave and request unlimited days.
+        const maxAllowed = storedUsed + (approvalDelta.get(`${key}:${bucket}`) ?? 0)
+        if (!Number.isFinite(incomingUsed) || incomingUsed < storedUsed || incomingUsed > maxAllowed) {
+          return {
+            ok: false,
+            error: "Leave balances can only change by approving a request.",
+          }
+        }
         locked[bucket] = {
-          used: incoming[bucket]?.used ?? stored[bucket]?.used ?? 0,
+          used: incomingUsed,
           total: stored[bucket]?.total ?? incoming[bucket]?.total ?? 0,
         }
       }

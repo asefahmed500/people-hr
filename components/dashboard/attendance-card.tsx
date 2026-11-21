@@ -1,5 +1,7 @@
 "use client"
 
+import { Progress } from "@/components/ui/progress"
+import { cn } from "@/lib/utils"
 import type { AttendanceStore, Employee } from "@/lib/data"
 
 type Row = {
@@ -7,7 +9,15 @@ type Row = {
   count: string
   pct: string
   fillPct: number
-  fill: string
+  fillClass: string
+}
+
+// Each status keeps its own colour while sharing the Progress primitive.
+const fillClasses = {
+  present: "[&_[data-slot=progress-indicator]]:bg-primary",
+  remote: "[&_[data-slot=progress-indicator]]:bg-secondary-foreground",
+  leave: "[&_[data-slot=progress-indicator]]:bg-muted-foreground",
+  absent: "[&_[data-slot=progress-indicator]]:bg-foreground",
 }
 
 export function AttendanceCard({
@@ -44,36 +54,36 @@ export function AttendanceCard({
       count: String(present),
       pct: `${Math.round((present / total) * 100)}%`,
       fillPct: Math.round((present / total) * 100),
-      fill: "bg-primary",
+      fillClass: fillClasses.present,
     },
     {
       label: "Remote",
       count: String(remote),
       pct: `${Math.round((remote / total) * 100)}%`,
       fillPct: Math.round((remote / total) * 100),
-      fill: "bg-secondary-foreground",
+      fillClass: fillClasses.remote,
     },
     {
       label: "On leave",
       count: String(onLeave.size),
       pct: `${Math.round((onLeave.size / total) * 100)}%`,
       fillPct: Math.round((onLeave.size / total) * 100),
-      fill: "bg-muted-foreground",
+      fillClass: fillClasses.leave,
     },
     {
       label: "Absent",
       count: String(absent),
       pct: `${Math.round((absent / total) * 100)}%`,
       fillPct: Math.round((absent / total) * 100),
-      fill: "bg-foreground",
+      fillClass: fillClasses.absent,
     },
   ]
 
   return (
-    <div className="flex flex-1 flex-col gap-4 rounded-2xl border border-border bg-card p-[22px] shadow-card">
-      <h3 className="font-sans inline-block text-[15px] font-semibold leading-normal text-foreground">
-        Today’s attendance
-      </h3>
+    <div className="flex flex-1 flex-col gap-4 rounded-lg border border-border bg-card p-4">
+      <h2 className="font-sans inline-block text-[15px] font-semibold leading-normal text-foreground">
+        Todayâ€™s attendance
+      </h2>
       <div className="flex flex-col gap-3.5">
         {rows.map((row) => (
           <AttendanceRow key={row.label} row={row} />
@@ -93,16 +103,15 @@ function AttendanceRow({ row }: { row: Row }) {
         <span className="inline-block font-sans text-[12.5px] font-semibold leading-normal text-foreground">
           {row.count}
           <span className="ml-[3.125px] font-normal text-muted-foreground">
-            · {row.pct}
+            Â· {row.pct}
           </span>
         </span>
       </div>
-      <div className="flex h-2 w-full overflow-clip rounded-full bg-muted">
-        <div
-          className={`h-full rounded-full ${row.fill}`}
-          style={{ width: `${row.fillPct}%` }}
-        />
-      </div>
+      <Progress
+        value={row.fillPct}
+        aria-label={`${row.label}: ${row.pct}`}
+        className={cn("h-2", row.fillClass)}
+      />
     </div>
   )
 }
