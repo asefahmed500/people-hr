@@ -2,6 +2,7 @@ import Link from "next/link"
 import { ArrowRight, Check, Play, Sparkles } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 
 export function LandingHero() {
   return (
@@ -33,20 +34,18 @@ export function LandingHero() {
 
         <div className="mt-1 flex flex-col items-center gap-3.5">
           <div className="flex flex-col items-center gap-3 sm:flex-row">
-            <Link
-              href="/signup"
-              className="flex h-9 items-center gap-2 rounded-md bg-primary px-4 font-sans text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
-            >
-              Start free trial
-              <ArrowRight className="size-4" strokeWidth={2} aria-hidden="true" />
-            </Link>
-            <Link
-              href="/login?callbackUrl=%2Fdashboard"
-              className="flex h-9 items-center gap-2 rounded-md border border-border bg-card px-4 font-sans text-sm font-medium text-foreground transition-colors hover:bg-muted"
-            >
-              <Play className="size-4 text-foreground" strokeWidth={2} aria-hidden="true" />
-              Explore the demo
-            </Link>
+            <Button asChild size="lg">
+              <Link href="/signup">
+                Start free trial
+                <ArrowRight className="button-arrow size-4" strokeWidth={2} aria-hidden="true" />
+              </Link>
+            </Button>
+            <Button asChild variant="outline" size="lg">
+              <Link href="/login?callbackUrl=%2Fdashboard">
+                <Play className="size-4 text-foreground" strokeWidth={2} aria-hidden="true" />
+                Explore the demo
+              </Link>
+            </Button>
           </div>
           <div className="flex items-center gap-1.5">
             <Check className="size-4 text-foreground" strokeWidth={2} aria-hidden="true" />

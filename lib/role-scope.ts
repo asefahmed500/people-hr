@@ -9,13 +9,14 @@ export type RoleUser = {
 } | null | undefined
 
 /**
- * Departments a user may write rows into on shared modules. Managers are
- * restricted to their own department (the server merge rejects rows outside
- * it); admins and employees are unrestricted — employees are scoped by owner
- * name instead.
+ * Departments a user may write rows into on shared modules. The server merge
+ * requires every new non-admin row with a department field to be in the
+ * writer's own department — so the UI must offer only that department to
+ * managers AND employees, otherwise a normal save is rejected and reverted.
  */
 export function scopeDepartments(user: RoleUser, all: readonly string[]): readonly string[] {
-  if (user?.role === "manager" && user.department) return [user.department]
+  if (user?.role === "admin") return all
+  if (user?.department) return [user.department]
   return all
 }
 
@@ -28,6 +29,10 @@ type Identity = {
 // NOTE: do NOT include the generic `id` field here — on most module rows it is
 // the record's own id (e.g. a leave request id), not the owner's account id.
 const ID_FIELDS = ["employeeId", "userId", "ownerId"] as const
+// Verified email fields. Rows created at hire carry an `e-*` directory id,
+// while the person's login account gets a separate `u-*`/cuid id — the email
+// is the reliable bridge between the two. Name is NEVER used to bridge ids.
+const EMAIL_FIELDS = ["email", "employeeEmail", "ownerEmail", "hireEmail"] as const
 const NAME_FIELDS = ["name", "employeeName", "ownerName", "hireName", "reviewerName"] as const
 
 /**
@@ -60,10 +65,18 @@ export function isOwnRecord(
   const ids = ID_FIELDS.map((field) => row[field]).filter(
     (value): value is string => typeof value === "string" && value.length > 0,
   )
-  if (ids.length > 0) return !!user.id && ids.includes(user.id)
+  if (ids.length > 0 && !!user.id && ids.includes(user.id)) return true
 
-  const rowEmail = typeof row.email === "string" ? row.email.trim().toLowerCase() : ""
-  if (rowEmail) return !!user.email && rowEmail === user.email.trim().toLowerCase()
+  const emails = EMAIL_FIELDS.map((field) => row[field])
+    .filter((value): value is string => typeof value === "string" && value.length > 0)
+    .map((value) => value.trim().toLowerCase())
+  if (emails.length > 0) {
+    return !!user.email && emails.includes(user.email.trim().toLowerCase())
+  }
+  // An owner id was present but did not match, and there was no verified email
+  // to bridge it. Do not fall back to a display name here — that is how two
+  // people with the same name would each gain access to the other's row.
+  if (ids.length > 0) return false
 
   const names = NAME_FIELDS.map((field) => row[field]).filter(
     (value): value is string => typeof value === "string" && value.length > 0,

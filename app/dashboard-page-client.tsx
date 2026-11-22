@@ -3,6 +3,7 @@
 import * as React from "react"
 import { useRouter } from "next/navigation"
 import { Check, X } from "lucide-react"
+import { Button } from "@/components/ui/button"
 
 import {
   type LeaveRequest,
@@ -204,7 +205,8 @@ export function DashboardPageClient() {
         departmentCount={user?.role === "admin" ? organization.departments.length : undefined}
       />
       <KpiRow
-        employees={employees}
+        // Match Analytics and Organization: offboarded people are not headcount.
+        employees={employees.filter((e) => e.status !== "inactive")}
         attendance={attendance}
         pendingLeave={pending.length}
         openRoles={recruitment.openings.length}
@@ -285,22 +287,24 @@ function LeaveRequestsCard({
               </div>
               {canManage ? (
                 <>
-                  <button
+                  <Button
                     type="button"
+                    variant="soft"
+                    size="icon-xs"
                     aria-label={`Approve ${req.employeeName}`}
                     onClick={() => onApprove(req.id)}
-                    className="flex size-[30px] shrink-0 items-center justify-center rounded-lg bg-foreground/10 text-secondary-foreground hover:bg-foreground/20"
                   >
                     <Check className="size-[15px]" strokeWidth={2} aria-hidden="true" />
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     type="button"
+                    variant="ghost"
+                    size="icon-xs"
                     aria-label={`Decline ${req.employeeName}`}
                     onClick={() => onDecline(req.id)}
-                    className="flex size-[30px] shrink-0 items-center justify-center rounded-lg bg-foreground/10 text-foreground hover:bg-foreground/20"
                   >
                     <X className="size-[15px]" strokeWidth={2} aria-hidden="true" />
-                  </button>
+                  </Button>
                 </>
               ) : (
                 <span className="inline-block shrink-0 rounded-full bg-muted px-2.5 py-1 font-sans text-[11px] font-semibold leading-normal text-muted-foreground">

@@ -132,6 +132,25 @@ function filterForRole(
       const org = data as { companyName?: string }
       return { companyName: org.companyName ?? "", departments: [], offices: [], orgChart: [] }
     }
+    // Employees may read their OWN payroll rows (salary is private to them).
+    // Managers get no department-wide payroll data. The admin page and the
+    // write gate stay admin-only — this is a narrow read carve-out only.
+    if (key === "payroll" && isEmployee) {
+      const store = data as {
+        payments?: Array<{ id?: string; employeeId?: string; employeeEmail?: string }>
+        lastRun?: string | null
+      }
+      const email = userEmail?.trim().toLowerCase()
+      return {
+        payments: (store.payments ?? []).filter(
+          (p) =>
+            p.employeeId === userId ||
+            (!!p.id && p.id === `pay-${userId}`) ||
+            (!!email && p.employeeEmail?.trim().toLowerCase() === email),
+        ),
+        lastRun: store.lastRun ?? null,
+      }
+    }
     return emptyFor(key)
   }
 
@@ -166,6 +185,9 @@ function filterForRole(
           (r) => {
             // Leave rows carry the account id, while directory rows may be
             // keyed by an e-* id or only by name. Try both.
+            // A manager must also see their OWN requests, even if their
+            // directory row hasn't been seeded yet (so dept lookup fails).
+            if (isOwn(r)) return true
             const byId = managerDeptOf?.(String(r.employeeId ?? ""))
             const byName = managerDeptOf?.(String(r.employeeName ?? ""))
             return (byId ?? byName) === department
@@ -492,7 +514,10 @@ export async function GET(_request: Request, { params }: RouteContext) {
 
   return NextResponse.json(filtered, {
     headers: {
-      "X-Module-Version": doc.updatedAt.getTime().toString(),
+      // Seed-on-read and the employees self-row / leave balance CAS writes
+      // advance updatedAt. Return the version read AFTER those writes so the
+      // client's first PUT doesn't 409 against a stale If-Match.
+      "X-Module-Version": responseVersion,
       "Cache-Control": "no-store",
     },
   })

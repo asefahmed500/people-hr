@@ -14,6 +14,7 @@ import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { SelectField } from "@/components/shared/field"
 import { StoreErrorState } from "@/components/shared/store-error-state"
 import { Skeleton } from "@/components/ui/skeleton"
+import { Button } from "@/components/ui/button"
 import { Pencil, Trash2 } from "lucide-react"
 import {
   Sheet,
@@ -252,25 +253,29 @@ export function AttendancePageClient() {
               </div>
               {canWriteSelected ? (
                 <div className="flex items-center gap-2">
-                  <button
+                  <Button
                     type="button"
+                    variant="outline"
+                    size="sm"
                     onClick={() => {
                       setEditStatus(selectedCheckin.status)
                       setEditCheckin(selectedCheckin)
                     }}
-                    className="flex h-9 flex-1 items-center justify-center gap-2 rounded-lg border border-border bg-card font-sans text-[12.5px] font-medium text-secondary-foreground hover:bg-muted"
+                    className="flex-1"
                   >
                     <Pencil className="size-3.5" strokeWidth={2} />
                     Edit
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     type="button"
+                    variant="outline"
+                    size="sm"
                     onClick={() => setDeleteCheckin(selectedCheckin)}
-                    className="flex h-9 flex-1 items-center justify-center gap-2 rounded-lg border border-border bg-card font-sans text-[12.5px] font-medium text-foreground hover:bg-muted"
+                    className="flex-1"
                   >
                     <Trash2 className="size-3.5" strokeWidth={2} />
                     Delete
-                  </button>
+                  </Button>
                 </div>
               ) : null}
             </div>

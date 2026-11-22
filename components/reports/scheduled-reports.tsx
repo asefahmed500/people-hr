@@ -173,29 +173,35 @@ function ReportRow({
               }}
               className="absolute right-0 top-full z-50 mt-1 w-40 rounded-lg border border-border bg-card py-1"
             >
-              <button
+              <Button
                 type="button"
+                variant="ghost"
+                size="sm"
                 onClick={() => { setOpen(false); onGenerateNow?.(report) }}
-                className="flex w-full items-center gap-2 px-3 py-2 text-left font-sans text-[13px] text-secondary-foreground hover:bg-muted"
+                className="h-auto w-full justify-start gap-2 px-3 py-2 text-[13px] font-normal"
               >
                 <Download className="size-3.5" strokeWidth={2} aria-hidden="true" />
                 Generate now
-              </button>
-              <button
+              </Button>
+              <Button
                 type="button"
+                variant="ghost"
+                size="sm"
                 onClick={() => { setOpen(false); onAction?.(report.id, report.name, "edit") }}
-                className="flex w-full items-center gap-2 px-3 py-2 text-left font-sans text-[13px] text-secondary-foreground hover:bg-muted"
+                className="h-auto w-full justify-start px-3 py-2 text-[13px] font-normal"
               >
                 Edit
-              </button>
+              </Button>
               <Separator className="mx-2 my-1 w-auto" />
-              <button
+              <Button
                 type="button"
+                variant="ghost"
+                size="sm"
                 onClick={() => { setOpen(false); onAction?.(report.id, report.name, "delete") }}
-                className="flex w-full items-center gap-2 px-3 py-2 text-left font-sans text-[13px] text-foreground hover:bg-muted"
+                className="h-auto w-full justify-start px-3 py-2 text-[13px] font-normal text-destructive hover:bg-destructive/10 hover:text-destructive"
               >
                 Delete
-              </button>
+              </Button>
             </div>
           )}
         </div>

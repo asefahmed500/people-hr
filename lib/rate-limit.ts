@@ -170,16 +170,20 @@ function maybePrune(now: number) {
 
 /**
  * Returns a 429 response while the caller is over the limit, else null.
- * Keys on name + client IP so different endpoints don't share budgets.
+ * Keys on name + subject (signed-in user id) when provided, otherwise name +
+ * client IP. Different endpoints never share a budget. Passing the user id is
+ * important for authenticated actions: IP-only keys are shared by a whole
+ * office and can be bypassed by changing networks.
  */
 export function rateLimit(
   request: Request,
-  opts: { name: string; limit: number; windowMs: number },
+  opts: { name: string; limit: number; windowMs: number; subject?: string },
 ): NextResponse | null {
   const now = Date.now()
   maybePrune(now)
 
-  const key = `${opts.name}:${clientIp(request)}`
+  const identity = opts.subject ? `user:${opts.subject}` : `ip:${clientIp(request)}`
+  const key = `${opts.name}:${identity}`
   const bucket = buckets.get(key)
   if (!bucket || bucket.resetAt <= now) {
     const fresh: Bucket = { count: 1, resetAt: now + opts.windowMs }

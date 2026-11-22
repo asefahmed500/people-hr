@@ -98,9 +98,14 @@ export function ResetPasswordClient() {
               {error}
             </div>
           ) : null}
-          <Button type="submit" disabled={submitting} className="mt-1 w-full">
+          <Button
+            type="submit"
+            loading={submitting}
+            loadingText="Saving…"
+            className="mt-1 w-full"
+          >
             Set new password
-            <ArrowRight className="size-4" strokeWidth={2} aria-hidden="true" />
+            <ArrowRight className="button-arrow size-4" strokeWidth={2} aria-hidden="true" />
           </Button>
         </form>
 

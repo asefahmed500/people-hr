@@ -5,6 +5,8 @@ import { EmbeddingUnavailableError } from "@/lib/rag/embeddings";
 import { AIUnavailableError } from "@/lib/ai/provider";
 import { getAIService } from "@/lib/ai/service";
 import { getContextEngine } from "@/lib/context/engine";
+import { rateLimit } from "@/lib/rate-limit";
+import { recordActivity } from "@/lib/activity";
 import { z } from "zod";
 
 const requestSchema = z.object({
@@ -26,6 +28,14 @@ export async function POST(request: NextRequest) {
   // exfiltration path for any signed-in employee with LLM access configured.
   const auth = await requireAdmin();
   if (!auth.ok) return auth.response;
+
+  const limited = rateLimit(request, {
+    name: "documents-search",
+    limit: 60,
+    windowMs: 60_000,
+    subject: auth.session.user.id,
+  });
+  if (limited) return limited;
 
   try {
     const body = await request.json();
@@ -59,6 +69,19 @@ export async function POST(request: NextRequest) {
     const response = await ai.generate(messages, {
       userId: auth.session.user.id,
       tier: "reasoning",
+    });
+
+    // Record metadata only — never the query or retrieved text.
+    await recordActivity({
+      actor: {
+        id: auth.session.user.id!,
+        name: auth.session.user.name ?? null,
+        department: (auth.session.user as { department?: string | null }).department ?? null,
+        role: auth.session.user.role,
+      },
+      action: "system",
+      module: "documents",
+      summary: `Searched the HR document corpus (${results.totalChunks} chunk(s))`,
     });
 
     return NextResponse.json({

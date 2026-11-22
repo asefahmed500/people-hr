@@ -4,6 +4,23 @@ import { Prisma } from "@prisma/client"
 import { prisma } from "@/lib/db"
 import { requireAdmin, isRole } from "@/lib/auth-guards"
 import { DEPARTMENTS } from "@/lib/data/types"
+import { recordActivity } from "@/lib/activity"
+import type { ActivityAction } from "@/lib/data-types-activity"
+import type { Session } from "next-auth"
+
+function audit(session: Session, action: ActivityAction, module: string, summary: string) {
+  return recordActivity({
+    actor: {
+      id: session.user.id!,
+      name: session.user.name ?? null,
+      department: (session.user as { department?: string | null }).department ?? null,
+      role: session.user.role,
+    },
+    action,
+    module,
+    summary,
+  })
+}
 
 type RouteContext = { params: Promise<{ id: string }> }
 
@@ -100,6 +117,7 @@ export async function PATCH(request: Request, { params }: RouteContext) {
     }
   }
 
+  await audit(auth.session, "updated", "users", `Updated member ${target?.email ?? id}`);
   return NextResponse.json({ ok: true })
 }
 
@@ -116,5 +134,6 @@ export async function DELETE(_request: Request, { params }: RouteContext) {
     return NextResponse.json({ error: "Not found" }, { status: 404 })
   }
   await prisma.user.update({ where: { id }, data: { deactivatedAt: new Date() } })
+  await audit(auth.session, "deleted", "users", `Removed team member ${target.email}`);
   return NextResponse.json({ ok: true })
 }

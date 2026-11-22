@@ -10,10 +10,10 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet"
 import { Skeleton } from "@/components/ui/skeleton"
+import { Button } from "@/components/ui/button"
 import { DashboardSidebar } from "./dashboard-sidebar"
 import { TopBar } from "./top-bar"
 import { CommandPalette } from "./command-palette"
-import { cn } from "@/lib/utils"
 import { useAuth } from "@/hooks/use-auth"
 
 type DashboardShellClientProps = {
@@ -112,17 +112,16 @@ export function DashboardShellClient({
         </SheetContent>
       </Sheet>
 
-      <button
+      <Button
         type="button"
+        variant="outline"
+        size="icon"
         aria-label="Open navigation"
         onClick={() => setMobileNavOpen(true)}
-        className={cn(
-          "fixed left-4 top-4 z-30 flex size-9 items-center justify-center rounded-xl border border-border bg-card",
-          "lg:hidden",
-        )}
+        className="fixed left-4 top-4 z-30 lg:hidden"
       >
         <Menu className="size-5 text-secondary-foreground" strokeWidth={2} aria-hidden="true" />
-      </button>
+      </Button>
 
       <main id="main" className="flex min-w-0 flex-1 flex-col gap-4 px-3 py-3 sm:gap-6 sm:px-6 sm:py-5 lg:pl-6">
         <TopBar

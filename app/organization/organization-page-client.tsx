@@ -11,6 +11,7 @@ import { ActionDialog } from "@/components/shared/dialog-parts"
 import { Field, TextArea, useForm } from "@/components/shared/field"
 import { StoreErrorState } from "@/components/shared/store-error-state"
 import { Skeleton } from "@/components/ui/skeleton"
+import { buttonVariants } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { notify } from "@/lib/toast"
 import { exportToCsv } from "@/lib/export"
@@ -389,7 +390,7 @@ export function OrganizationPageClient() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel onClick={() => setDeletingOffice(null)}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteOffice} className="bg-red-500 hover:bg-red-600">
+            <AlertDialogAction onClick={handleDeleteOffice} className={buttonVariants({ variant: "destructive" })}>
               Delete
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -400,12 +401,12 @@ export function OrganizationPageClient() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>{viewingDept?.name}</AlertDialogTitle>
-            <AlertDialogDescription>
+            <AlertDialogDescription asChild>
               <div className="mt-2 flex flex-col gap-2 text-left">
-                <p><strong>Code:</strong> {viewingDept?.code}</p>
-                <p><strong>Head:</strong> {viewingDept?.leadName} Ã¢â‚¬â€ {viewingDept?.leadRole}</p>
-                <p><strong>Teams:</strong> {viewingDept?.teams} Ã‚Â· <strong>People:</strong> {viewingDept?.people} Ã‚Â· <strong>Open:</strong> {viewingDept?.open}</p>
-                {viewingDept?.sub ? <p><strong>Description:</strong> {viewingDept.sub}</p> : null}
+                <span><strong>Code:</strong> {viewingDept?.code}</span>
+                <span><strong>Head:</strong> {viewingDept?.leadName} — {viewingDept?.leadRole}</span>
+                <span><strong>Teams:</strong> {viewingDept?.teams} · <strong>People:</strong> {viewingDept?.people} · <strong>Open:</strong> {viewingDept?.open}</span>
+                {viewingDept?.sub ? <span><strong>Description:</strong> {viewingDept.sub}</span> : null}
               </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -425,7 +426,7 @@ export function OrganizationPageClient() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel onClick={() => setDeletingDept(null)}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteDept} className="bg-red-500 hover:bg-red-600">
+            <AlertDialogAction onClick={handleDeleteDept} className={buttonVariants({ variant: "destructive" })}>
               Delete
             </AlertDialogAction>
           </AlertDialogFooter>

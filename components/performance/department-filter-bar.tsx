@@ -82,7 +82,7 @@ function Chip({
       <Button
         type="button"
         onClick={onClick}
-        className="h-auto shrink-0 gap-2 rounded-full px-3.5 py-1.5"
+        className="h-auto shrink-0 gap-2 rounded-lg px-3.5 py-1.5"
       >
         <span className="font-sans inline-block text-[12.5px] font-medium leading-normal">
           {chip.label}
@@ -98,7 +98,7 @@ function Chip({
       type="button"
       variant="outline"
       onClick={onClick}
-      className="h-auto shrink-0 gap-2 rounded-full px-3.5 py-1.5 text-secondary-foreground"
+      className="h-auto shrink-0 gap-2 rounded-lg px-3.5 py-1.5 text-secondary-foreground"
     >
       {chip.dot ? <span className={`size-2.5 shrink-0 rounded-full ${chip.dot}`} aria-hidden="true" /> : null}
       <span className="font-sans inline-block text-[12.5px] font-medium leading-normal">

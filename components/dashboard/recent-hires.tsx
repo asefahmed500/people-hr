@@ -1,6 +1,7 @@
 "use client"
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Button } from "@/components/ui/button"
 import type { Employee } from "@/lib/data"
 
 export function RecentHires({
@@ -23,9 +24,9 @@ export function RecentHires({
           Recent hires
         </h2>
         {onViewAll ? (
-          <button type="button" onClick={onViewAll} className="font-sans inline-block text-xs font-semibold leading-normal text-primary hover:text-foreground">
+          <Button type="button" variant="link" size="xs" onClick={onViewAll} className="text-xs">
             View all
-          </button>
+          </Button>
         ) : null}
       </div>
       <div className="flex flex-col gap-3">

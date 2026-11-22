@@ -1,6 +1,8 @@
 import Link from "next/link"
 import { ArrowRight } from "lucide-react"
 
+import { Button } from "@/components/ui/button"
+
 export function LandingCtaBand() {
   return (
     <section className="mx-5 mb-20 sm:mx-10 lg:mx-20">
@@ -15,19 +17,15 @@ export function LandingCtaBand() {
           </p>
         </div>
         <div className="flex w-fit flex-col items-center gap-3 sm:flex-row">
-          <Link
-            href="/signup"
-            className="flex h-9 items-center gap-2 rounded-md bg-primary px-4 font-sans text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
-          >
-            Start free trial
-            <ArrowRight className="size-4" strokeWidth={2} aria-hidden="true" />
-          </Link>
-          <Link
-            href="mailto:sales@northwind.co?subject=PeopleHR%20demo"
-            className="flex h-9 items-center rounded-md border border-border bg-card px-4 font-sans text-sm font-medium text-foreground transition-colors hover:bg-muted"
-          >
-            Talk to sales
-          </Link>
+          <Button asChild size="lg">
+            <Link href="/signup">
+              Start free trial
+              <ArrowRight className="button-arrow size-4" strokeWidth={2} aria-hidden="true" />
+            </Link>
+          </Button>
+          <Button asChild variant="outline" size="lg">
+            <Link href="mailto:sales@northwind.co?subject=PeopleHR%20demo">Talk to sales</Link>
+          </Button>
         </div>
       </div>
     </section>

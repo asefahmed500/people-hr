@@ -1,5 +1,6 @@
 import { ChevronRight } from "lucide-react"
 import type { MonthlyTrend } from "@/lib/data"
+import { Button } from "@/components/ui/button"
 
 type WorkforceTrendCardProps = {
   onOpenReport?: () => void
@@ -27,12 +28,10 @@ export function WorkforceTrendCard({ onOpenReport, monthlyTrend }: WorkforceTren
             Active headcount over the last 12 months
           </span>
         </div>
-        <button type="button" onClick={onOpenReport} className="flex items-center gap-1">
-          <span className="font-sans inline-block text-[13px] font-semibold leading-normal text-primary">
-            Open report
-          </span>
-          <ChevronRight className="size-3.5 text-primary" strokeWidth={2} aria-hidden="true" />
-        </button>
+        <Button type="button" variant="link" size="sm" onClick={onOpenReport} className="gap-1">
+          Open report
+          <ChevronRight className="button-arrow size-3.5" strokeWidth={2} aria-hidden="true" />
+        </Button>
       </div>
       {months.length === 0 ? (
         <div className="flex h-[200px] items-center justify-center rounded-lg border border-dashed border-border bg-muted px-4 text-center font-sans text-[13px] text-muted-foreground">

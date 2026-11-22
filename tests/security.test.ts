@@ -27,6 +27,16 @@ test("ownership resolves by owner id, then email, then name only as a last resor
   assert.equal(isOwnRecord({ name: "Alex" }, { name: "Different" }), false)
 })
 
+test("a hire's e-* id is bridged to their login by verified email, never by name", () => {
+  const user = { id: "u-123", email: "hire@example.com", name: "Hire Person" }
+  // Rows created at hire carry an e-* directory id, not the login account id.
+  assert.equal(isOwnRecord({ employeeId: "e-abc", hireEmail: "hire@example.com" }, user), true)
+  assert.equal(isOwnRecord({ employeeId: "e-abc", employeeEmail: "HIRE@example.com" }, user), true)
+  // A foreign id is never overwritten by a matching display name.
+  assert.equal(isOwnRecord({ employeeId: "e-someone-else", hireName: "Hire Person" }, user), false)
+  assert.equal(isOwnRecord({ employeeId: "e-someone-else", hireEmail: "other@example.com" }, user), false)
+})
+
 test("CSV export neutralises spreadsheet formula injection", () => {
   const csv = toCsv([{ label: "=HYPERLINK(\"http://evil\")" }], [{ key: "label", label: "Name" }])
   assert.match(csv, /"'=HYPERLINK/)

@@ -4,6 +4,7 @@ import QRCode from "qrcode"
 import { prisma } from "@/lib/db"
 import { auth } from "@/lib/auth"
 import { generateSecretKey, otpauthUrl, generateBackupCodes, hashBackupCode } from "@/lib/totp"
+import { recordActivity } from "@/lib/activity"
 
 // Start 2FA enrollment: generate a secret + backup codes (not yet enabled).
 export async function POST() {
@@ -37,6 +38,13 @@ export async function POST() {
       data: backupCodes.map((code) => ({ userId: user.id, code: hashBackupCode(code) })),
     }),
   ])
+
+  await recordActivity({
+    actor: { id: user.id, name: user.name ?? null, department: user.department ?? null, role: user.role },
+    action: "system",
+    module: "security",
+    summary: "Started two-factor authentication enrollment",
+  })
 
   return NextResponse.json({
     ok: true,

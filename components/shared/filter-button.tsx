@@ -3,6 +3,7 @@
 import * as React from "react"
 import { Check, ChevronDown } from "lucide-react"
 
+import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -33,16 +34,16 @@ export function FilterButton({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <button
+        <Button
           type="button"
+          variant="outline"
+          size="sm"
           aria-label={ariaLabel ?? current?.label}
-          className="flex h-9 flex-1 items-center gap-2 rounded-lg border border-border bg-card px-4 transition-colors hover:bg-muted sm:flex-none"
+          className="flex-1 sm:flex-none"
         >
-          <span className="font-sans text-[13px] font-medium leading-normal text-secondary-foreground">
-            {current?.label ?? "Filter"}
-          </span>
-          <ChevronDown className="size-[15px] text-muted-foreground" strokeWidth={2} aria-hidden="true" />
-        </button>
+          <span>{current?.label ?? "Filter"}</span>
+          <ChevronDown className="size-3.5 text-muted-foreground transition-transform duration-150 group-hover/button:translate-y-0.5" strokeWidth={2} aria-hidden="true" />
+        </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align={align} className="w-[200px]">
         <DropdownMenuLabel className="font-sans text-[11px] uppercase tracking-[0.09em] text-muted-foreground">

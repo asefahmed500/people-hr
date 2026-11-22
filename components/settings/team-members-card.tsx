@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Mail, MoreHorizontal, UserPlus } from "lucide-react"
+import { Loader2, Mail, MoreHorizontal, UserPlus } from "lucide-react"
 import { z } from "zod"
 
 import { notify } from "@/lib/toast"
@@ -56,6 +56,7 @@ export function TeamMembersCard() {
   const [inviteOpen, setInviteOpen] = React.useState(false)
   const [removeTarget, setRemoveTarget] = React.useState<Member | null>(null)
   const [submitting, setSubmitting] = React.useState(false)
+  const [busyRoleId, setBusyRoleId] = React.useState<string | null>(null)
   const [tempPassword, setTempPassword] = React.useState<string | null>(null)
   const form = useForm({ name: "", email: "", role: "employee", department: "" })
 
@@ -104,13 +105,16 @@ export function TeamMembersCard() {
   }
 
   const handleRoleChange = async (m: Member, role: string) => {
-    if (!isAdmin || m.role === role || m.id === me?.id) return
+    if (!isAdmin || m.role === role || m.id === me?.id || busyRoleId) return
+    setBusyRoleId(m.id)
     try {
       await apiRequest(`/api/users/${m.id}`, { method: "PATCH", body: { role } })
       setMembers((prev) => prev.map((x) => (x.id === m.id ? { ...x, role } : x)))
       notify.success("Role updated", `${m.name} is now a ${role}.`)
     } catch (err) {
       notify.error("Couldnâ€™t update role", err instanceof Error ? err.message : "Please try again.")
+    } finally {
+      setBusyRoleId(null)
     }
   }
 
@@ -220,17 +224,20 @@ export function TeamMembersCard() {
                     </a>
                   </DropdownMenuItem>
                   {m.id !== me?.id && m.role !== "admin" && (
-                    <DropdownMenuItem onClick={() => handleRoleChange(m, "admin")}>
+                    <DropdownMenuItem disabled={busyRoleId === m.id} onClick={() => handleRoleChange(m, "admin")}>
+                      {busyRoleId === m.id ? <Loader2 className="size-3.5 animate-spin" aria-hidden="true" /> : null}
                       Make admin
                     </DropdownMenuItem>
                   )}
                   {m.id !== me?.id && m.role !== "manager" && (
-                    <DropdownMenuItem onClick={() => handleRoleChange(m, "manager")}>
+                    <DropdownMenuItem disabled={busyRoleId === m.id} onClick={() => handleRoleChange(m, "manager")}>
+                      {busyRoleId === m.id ? <Loader2 className="size-3.5 animate-spin" aria-hidden="true" /> : null}
                       Make manager
                     </DropdownMenuItem>
                   )}
                   {m.id !== me?.id && m.role !== "employee" && (
-                    <DropdownMenuItem onClick={() => handleRoleChange(m, "employee")}>
+                    <DropdownMenuItem disabled={busyRoleId === m.id} onClick={() => handleRoleChange(m, "employee")}>
+                      {busyRoleId === m.id ? <Loader2 className="size-3.5 animate-spin" aria-hidden="true" /> : null}
                       Make employee
                     </DropdownMenuItem>
                   )}

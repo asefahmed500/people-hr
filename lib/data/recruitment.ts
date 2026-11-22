@@ -10,6 +10,15 @@ export type Candidate = {
   stage: CandidateStage
   /** Sourcing channel captured in the candidate dialog. */
   source?: string
+  /** Contact details carried into the employee record when hired. */
+  email?: string
+  phone?: string
+  /** Agreed gross salary and currency, carried into payroll at hire. */
+  offeredSalary?: number
+  salaryCurrency?: string
+  offerDate?: string
+  /** Directory row created by the hire transition — makes re-hires idempotent. */
+  employeeId?: ID
 }
 
 export type Opening = {

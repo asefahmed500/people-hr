@@ -91,19 +91,19 @@ export function NotificationDropdown({
             ) : null}
           </div>
           {unreadCount > 0 ? (
-            <button
+            <Button
               type="button"
+              variant="ghost"
+              size="xs"
               onClick={() => {
                 onMarkAllRead()
                 notify.info("All notifications marked as read")
               }}
-              className="flex items-center gap-1 rounded-lg px-2 py-1 text-primary transition-colors hover:bg-foreground/5"
+              className="min-w-0 gap-1 px-2 py-1 text-primary"
             >
               <CheckCheck className="size-3.5" strokeWidth={2} />
-              <span className="font-sans text-[11.5px] font-medium leading-normal">
-                Mark all read
-              </span>
-            </button>
+              <span className="text-[11.5px]">Mark all read</span>
+            </Button>
           ) : null}
         </div>
         <div className="flex max-h-[400px] flex-col overflow-y-auto">

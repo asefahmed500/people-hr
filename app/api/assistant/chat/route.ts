@@ -3,6 +3,7 @@ import { NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
 import { replyFor, type PeopleContext } from "@/lib/data/assistant"
+import { rateLimit } from "@/lib/rate-limit"
 
 const WORKSPACE_ID = "__workspace__"
 
@@ -107,6 +108,13 @@ export async function POST(request: Request) {
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
+  const limited = rateLimit(request, {
+    name: "assistant-chat",
+    limit: 60,
+    windowMs: 60_000,
+    subject: session.user.id,
+  })
+  if (limited) return limited
 
   const body = await request.json().catch(() => null)
   const prompt = typeof body?.prompt === "string" ? body.prompt.trim() : ""

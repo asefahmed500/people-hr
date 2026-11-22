@@ -3,6 +3,7 @@ import { NextResponse } from "next/server"
 import { requireAuth } from "@/lib/auth-guards"
 import type { SessionsResponse } from "@/lib/data/settings"
 import { bumpSessionEpoch, getLoginHistory } from "@/lib/login-history"
+import { recordActivity } from "@/lib/activity"
 
 /** Self-only sign-in activity for the Security settings card. */
 export async function GET() {
@@ -30,6 +31,17 @@ export async function DELETE() {
 
   try {
     const epoch = await bumpSessionEpoch(guard.session.user.id)
+    await recordActivity({
+      actor: {
+        id: guard.session.user.id!,
+        name: guard.session.user.name ?? null,
+        department: (guard.session.user as { department?: string | null }).department ?? null,
+        role: guard.session.user.role,
+      },
+      action: "system",
+      module: "security",
+      summary: "Revoked all other sessions",
+    })
     return NextResponse.json({ ok: true, epoch })
   } catch {
     return NextResponse.json(

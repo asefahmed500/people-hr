@@ -24,6 +24,7 @@ import {
 } from "lucide-react"
 
 import { DOCUMENT_TYPE_LABELS, DOCUMENT_TYPES, type DocumentType } from "@/lib/data/documents"
+import { Button } from "@/components/ui/button"
 
 const TYPE_ICONS: Record<DocumentType, LucideIcon> = {
   appointment: FileSignature,
@@ -81,11 +82,12 @@ export function TemplateGallery({ onSelect }: TemplateGalleryProps) {
       {DOCUMENT_TYPES.map((type) => {
         const Icon = TYPE_ICONS[type]
         return (
-          <button
+          <Button
             key={type}
             type="button"
+            variant="outline"
             onClick={() => onSelect(type)}
-            className="group flex flex-col items-start gap-2 rounded-lg border border-border bg-card p-4 text-left transition-colors hover:bg-muted"
+            className="h-auto min-w-0 w-full flex-col items-start gap-2 p-4 text-left font-normal"
           >
             <span className="flex size-8 items-center justify-center rounded-lg border border-border bg-muted">
               <Icon className="size-4 text-secondary-foreground" strokeWidth={2} aria-hidden="true" />
@@ -93,10 +95,10 @@ export function TemplateGallery({ onSelect }: TemplateGalleryProps) {
             <span className="font-sans text-[13px] font-medium leading-snug text-foreground">
               {DOCUMENT_TYPE_LABELS[type]}
             </span>
-            <span className="font-sans text-[11.5px] leading-snug text-muted-foreground">
+            <span className="text-[11.5px] leading-snug text-muted-foreground">
               {TYPE_DESCRIPTIONS[type]}
             </span>
-          </button>
+          </Button>
         )
       })}
     </div>

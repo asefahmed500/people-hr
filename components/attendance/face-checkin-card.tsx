@@ -81,7 +81,12 @@ export function FaceCheckinCard({ alreadyCheckedInTime, onCheckedIn }: FaceCheck
       stopCameraRef.current = await startCamera(video)
     } catch (err) {
       stopCamera()
-      if (err instanceof DOMException && err.name === "NotAllowedError") {
+      if (err instanceof Error && err.name === "CameraPolicyError") {
+        notify.error(
+          "Camera unavailable here",
+          "Open PeopleHR directly in a browser tab (not an embedded preview) and allow camera access.",
+        )
+      } else if (err instanceof DOMException && err.name === "NotAllowedError") {
         notify.error("Camera blocked", "Allow camera access in your browser to use face check-in.")
       } else {
         notify.error("Couldn't start the camera", "Close other apps using the camera and try again.")

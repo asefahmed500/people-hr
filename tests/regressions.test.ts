@@ -123,3 +123,44 @@ test("REGRESSION: employee cannot write onboarding tasks", () => {
   const result = mergeNonAdminWrite("onboarding", { tasks: [task] }, { tasks: [] }, employeeCtx, () => "Engineering", () => "Engineering")
   assert.equal(result.ok, false)
 })
+
+const managerCtx = {
+  id: "mgr-1", name: "Manager", email: "mgr@x.co",
+  department: "Engineering", role: "manager" as const,
+}
+
+test("REGRESSION: a manager cannot mint a new employee row with a salary", () => {
+  const added = {
+    id: "e-new", name: "New Hire", email: "new@x.co", initials: "N",
+    department: "Engineering", role: "Engineer", location: "Remote",
+    status: "active", hiredDaysAgo: 0, salary: 9000,
+  }
+  const result = mergeNonAdminWrite("employees", [added], [], managerCtx, () => "Engineering", () => "Engineering")
+  assert.equal(result.ok, false)
+  if (!result.ok) assert.match(result.error, /compensation/i)
+})
+
+test("REGRESSION: a manager cannot approve their own leave request", () => {
+  const pending = {
+    id: "r-self", employeeId: "mgr-1", employeeName: "Manager", initials: "M",
+    type: "vac", status: "pending", startDate: "2027-05-01", endDate: "2027-05-01",
+    days: 1, reason: "test",
+  }
+  const balances = {
+    "mgr-1": { annual: { used: 0, total: 24 }, sick: { used: 0, total: 25 }, personal: { used: 0, total: 5 }, parental: { used: 0, total: 150 } },
+  }
+  const stored = { requests: [pending], balances }
+  const incoming = { requests: [{ ...pending, status: "approved" }], balances }
+  const result = mergeNonAdminWrite("leave", incoming, stored, managerCtx, () => "Engineering", () => "Engineering")
+  assert.equal(result.ok, false)
+  if (!result.ok) assert.match(result.error, /own leave request/i)
+})
+
+test("REGRESSION: an employee cannot create a task in another department", () => {
+  const task = {
+    id: "p2", name: "X", ownerName: "Employee", ownerInit: "E", department: "Sales",
+    progress: 0, dueOrShipped: "x", status: "on-track", tone: "green",
+  }
+  const result = mergeNonAdminWrite("projects", { tasks: [task] }, { tasks: [] }, employeeCtx, () => "Engineering", () => "Engineering")
+  assert.equal(result.ok, false)
+})

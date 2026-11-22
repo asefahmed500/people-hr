@@ -17,14 +17,14 @@ import {
   type DragStartEvent,
 } from "@dnd-kit/core"
 import { sortableKeyboardCoordinates } from "@dnd-kit/sortable"
-import { Ellipsis } from "lucide-react"
+import { Ellipsis, Loader2 } from "lucide-react"
+import { Button } from "@/components/ui/button"
 
 import {
   defaultRecruitmentStore,
   defaultEmployees,
-  defaultBalances,
   defaultLeaveStore,
-  newEmployee,
+  defaultOnboardingStore,
   DEPARTMENTS,
   stageMeta,
   stageOrder,
@@ -32,10 +32,11 @@ import {
   type CandidateStage,
   type Opening,
   type RecruitmentStore,
-  type Employee,
   type LeaveStore,
+  type OnboardingStore,
 } from "@/lib/data"
 import { useApiStore } from "@/hooks/use-api-store"
+import { apiRequest } from "@/lib/api-client"
 import { useAuth } from "@/hooks/use-auth"
 import { Skeleton } from "@/components/ui/skeleton"
 import { onAction, consumePendingAction } from "@/lib/command-actions"
@@ -73,30 +74,34 @@ export function RecruitmentPageClient() {
     () => defaultRecruitmentStore,
   )
   const {
-    state: employees,
-    setState: setEmployees,
     hydrated: employeesHydrated,
     error: employeesError,
     retry: retryEmployees,
-  } = useApiStore<Employee[]>("/api/store/employees", () => defaultEmployees)
+  } = useApiStore<unknown[]>("/api/store/employees", () => defaultEmployees)
   const {
-    setState: setLeave,
     hydrated: leaveHydrated,
     error: leaveError,
     retry: retryLeave,
   } = useApiStore<LeaveStore>("/api/store/leave", () => defaultLeaveStore)
-  const hydrated = recruitmentHydrated && employeesHydrated && leaveHydrated
-  const error = recruitmentError || employeesError || leaveError
+  const {
+    hydrated: onboardingHydrated,
+    error: onboardingError,
+    retry: retryOnboarding,
+  } = useApiStore<OnboardingStore>("/api/store/onboarding", () => defaultOnboardingStore)
+  const hydrated = recruitmentHydrated && employeesHydrated && leaveHydrated && onboardingHydrated
+  const error = recruitmentError || employeesError || leaveError || onboardingError
   const retry = () => {
     retryRecruitment()
     retryEmployees()
     retryLeave()
+    retryOnboarding()
   }
   const [postOpen, setPostOpen] = React.useState(false)
   const [candidateOpen, setCandidateOpen] = React.useState(false)
   const [editingCandidate, setEditingCandidate] = React.useState<Candidate | null>(null)
   const [closingOpening, setClosingOpening] = React.useState<Opening | null>(null)
   const [activeId, setActiveId] = React.useState<string | null>(null)
+  const [hiringId, setHiringId] = React.useState<string | null>(null)
   const [roleFilter, setRoleFilter] = React.useState("all")
   const [removeTarget, setRemoveTarget] = React.useState<Candidate | null>(null)
 
@@ -131,56 +136,42 @@ export function RecruitmentPageClient() {
     moveTo(String(active.id), overStage)
   }
 
-  const moveTo = (candidateId: string, stage: CandidateStage) => {
+  const moveTo = async (candidateId: string, stage: CandidateStage) => {
     const c = store.candidates.find((x) => x.id === candidateId)
+    if (!c || !canWrite || c.stage === stage) return
+
+    // Hiring is a business transition, not four independent CRUD writes. One
+    // server call creates the employee, leave entitlement and onboarding
+    // checklist atomically; the affected stores are refetched afterwards.
+    if (stage === "hired") {
+      setHiringId(candidateId)
+      try {
+        const result = await apiRequest<{
+          employeeId: string
+          onboardingTasks: number
+          alreadyHired?: boolean
+        }>("/api/lifecycle/hire", { method: "POST", body: { candidateId } })
+        notify.success(
+          result.alreadyHired ? "Already hired" : "Hire completed",
+          `${c.name} is now an employee with ${result.onboardingTasks} onboarding task(s).`,
+        )
+        retry()
+      } catch (error) {
+        notify.error(
+          "Could not complete hire",
+          error instanceof Error ? error.message : "Please try again.",
+        )
+      } finally {
+        setHiringId(null)
+      }
+      return
+    }
+
     setStore((prev) => ({
       ...prev,
-      candidates: prev.candidates.map((x) =>
-        x.id === candidateId ? { ...x, stage } : x,
-      ),
+      candidates: prev.candidates.map((x) => (x.id === candidateId ? { ...x, stage } : x)),
     }))
-    if (c) {
-      notify.success(`${c.name} Ã¢â€ â€™ ${stageMeta[stage].label}`)
-      // Hired candidates become employees in the directory + get a leave balance.
-      if (stage === "hired") {
-        // Guard against re-hiring someone who is already hired, and against
-        // creating a duplicate directory row for an existing employee.
-        const alreadyHired = store.candidates.some(
-          (x) => x.id === candidateId && x.stage === "hired",
-        )
-        if (!alreadyHired) {
-          const emp = newEmployee({
-            name: c.name,
-            // No email is known at hire time Ã¢â‚¬â€ leave it empty rather than
-            // fabricating one. It can be filled in via the Employees page.
-            email: "",
-            department: c.department as Employee["department"],
-            role: c.role,
-            location: "Remote",
-            status: "active",
-          })
-          const duplicate = employees.some(
-            (e) => e.name === emp.name || (!!emp.email && e.email === emp.email),
-          )
-          if (!duplicate) {
-            setEmployees((prev) =>
-              prev.some((e) => e.name === emp.name || (!!emp.email && e.email === emp.email))
-                ? prev
-                : [emp, ...prev],
-            )
-            // The balance is keyed by the new employee's id Ã¢â‚¬â€ only seed it
-            // when the directory row was actually added, otherwise a re-hire
-            // of a deduped name would leave an orphan balance entry behind.
-            setLeave((prev) => ({
-              ...prev,
-              balances: { ...prev.balances, [emp.id]: defaultBalances },
-            }))
-            notify.success("Added to directory", `${c.name} is now an employee.`)
-
-          }
-        }
-      }
-    }
+    notify.success(`${c.name} → ${stageMeta[stage].label}`)
   }
 
   const removeCandidate = (candidateId: string) => {
@@ -302,6 +293,7 @@ export function RecruitmentPageClient() {
                 key={stage}
                 stage={stage}
                 candidates={visibleCandidates.filter((c) => c.stage === stage)}
+                pendingId={hiringId}
                 onMove={canWrite ? moveTo : undefined}
                 onEdit={
                   canWrite
@@ -428,12 +420,14 @@ export function RecruitmentPageClient() {
 function KanbanColumn({
   stage,
   candidates,
+  pendingId,
   onMove,
   onEdit,
   onDelete,
 }: {
   stage: CandidateStage
   candidates: Candidate[]
+  pendingId?: string | null
   onMove?: (id: string, stage: CandidateStage) => void
   onEdit?: (id: string) => void
   onDelete?: (id: string) => void
@@ -480,7 +474,7 @@ function KanbanColumn({
           </div>
         ) : null}
         {candidates.map((c) => (
-          <DraggableCandidate key={c.id} candidate={c} onMove={onMove} onEdit={onEdit} onDelete={onDelete} />
+          <DraggableCandidate key={c.id} candidate={c} pendingId={pendingId} onMove={onMove} onEdit={onEdit} onDelete={onDelete} />
         ))}
       </div>
     </div>
@@ -489,40 +483,54 @@ function KanbanColumn({
 
 function DraggableCandidate({
   candidate,
+  pendingId,
   onMove,
   onEdit,
   onDelete,
 }: {
   candidate: Candidate
+  pendingId?: string | null
   onMove?: (id: string, stage: CandidateStage) => void
   onEdit?: (id: string) => void
   onDelete?: (id: string) => void
 }) {
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: candidate.id, disabled: !onMove })
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: candidate.id,
+    disabled: !onMove || pendingId === candidate.id,
+  })
   const style = transform
     ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` }
     : undefined
   return (
     <div ref={setNodeRef} {...listeners} {...attributes} style={style} className={cn(isDragging && "opacity-50")}>
-      <CandidateCard candidate={candidate} onMove={onMove} onEdit={onEdit} onDelete={onDelete} />
+      <CandidateCard candidate={candidate} pendingId={pendingId} onMove={onMove} onEdit={onEdit} onDelete={onDelete} />
     </div>
   )
 }
 
 function CandidateCard({
   candidate,
+  pendingId,
   onMove,
   onEdit,
   onDelete,
 }: {
   candidate: Candidate
+  pendingId?: string | null
   onMove?: (id: string, stage: CandidateStage) => void
   onEdit?: (id: string) => void
   onDelete?: (id: string) => void
 }) {
   const meta = stageMeta[candidate.stage]
+  const pending = pendingId === candidate.id
   return (
-    <div className="flex items-center gap-2 rounded-lg border border-border bg-card p-2">
+    <div
+      aria-busy={pending || undefined}
+      className={cn(
+        "flex items-center gap-2 rounded-lg border border-border bg-card p-2 transition-[opacity,box-shadow] duration-150",
+        pending && "pointer-events-none opacity-60 shadow-[0_0_0_1px_var(--primary)]",
+      )}
+    >
       <div
         className={cn(
           "flex size-6 shrink-0 items-center justify-center rounded-full",
@@ -549,13 +557,19 @@ function CandidateCard({
       {onMove || onEdit || onDelete ? (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button
+            <Button
               type="button"
+              variant="ghost"
+              size="icon-xs"
+              className="size-6 rounded-md"
               aria-label={`Move ${candidate.name}`}
-              className="flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted"
             >
-              <Ellipsis className="size-3.5" strokeWidth={2} />
-            </button>
+              {pending ? (
+                <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
+              ) : (
+                <Ellipsis className="size-3.5" strokeWidth={2} />
+              )}
+            </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             {stageOrder
@@ -594,6 +608,11 @@ function CandidateCard({
 const candidateFormSchema = z.object({
   name: z.string().min(2, "Name is required"),
   role: z.string().min(2, "Role is required"),
+  email: z.string().refine((v) => v === "" || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v), "Enter a valid email"),
+  phone: z.string().refine((v) => v === "" || /^[+]?[\d\s()-]{7,18}$/.test(v), "Enter a valid phone number"),
+  offeredSalary: z
+    .string()
+    .refine((v) => v === "" || (/^\d+$/.test(v) && Number(v) >= 0), "Enter a whole amount"),
 })
 
 function CandidateDialog({
@@ -615,6 +634,9 @@ function CandidateDialog({
     department: candidate?.department ?? "Engineering",
     stage: candidate ? (candidate.stage as string) : "applied",
     source: candidate?.source ?? "careers-page",
+    email: candidate?.email ?? "",
+    phone: candidate?.phone ?? "",
+    offeredSalary: candidate?.offeredSalary != null ? String(candidate.offeredSalary) : "",
   })
 
   // Always-mounted dialog: re-sync the form every time it opens so edits
@@ -627,6 +649,9 @@ function CandidateDialog({
       department: candidate?.department ?? "Engineering",
       stage: candidate ? (candidate.stage as string) : "applied",
       source: candidate?.source ?? "careers-page",
+      email: candidate?.email ?? "",
+      phone: candidate?.phone ?? "",
+      offeredSalary: candidate?.offeredSalary != null ? String(candidate.offeredSalary) : "",
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open])
@@ -649,9 +674,13 @@ function CandidateDialog({
         initials: candidate?.initials ?? parsed.data.name.trim().split(/\s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase(),
         role: parsed.data.role.trim(),
         department: form.values.department,
-        appliedAt: candidate?.appliedAt ?? "Today",
+        appliedAt: candidate?.appliedAt ?? new Date().toISOString().slice(0, 10),
         stage: (isEdit ? form.values.stage : "applied") as Candidate["stage"],
         source: form.values.source,
+        email: parsed.data.email || undefined,
+        phone: parsed.data.phone || undefined,
+        offeredSalary: parsed.data.offeredSalary === "" ? undefined : Number(parsed.data.offeredSalary),
+        salaryCurrency: parsed.data.offeredSalary === "" ? undefined : "USD",
       })
       onOpenChange(false)
     } finally {
@@ -704,6 +733,31 @@ function CandidateDialog({
             { value: "linkedin", label: "LinkedIn" },
             { value: "agency", label: "Agency" },
           ]}
+        />
+      </div>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <Field
+          label="Email"
+          type="email"
+          value={form.values.email ?? ""}
+          onChange={(v) => form.setValue("email", v)}
+          placeholder="riley@example.com"
+          error={form.errors.email}
+        />
+        <Field
+          label="Phone"
+          value={form.values.phone ?? ""}
+          onChange={(v) => form.setValue("phone", v)}
+          placeholder="+1 555 010 2030"
+          error={form.errors.phone}
+        />
+        <Field
+          label="Agreed salary (USD, optional)"
+          type="number"
+          value={form.values.offeredSalary ?? ""}
+          onChange={(v) => form.setValue("offeredSalary", v)}
+          placeholder="Carried into payroll when hired"
+          error={form.errors.offeredSalary}
         />
       </div>
     </ActionDialog>

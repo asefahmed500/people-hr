@@ -1,7 +1,6 @@
 "use client"
 
 import * as React from "react"
-import { Loader2 } from "lucide-react"
 
 import {
   Dialog,
@@ -20,7 +19,9 @@ type ActionDialogProps = {
   title: string
   description?: string
   submitLabel?: string
-  submitVariant?: "default" | "destructive"
+  /** Label shown on the submit button while the action is in flight. */
+  submittingLabel?: string
+  submitVariant?: "default" | "destructive" | "soft"
   submitting?: boolean
   /** Wide layouts keep dense operational forms inside the viewport. */
   width?: "default" | "wide" | "xl"
@@ -34,6 +35,7 @@ export function ActionDialog({
   title,
   description,
   submitLabel = "Save",
+  submittingLabel = "Working…",
   submitVariant = "default",
   submitting = false,
   width = "default",
@@ -79,18 +81,18 @@ export function ActionDialog({
             variant="outline"
             disabled={submitting}
             onClick={() => onOpenChange(false)}
-            className="rounded-lg border border-border bg-card font-sans text-[13.5px] font-medium text-secondary-foreground hover:bg-muted disabled:opacity-50"
+            className="min-w-[104px]"
           >
             Cancel
           </Button>
           <Button
             type="button"
-            disabled={submitting}
             onClick={onSubmit}
-            variant={submitVariant}
-            className={submitVariant === "default" ? "font-sans text-[13.5px] font-medium" : "inline-flex items-center gap-1.5 rounded-lg bg-foreground font-sans text-[13.5px] font-medium text-background hover:bg-foreground/90 disabled:opacity-60"}
+            variant={submitVariant === "destructive" ? "destructive" : submitVariant}
+            loading={submitting}
+            loadingText={submittingLabel}
+            className="min-w-[124px]"
           >
-            {submitting ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : null}
             {submitLabel}
           </Button>
         </DialogFooter>

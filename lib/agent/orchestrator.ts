@@ -62,13 +62,18 @@ export class AgentOrchestrator {
     );
 
     let ragContext: RAGContext | undefined;
-    try {
-      const retrieval = await getRetriever().retrieve(request.message);
-      if (retrieval.totalChunks > 0) {
-        ragContext = getRetriever().buildContext(retrieval);
-        context.documentContext = ragContext.contextText;
-      }
-    } catch {}
+    // The document corpus can contain confidential HR letters. `/api/documents/search`
+    // is admin-only for exactly this reason; the agent must not be a bypass
+    // around that rule. Do not retrieve for managers/employees.
+    if (request.user.role === "admin") {
+      try {
+        const retrieval = await getRetriever().retrieve(request.message);
+        if (retrieval.totalChunks > 0) {
+          ragContext = getRetriever().buildContext(retrieval);
+          context.documentContext = ragContext.contextText;
+        }
+      } catch {}
+    }
 
     const messages = this.contextEngine.buildMessages(context, request.message, request.history);
     const totalUsage = { promptTokens: 0, completionTokens: 0, totalTokens: 0, estimatedCost: 0 };

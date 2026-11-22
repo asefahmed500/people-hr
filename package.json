@@ -11,6 +11,7 @@
     "format": "prettier --write \"**/*.{ts,tsx}\"",
     "typecheck": "tsc --noEmit",
     "test:roles": "node scripts/role-tests.mjs",
+    "test:usecases": "node scripts/usecase-tests.mjs",
     "test:e2e": "node scripts/e2e-test.mjs",
     "test:load": "node scripts/load-test.mjs",
     "test:unit": "node --import tsx --test --test-concurrency=1 tests/*.test.ts",

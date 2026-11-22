@@ -2,6 +2,7 @@ import Link from "next/link"
 import { PanelLeftClose, PanelLeftOpen, Users, UserRound } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import { navItems } from "./nav-data"
 import { UserCard } from "./user-card"
 import { useAuth } from "@/hooks/use-auth"
@@ -25,16 +26,17 @@ export function DashboardSidebar({
   if (collapsed) {
     return (
       <aside className="flex w-[68px] shrink-0 flex-col items-center gap-4 border-r border-border bg-card px-2 py-4">
-        <button
+        <Button
           type="button"
+          variant="ghost"
+          size="icon"
           aria-label="Expand sidebar"
           title="Expand sidebar"
           hidden={!onToggleCollapse}
           onClick={onToggleCollapse}
-          className="flex size-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
         >
           <PanelLeftOpen className="size-[18px]" strokeWidth={2} aria-hidden="true" />
-        </button>
+        </Button>
         <div className="flex size-[34px] shrink-0 items-center justify-center rounded-lg bg-foreground">
           <Users className="size-[18px] text-background" strokeWidth={2} aria-hidden="true" />
         </div>
@@ -102,16 +104,17 @@ function BrandMark({ onCollapse }: { onCollapse?: () => void }) {
           PeopleHR
         </span>
       </div>
-      <button
+      <Button
         type="button"
+        variant="ghost"
+        size="icon-sm"
         aria-label="Collapse sidebar"
         title="Collapse sidebar"
         hidden={!onCollapse}
         onClick={onCollapse}
-        className="flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
       >
         <PanelLeftClose className="size-[18px]" strokeWidth={2} aria-hidden="true" />
-      </button>
+      </Button>
     </div>
   )
 }

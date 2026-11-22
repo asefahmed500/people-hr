@@ -5,16 +5,21 @@ import { prisma } from "@/lib/db"
 import { auth } from "@/lib/auth"
 import { rateLimit } from "@/lib/rate-limit"
 import { bumpSessionEpoch } from "@/lib/login-history"
+import { recordActivity } from "@/lib/activity"
 
 // Change the signed-in user's password (verifies the current one).
 export async function POST(request: Request) {
-  const limited = rateLimit(request, { name: "change-password", limit: 5, windowMs: 15 * 60_000 })
-  if (limited) return limited
-
   const session = await auth()
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
+  const limited = rateLimit(request, {
+    name: "change-password",
+    limit: 5,
+    windowMs: 15 * 60_000,
+    subject: session.user.id,
+  })
+  if (limited) return limited
 
   const body = await request.json().catch(() => null)
   const current = typeof body?.current === "string" ? body.current : ""
@@ -41,5 +46,16 @@ export async function POST(request: Request) {
   await prisma.user.update({ where: { id: user.id }, data: { password: hash } })
   // Other sessions must not survive a password change.
   await bumpSessionEpoch(user.id).catch(() => {})
+  await recordActivity({
+    actor: {
+      id: user.id,
+      name: user.name ?? null,
+      department: user.department ?? null,
+      role: user.role,
+    },
+    action: "updated",
+    module: "security",
+    summary: "Changed account password",
+  })
   return NextResponse.json({ ok: true })
 }

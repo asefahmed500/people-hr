@@ -9,9 +9,16 @@ import { z } from "zod"
 import { AuthInput } from "@/components/auth/auth-input"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { useAuth } from "@/hooks/use-auth"
 import { notify } from "@/lib/toast"
-import { DEMO_EMAIL, DEMO_PASSWORD } from "@/lib/data"
+import { DEMO_ACCOUNTS } from "@/lib/data"
 
 const schema = z.object({
   email: z.string().email("Enter a valid work email."),
@@ -49,6 +56,7 @@ export function LoginPageClient() {
   const [formError, setFormError] = React.useState<string | null>(null)
   const [twoFactorStep, setTwoFactorStep] = React.useState(false)
   const [twoFactorCode, setTwoFactorCode] = React.useState("")
+  const [demoAccountId, setDemoAccountId] = React.useState("")
 
   React.useEffect(() => {
     if (hydrated && isAuthenticated) router.replace(safeCallback(searchParams.get("callbackUrl")))
@@ -119,10 +127,17 @@ export function LoginPageClient() {
     router.replace(safeCallback(searchParams.get("callbackUrl")))
   }
 
-  const fillDemo = () => {
-    setValues({ email: DEMO_EMAIL, password: DEMO_PASSWORD })
+  const selectedDemo = DEMO_ACCOUNTS.find((a) => a.id === demoAccountId)
+
+  const applyDemoAccount = (id: string) => {
+    const account = DEMO_ACCOUNTS.find((a) => a.id === id)
+    if (!account) return
+    setValues({ email: account.email, password: account.password })
     setErrors({})
     setFormError(null)
+    setTwoFactorStep(false)
+    setTwoFactorCode("")
+    notify.info("Demo account selected", `${account.label} credentials filled in. Press Sign in.`)
   }
 
   return (
@@ -136,17 +151,16 @@ export function LoginPageClient() {
 
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
             {GOOGLE_ENABLED ? (
-              <button
+              <Button
                 type="button"
+                variant="outline"
                 onClick={handleGoogle}
                 disabled={submitting}
-                className="flex h-9 w-full items-center justify-center gap-2.5 rounded-md border border-border bg-card px-4 transition-colors hover:bg-muted disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                className="w-full"
               >
                 <Globe className="size-4 text-foreground" strokeWidth={2} aria-hidden="true" />
-                <span className="font-sans text-sm font-medium text-secondary-foreground">
-                  Continue with Google
-                </span>
-              </button>
+                Continue with Google
+              </Button>
             ) : null}
 
             {GOOGLE_ENABLED ? (
@@ -179,18 +193,19 @@ export function LoginPageClient() {
                 onChange={(e) => update("password", e.target.value)}
                 error={errors.password}
                 trailing={
-                  <button
+                  <Button
                     type="button"
+                    variant="ghost"
+                    size="icon-sm"
                     aria-label={showPassword ? "Hide password" : "Show password"}
                     onClick={() => setShowPassword((s) => !s)}
-                    className="flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                   >
                     {showPassword ? (
                       <EyeOff className="size-4" strokeWidth={2} />
                     ) : (
                       <Eye className="size-4" strokeWidth={2} />
                     )}
-                  </button>
+                  </Button>
                 }
               />
               <Link
@@ -223,35 +238,65 @@ export function LoginPageClient() {
                     setFormError(null)
                   }}
                 />
-                <button
+                <Button
                   type="button"
+                  variant="link"
+                  size="sm"
                   onClick={() => {
                     setTwoFactorStep(false)
                     setTwoFactorCode("")
                     setFormError(null)
                   }}
-                  className="flex items-center gap-1.5 self-start font-sans text-[13px] font-semibold leading-normal text-primary hover:text-primary"
+                  className="self-start"
                 >
-                  <ArrowLeft className="size-4" strokeWidth={2} aria-hidden="true" />
+                  <ArrowLeft className="button-arrow size-4" strokeWidth={2} aria-hidden="true" />
                   Back to password
-                </button>
+                </Button>
               </>
             ) : null}
 
-            <Button type="submit" disabled={submitting} className="mt-1 w-full">
+            <Button
+              type="submit"
+              loading={submitting}
+              loadingText={twoFactorStep ? "Verifying…" : "Signing in…"}
+              className="mt-1 w-full"
+            >
               {twoFactorStep ? "Verify code" : "Sign in"}
-              <ArrowRight className="size-4" strokeWidth={2} aria-hidden="true" />
+              <ArrowRight className="button-arrow size-4" strokeWidth={2} aria-hidden="true" />
             </Button>
           </form>
 
-          <button
-            type="button"
-            onClick={fillDemo}
-            className="mt-4 rounded-md border border-dashed border-border px-4 py-2.5 text-center font-sans text-[12.5px] text-muted-foreground transition-colors hover:bg-muted"
-          >
-            Demo account — <span className="text-foreground">{DEMO_EMAIL}</span> / <span className="text-foreground">{DEMO_PASSWORD}</span>
-            <span className="block text-[11px]">Click to fill, then Sign in.</span>
-          </button>
+          <div className="mt-4 flex flex-col gap-2">
+            <span className="font-sans text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
+              Demo accounts
+            </span>
+            <Select
+              value={demoAccountId}
+              onValueChange={(id) => {
+                setDemoAccountId(id)
+                applyDemoAccount(id)
+              }}
+            >
+              <SelectTrigger className="h-10 w-full rounded-lg" aria-label="Choose a demo account">
+                <SelectValue placeholder="Choose a role to fill credentials" />
+              </SelectTrigger>
+              <SelectContent>
+                {DEMO_ACCOUNTS.map((account) => (
+                  <SelectItem key={account.id} value={account.id}>
+                    <span className="flex flex-col gap-0.5">
+                      <span className="font-medium">{account.label}</span>
+                      <span className="text-[11px] text-muted-foreground">{account.email}</span>
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="font-sans text-[11px] leading-normal text-muted-foreground">
+              {selectedDemo
+                ? `${selectedDemo.description} — credentials filled in.`
+                : "Select a role to fill the form, then press Sign in."}
+            </p>
+          </div>
 
           <Link
             href="/signup"

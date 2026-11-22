@@ -18,23 +18,19 @@ export function DirectoryHeader({ onAddClick, onExport }: { onAddClick?: () => v
           type="button"
           variant="outline"
           onClick={onExport}
-          className="h-[42px] flex-1 px-4 sm:flex-none"
+          className="flex-1 sm:flex-none"
         >
-          <Download className="size-[17px] text-secondary-foreground" strokeWidth={2} aria-hidden="true" />
-          <span className="font-sans text-[13.5px] font-medium leading-normal text-secondary-foreground">
-            Export
-          </span>
+          <Download className="size-4 text-secondary-foreground" strokeWidth={2} aria-hidden="true" />
+          Export
         </Button>
         {onAddClick ? (
           <Button
             type="button"
             onClick={onAddClick}
-            className="h-[42px] flex-1 px-4 sm:flex-none"
+            className="flex-1 sm:flex-none"
           >
-            <Plus className="size-[17px]" strokeWidth={2} aria-hidden="true" />
-            <span className="font-sans text-[13.5px] font-medium leading-normal">
-              Add employee
-            </span>
+            <Plus className="size-4" strokeWidth={2} aria-hidden="true" />
+            Add employee
           </Button>
         ) : null}
       </div>

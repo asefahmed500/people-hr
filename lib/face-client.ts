@@ -61,8 +61,31 @@ export async function captureDescriptor(video: HTMLVideoElement): Promise<Captur
   return { ok: true, descriptor: Array.from(embedding) }
 }
 
+/** True when the browser will even allow a camera request here. Embedded
+ *  previews and iframes often have camera blocked by Permissions-Policy; calling
+ *  getUserMedia there only produces a console violation and a failed promise. */
+export function cameraAvailable(): boolean {
+  if (typeof window === "undefined") return false
+  if (!navigator.mediaDevices?.getUserMedia) return false
+  const policy = (document as Document & {
+    permissionsPolicy?: { allowsFeature: (feature: string) => boolean }
+  }).permissionsPolicy
+  if (policy && typeof policy.allowsFeature === "function" && !policy.allowsFeature("camera")) {
+    return false
+  }
+  return true
+}
+
+export class CameraPolicyError extends Error {
+  constructor() {
+    super("Camera is blocked by this page's permissions policy.")
+    this.name = "CameraPolicyError"
+  }
+}
+
 /** Start the webcam into a video element; returns a stop() cleanup. */
 export async function startCamera(video: HTMLVideoElement): Promise<() => void> {
+  if (!cameraAvailable()) throw new CameraPolicyError()
   const stream = await navigator.mediaDevices.getUserMedia({
     video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } },
     audio: false,

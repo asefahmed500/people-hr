@@ -20,6 +20,8 @@ export type NotificationType =
   | "attendance_marked"
   | "attendance_updated"
   | "settings_changed"
+  | "employee_hired"
+  | "payroll_recorded"
   | "document_generated"
   | "automation_alert"
 

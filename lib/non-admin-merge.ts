@@ -71,8 +71,8 @@ const ARRAY_MODULES: Record<string, ArrayModuleConfig> = {
     // would let them self-assign ratings or erase feedback.
     readOnlyFor: ["employee"],
   },
-  // Employees have a read-only onboarding view (and are redirected away from
-  // the page); reject their writes to the module as well.
+  // Employees can view their own onboarding checklist; reject their writes.
+  // Ownership resolves by `employeeId` first (isOwnRecord), not by name.
   onboarding: { arrayKey: "tasks", nameFields: ["hireName"], deptField: "hireDept", readOnlyFor: ["employee"] },
   // Check-ins are verified by face. Employees must not be able to write
   // arbitrary self-reported rows through the generic store API.
@@ -135,9 +135,16 @@ function mergeArrayModule(
     // A manager's NEW rows must be in their own department. inScope() matches
     // on owner name first, so a crafted row could otherwise claim someone
     // else's department while still passing the ownership check.
-    if (added && isManager(ctx) && ctx.department && config.deptField) {
-      if (String(row[config.deptField] ?? "") !== ctx.department) {
+    if (added && !isAdmin(ctx) && config.deptField) {
+      const rowDept = String(row[config.deptField] ?? "")
+      if (ctx.department && rowDept !== ctx.department) {
         return { ok: false, error: "You can only create records in your own department." }
+      }
+      // An employee with no department must not be able to inject rows into a
+      // department they don't belong to (those rows become visible to that
+      // department's manager through the read filter).
+      if (!ctx.department && rowDept) {
+        return { ok: false, error: "Set your department before creating records." }
       }
     }
     // Prevent non-admins from hijacking rows by changing the dept field
@@ -200,6 +207,23 @@ function mergeEmployees(
     if ((added || changed) && !inScope(row, cfg, ctx)) {
       return { ok: false, error: "You can only change your own records." }
     }
+    // GAP: the "changed" checks below only protected EXISTING rows. A manager
+    // could forge a direct PUT adding a new row in their own department with
+    // any salary/status they liked — and admin payroll would then pay it.
+    // New rows created by non-admins may never carry compensation data, and
+    // may not be created in a deactivated state.
+    if (added && ctx.role !== "admin") {
+      const compensationFields = [
+        "salary", "salaryCurrency", "payFrequency", "salaryEffectiveDate",
+        "stripeCustomerRef", "cardBrand", "cardLast4",
+      ]
+      if (compensationFields.some((field) => row[field] !== undefined)) {
+        return { ok: false, error: "Compensation can only be set by an admin." }
+      }
+      if (row.status === "inactive") {
+        return { ok: false, error: "Only admins can deactivate people." }
+      }
+    }
     // Identity fields route scope matching everywhere else (read filters,
     // manager dept resolution, leave ownership). Changing them would let a
     // writer impersonate another row's owner (e.g. copying someone's email
@@ -216,7 +240,11 @@ function mergeEmployees(
     if (changed && prev) {
       // `name` is identity for several modules' row scoping — let the User row
       // own it (profile route keeps the directory in sync).
-      const privileged = ["salary", "role", "status", "hiredAt", "hiredDaysAgo", "name"]
+      const privileged = [
+        "salary", "salaryCurrency", "payFrequency", "salaryEffectiveDate",
+        "stripeCustomerRef", "cardBrand", "cardLast4",
+        "role", "status", "hiredAt", "hiredDaysAgo", "name",
+      ]
       if (privileged.some((field) => !deepEqual(prev[field], row[field]))) {
         return {
           ok: false,
@@ -309,6 +337,15 @@ function mergeLeave(
     // pending -> approved passed and inflated the balance.
     if (isEmployee(ctx) && (prev.status !== "pending" || row.status !== "pending")) {
       return { ok: false, error: "You can only edit a pending request." }
+    }
+    // Nobody may decide their OWN request — including managers, whose
+    // department scope previously let them self-approve and mint balance.
+    if (
+      isOwn(row) &&
+      prev.status !== row.status &&
+      (row.status === "approved" || row.status === "declined")
+    ) {
+      return { ok: false, error: "You cannot approve or decline your own leave request." }
     }
     // Ownership fields route dept resolution + balance accounting; changing
     // them on an existing request would re-route someone else's request.

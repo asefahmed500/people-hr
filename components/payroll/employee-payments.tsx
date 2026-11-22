@@ -30,9 +30,10 @@ function mapPaymentToRow(p: Payment) {
     name: p.name,
     role: p.role,
     dept: p.department,
-    gross: formatMoney(p.gross),
-    ded: formatMoney(p.deductions),
-    net: formatMoney(net),
+    period: p.period ?? "legacy",
+    gross: formatMoney(p.gross, p.currency),
+    ded: formatMoney(p.deductions, p.currency),
+    net: formatMoney(net, p.currency),
     status: p.status,
   }
 }
@@ -57,15 +58,16 @@ export function EmployeePayments({
             Employee payments
           </h2>
           <span className="font-sans inline-block text-[12.5px] leading-normal text-muted-foreground">
-            {payments?.length ?? 0} employees · {new Date().toLocaleDateString("en-US", { month: "long", year: "numeric" })}
+            {payments?.length ?? 0} payment records · recorded only, no money sent
           </span>
         </div>
       </div>
-      <Table className="min-w-[760px]">
+      <Table className="min-w-[860px]">
         <TableHeader className="[&_th]:bg-muted [&_th]:hover:bg-muted">
           <TableRow className="bg-muted hover:bg-muted">
             <TableHead className={cn(headClass, "pl-4")}>Employee</TableHead>
             <TableHead className={cn(headClass, "w-[130px]")}>Department</TableHead>
+            <TableHead className={cn(headClass, "w-[90px]")}>Period</TableHead>
             <TableHead className={cn(headClass, "w-[110px] text-right")}>Gross</TableHead>
             <TableHead className={cn(headClass, "w-[110px] text-right")}>Deductions</TableHead>
             <TableHead className={cn(headClass, "w-[110px] text-right")}>Net</TableHead>
@@ -75,7 +77,7 @@ export function EmployeePayments({
         <TableBody>
           {rows.length === 0 ? (
             <TableRow className="hover:bg-transparent">
-              <TableCell colSpan={6} className="py-10 text-center">
+              <TableCell colSpan={7} className="py-10 text-center">
                 <span className="font-sans text-[13px] leading-normal text-muted-foreground">
                   No payment records
                 </span>
@@ -84,7 +86,7 @@ export function EmployeePayments({
           ) : (
             rows.map((row) => (
               <PaymentRow
-                key={row.initials + row.name}
+                key={row.id}
                 row={row}
                 onUpdateStatus={onUpdateStatus}
               />
@@ -140,6 +142,9 @@ function PaymentRow({
       <TableCell className="w-[130px] font-sans text-[13px] font-medium leading-normal text-secondary-foreground">
         {row.dept}
       </TableCell>
+      <TableCell className="w-[90px] font-sans text-[12px] leading-normal text-muted-foreground">
+        {row.period}
+      </TableCell>
       <TableCell className="w-[110px] text-right font-sans text-[13px] font-medium leading-normal text-secondary-foreground">
         {row.gross}
       </TableCell>
@@ -161,7 +166,7 @@ function PaymentRow({
                       variant="ghost"
                       size="xs"
                       aria-label={`Update status for ${row.name}`}
-                      className="h-6 gap-1 rounded-full px-1.5"
+                      className="h-7 min-w-0 gap-1 rounded-lg px-2"
                     >
                       {statusBadge}
                       <Ellipsis className="size-3.5 text-muted-foreground" strokeWidth={2} aria-hidden="true" />

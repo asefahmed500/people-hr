@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { Button } from "@/components/ui/button"
 
 import {
   defaultLeaveStore,
@@ -180,19 +181,15 @@ export function LeavePageClient() {
   const handleCancelRequest = (id: string) => {
     const req = store.requests.find((r) => r.id === id)
     if (!req || !isOwn(req)) return
-    const wasApproved = req.status === "approved"
-    if (!wasApproved && req.status !== "pending") return
+    // Only PENDING requests can be withdrawn. Approved days are already
+    // consumed; the server rejects removing them, so offering it here only
+    // produced an optimistic change that was immediately reverted.
+    if (req.status !== "pending") return
     setStore((prev) => ({
       ...prev,
       requests: prev.requests.filter((r) => r.id !== id),
-      // An approved request had already consumed days ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â give them back when
-      // it is removed. Pending requests never touched the balance.
-      ...(wasApproved
-        ? { balances: adjustBalance(prev.balances, req, -req.days) }
-        : {}),
     }))
     notify.info("Request cancelled", `Removed ${req.employeeName}'s ${req.days}-day request.`)
-
   }
 
   const handleSubmitEdit = (updated: LeaveRequest) => {
@@ -255,22 +252,24 @@ export function LeavePageClient() {
                 {monthLabel}
               </span>
               <div className="flex items-center gap-1">
-                <button
+                <Button
                   type="button"
+                  variant="outline"
+                  size="icon-xs"
                   aria-label="Previous month"
                   onClick={() => setMonthOffset((m) => m - 1)}
-                  className="flex size-7 items-center justify-center rounded-lg border border-border bg-card"
                 >
                   <ChevronLeft className="size-4 text-secondary-foreground" strokeWidth={2} />
-                </button>
-                <button
+                </Button>
+                <Button
                   type="button"
+                  variant="outline"
+                  size="icon-xs"
                   aria-label="Next month"
                   onClick={() => setMonthOffset((m) => m + 1)}
-                  className="flex size-7 items-center justify-center rounded-lg border border-border bg-card"
                 >
                   <ChevronRight className="size-4 text-secondary-foreground" strokeWidth={2} />
-                </button>
+                </Button>
               </div>
             </div>
             <div className="flex items-center gap-4">

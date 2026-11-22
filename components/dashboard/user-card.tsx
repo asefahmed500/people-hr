@@ -3,6 +3,7 @@
 import * as React from "react"
 import Link from "next/link"
 import { LogOut, MoreHorizontal, Settings, UserRound } from "lucide-react"
+import { Button } from "@/components/ui/button"
 
 import {
   DropdownMenu,
@@ -43,13 +44,14 @@ export function UserCard() {
           </span>
         </div>
         <DropdownMenuTrigger asChild>
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            size="icon-xs"
             aria-label="Account menu"
-            className="flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-foreground/10 hover:text-foreground"
           >
             <MoreHorizontal className="size-4" strokeWidth={2} aria-hidden="true" />
-          </button>
+          </Button>
         </DropdownMenuTrigger>
       </div>
       <DropdownMenuContent align="end" side="top" className="w-[220px]">

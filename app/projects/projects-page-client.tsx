@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { Button } from "@/components/ui/button"
 
 import {
   DndContext,
@@ -681,13 +682,15 @@ function ProjectCard({
         {onEdit || onDelete ? (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button
+              <Button
                 type="button"
+                variant="ghost"
+                size="icon-xs"
                 aria-label={`Actions for ${task.name}`}
-                className="flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted"
+                className="size-6 rounded-md"
               >
                 <Ellipsis className="size-3.5" strokeWidth={2} />
-              </button>
+              </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               {onEdit ? (

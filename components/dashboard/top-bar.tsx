@@ -4,6 +4,7 @@ import * as React from "react"
 import { ChevronRight, Command, LogOut, Moon, Search, Sun } from "lucide-react"
 
 import { cn } from "@/lib/utils"
+import { Button } from "@/components/ui/button"
 import { useNotificationsStore } from "@/lib/stores/notifications"
 import { useAuth } from "@/hooks/use-auth"
 import { useTheme } from "@/components/theme-provider"
@@ -57,18 +58,19 @@ export function TopBar({ current, accentCurrent = false, onOpenCommand }: TopBar
 function ThemeToggle() {
   const { theme, setTheme } = useTheme()
   return (
-    <button
+    <Button
       type="button"
+      variant="outline"
+      size="icon"
       aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
       onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-      className="flex size-9 items-center justify-center rounded-xl border border-border bg-card text-secondary-foreground transition-colors hover:bg-muted"
     >
       {theme === "dark" ? (
         <Sun className="size-4" strokeWidth={2} aria-hidden="true" />
       ) : (
         <Moon className="size-4" strokeWidth={2} aria-hidden="true" />
       )}
-    </button>
+    </Button>
   )
 }
 
@@ -85,17 +87,19 @@ function SignOutButton() {
     }
   }
   return (
-    <button
+    <Button
       type="button"
+      variant="outline"
+      size="sm"
       aria-label="Sign out"
       title="Sign out"
       onClick={handleSignOut}
-      disabled={pending}
-      className="flex h-9 shrink-0 items-center gap-2 rounded-xl border border-border bg-card px-3.5 font-sans text-[13px] font-medium text-secondary-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50"
+      loading={pending}
+      loadingText="Signing out…"
     >
-      <LogOut className="size-4" strokeWidth={2} aria-hidden="true" />
-      {pending ? "Signing outâ€¦" : "Sign out"}
-    </button>
+      <LogOut className="size-3.5" strokeWidth={2} aria-hidden="true" />
+      Sign out
+    </Button>
   )
 }
 
@@ -126,22 +130,22 @@ function Breadcrumb({
 
 function CommandSearch({ onOpen }: { onOpen?: () => void }) {
   return (
-    <button
+    <Button
       type="button"
+      variant="outline"
+      size="sm"
       onClick={onOpen}
-      className="flex h-9 min-w-0 max-w-[420px] flex-1 items-center gap-2.5 rounded-lg border border-border bg-card px-2.5 text-left sm:px-3.5"
+      className="min-w-0 max-w-[420px] flex-1 justify-start gap-2.5 px-2.5 text-left sm:px-3.5"
     >
-      <Search className="size-4 shrink-0 text-muted-foreground" strokeWidth={2} aria-hidden="true" />
-      <span className="flex-1 font-sans text-[13px] leading-normal text-muted-foreground">
-        <span className="hidden sm:inline">Search people, teams, documentsâ€¦</span>
-        <span className="sm:hidden">Searchâ€¦</span>
+      <Search className="size-3.5 shrink-0 text-muted-foreground" strokeWidth={2} aria-hidden="true" />
+      <span className="flex-1 text-left text-[13px] font-normal text-muted-foreground">
+        <span className="hidden sm:inline">Search people, teams, documents…</span>
+        <span className="sm:hidden">Search…</span>
       </span>
       <span className="hidden shrink-0 items-center gap-[3px] rounded-md border border-border bg-muted px-[7px] py-[3px] sm:flex">
         <Command className="size-3 text-muted-foreground" strokeWidth={2} aria-hidden="true" />
-        <span className="font-sans text-[11px] font-semibold leading-normal text-muted-foreground">
-          K
-        </span>
+        <span className="text-[11px] font-semibold text-muted-foreground">K</span>
       </span>
-    </button>
+    </Button>
   )
 }

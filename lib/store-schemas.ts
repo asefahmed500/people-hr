@@ -6,7 +6,7 @@ import { z } from "zod"
 
 import { DEPARTMENTS } from "@/lib/data/types"
 import { DOCUMENT_TYPES } from "@/lib/data/documents"
-import { EMPLOYEE_STATUSES } from "@/lib/data/employees"
+import { EMPLOYEE_STATUSES, PAY_FREQUENCIES } from "@/lib/data/employees"
 
 const id = z.string().min(1)
 const department = z.enum(DEPARTMENTS)
@@ -42,6 +42,14 @@ const employee = z.object({
   employmentType: z.enum(["full-time", "part-time", "contract", "intern"]).optional(),
   reportingManager: z.string().optional(),
   salary: z.number().int().min(0).optional(),
+  salaryCurrency: z.string().length(3).optional(),
+  payFrequency: z.enum(PAY_FREQUENCIES).optional(),
+  salaryEffectiveDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  // Stripe references are opaque ids + display-only card metadata. A full
+  // card number must never reach this document.
+  stripeCustomerRef: z.string().max(255).optional(),
+  cardBrand: z.string().max(50).optional(),
+  cardLast4: z.string().regex(/^\d{4}$/).optional(),
   // Personnel-file attachments (identity, contract, certificates, etc.).
   attachments: z.array(z.object({
     id: z.string(),
@@ -79,6 +87,12 @@ const candidate = z.object({
   appliedAt: z.string(),
   stage: z.enum(["applied", "screening", "interview", "offer", "hired"]),
   source: z.string().optional(),
+  email: z.string().optional(),
+  phone: z.string().optional(),
+  offeredSalary: z.number().int().min(0).optional(),
+  salaryCurrency: z.string().length(3).optional(),
+  offerDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  employeeId: id.optional(),
 })
 
 const opening = z.object({
@@ -125,6 +139,11 @@ const objective = z.object({
 
 const payment = z.object({
   id,
+  // Optional for payment rows written before periods were introduced.
+  employeeId: id.optional(),
+  employeeEmail: z.string().optional(),
+  period: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/).optional(),
+  currency: z.string().length(3).optional(),
   initials: z.string().min(1),
   name: z.string().min(1),
   role: z.string(),
@@ -132,16 +151,20 @@ const payment = z.object({
   gross: z.number().int().min(0),
   deductions: z.number().int().min(0),
   status: z.enum(["paid", "pending", "failed"]),
+  paymentReference: z.string().max(255).optional(),
+  recordedAt: z.string().optional(),
 })
 
 const payslip = z.object({
   id,
   employeeId: id,
+  employeeEmail: z.string().optional(),
   employeeName: z.string().min(1),
   initials: z.string().min(1),
   department,
   jobTitle: z.string(),
   period: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/),
+  currency: z.string().length(3).optional(),
   issuedAt: z.string(),
   status: z.enum(["draft", "paid"]),
   earnings: z.object({
@@ -190,6 +213,8 @@ const teamRow = z.object({
 
 const onboardingTask = z.object({
   id,
+  employeeId: id.optional(),
+  hireEmail: z.string().optional(),
   hireInit: z.string().min(1),
   hireName: z.string().min(1),
   hireRole: z.string(),
@@ -197,6 +222,8 @@ const onboardingTask = z.object({
   phase: z.enum(["pre", "w1", "m1", "ramped"]),
   done: z.boolean(),
   label: z.string(),
+  dueAt: z.string().optional(),
+  completedAt: z.string().optional(),
 })
 
 const checkIn = z.object({

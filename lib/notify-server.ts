@@ -82,6 +82,65 @@ function approverIds(
     .map((u) => u.id)
 }
 
+/** A pay period was recorded. Other admins/managers can find the rows ready
+ *  for export. The actor is never notified about their own action. */
+export async function notifyPayrollRecorded(opts: {
+  period: string
+  count: number
+  actorId: string
+}): Promise<void> {
+  try {
+    const users = (await prisma.user.findMany({
+      where: { deactivatedAt: null },
+      select: { id: true, name: true, role: true, department: true },
+    })) as DirectoryUser[]
+    await createMany(
+      users
+        .filter((u) => u.role === "admin" || u.role === "manager")
+        .filter((u) => u.id !== opts.actorId)
+        .map((u) => ({
+          userId: u.id,
+          type: "payroll_recorded",
+          title: "Payroll recorded",
+          description: `${opts.count} payment(s) for ${opts.period} are ready to export. No money was sent.`,
+          href: "/payslips",
+        })),
+    )
+  } catch {
+    // Notification fan-out must never fail a recorded run.
+  }
+}
+
+/**
+ * A candidate became an employee. Tell the other people responsible for the
+ * hire (admins + that department's managers, never the actor) where to pick up
+ * the onboarding checklist.
+ */
+export async function notifyNewHire(opts: {
+  employeeName: string
+  department: string
+  hiredBy: string
+  actorId: string
+}): Promise<void> {
+  try {
+    const users = (await prisma.user.findMany({
+      where: { deactivatedAt: null },
+      select: { id: true, name: true, role: true, department: true },
+    })) as DirectoryUser[]
+    await createMany(
+      approverIds(users, opts.department, opts.actorId).map((userId) => ({
+        userId,
+        type: "employee_hired",
+        title: "New hire added",
+        description: `${opts.employeeName} joined ${opts.department} (added by ${opts.hiredBy}). Onboarding checklist is ready.`,
+        href: "/onboarding",
+      })),
+    )
+  } catch {
+    // Notification fan-out must never fail the hire itself.
+  }
+}
+
 /**
  * Diff a leave document change and notify the right people:
  * - new pending request        → admins + the requester's department managers

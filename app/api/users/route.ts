@@ -5,6 +5,7 @@ import { randomInt } from "crypto"
 import { prisma } from "@/lib/db"
 import { requireAdmin, isRole } from "@/lib/auth-guards"
 import { DEPARTMENTS } from "@/lib/data/types"
+import { recordActivity } from "@/lib/activity"
 
 function initialsFromName(name: string): string {
   return name
@@ -113,6 +114,18 @@ export async function POST(request: Request) {
       password: hash,
     },
   })
+
+  await recordActivity({
+    actor: {
+      id: auth.session.user.id!,
+      name: auth.session.user.name ?? null,
+      department: (auth.session.user as { department?: string | null }).department ?? null,
+      role: auth.session.user.role,
+    },
+    action: "created",
+    module: "users",
+    summary: `Created team member ${email} as ${role}`,
+  });
 
   return NextResponse.json({
     ok: true,

@@ -2,7 +2,18 @@
 
 import * as React from "react"
 
-import { defaultEmployees, defaultBalances, newEmployee, DEPARTMENTS, type Employee } from "@/lib/data"
+import {
+  defaultEmployees,
+  defaultBalances,
+  newEmployee,
+  DEPARTMENTS,
+  PAY_FREQUENCIES,
+  SALARY_CURRENCIES,
+  formatSalary,
+  type Employee,
+  type PayFrequency,
+} from "@/lib/data"
+import { StripeReferenceField } from "@/components/employees/stripe-reference-field"
 import { type LeaveStore, defaultLeaveStore } from "@/lib/data"
 import { type ProjectsStore, defaultProjectsStore } from "@/lib/data"
 import { type GoalsStore, defaultGoalsStore } from "@/lib/data"
@@ -62,7 +73,11 @@ const employeeSchema = z.object({
   reportingManager: z.string().optional(),
   salary: z
     .string()
-    .refine((v) => v === "" || (/^\d+$/.test(v) && Number(v) >= 0), "Enter a whole dollar amount"),
+    .refine((v) => v === "" || (/^\d+$/.test(v) && Number(v) >= 0), "Enter a whole amount"),
+  salaryCurrency: z.enum(SALARY_CURRENCIES),
+  payFrequency: z.enum(PAY_FREQUENCIES),
+  salaryEffectiveDate: z.string(),
+  stripeCustomerRef: z.string(),
 })
 
 export function EmployeesPageClient() {
@@ -160,6 +175,27 @@ export function EmployeesPageClient() {
         </span>
       ),
     },
+    ...(isAdmin
+      ? [{
+          key: "compensation",
+          header: "Salary",
+          className: "w-[150px] shrink-0",
+          render: (e: Employee) => (
+            <div className="flex flex-col">
+              <span className="font-sans text-[13px] leading-tight text-foreground">
+                {e.salary != null
+                  ? formatSalary(e.salary, e.salaryCurrency || "USD")
+                  : "Not set"}
+              </span>
+              {e.stripeCustomerRef ? (
+                <span className="font-sans text-[11px] leading-tight text-muted-foreground">
+                  Stripe {e.cardLast4 ? `· ${e.cardBrand ?? "card"} ${e.cardLast4}` : "linked"}
+                </span>
+              ) : null}
+            </div>
+          ),
+        }]
+      : []),
     {
       key: "location",
       header: "Location",
@@ -189,7 +225,7 @@ export function EmployeesPageClient() {
   ]
 
   const sorts: SortOption<Employee>[] = [
-    { id: "employee", label: "Name (Aâ€“Z)", accessor: (e) => e.name },
+    { id: "employee", label: "Name (A-Z)", accessor: (e) => e.name },
     { id: "department", label: "Department", accessor: (e) => e.department },
     { id: "role", label: "Role", accessor: (e) => e.role },
     { id: "location", label: "Location", accessor: (e) => e.location },
@@ -237,6 +273,14 @@ export function EmployeesPageClient() {
             { key: "employmentType", label: "Employment type" },
             { key: "reportingManager", label: "Reporting manager" },
             { key: "location", label: "Location" },
+            ...(isAdmin
+              ? [
+                  { key: "salary", label: "Gross salary" },
+                  { key: "salaryCurrency", label: "Currency" },
+                  { key: "payFrequency", label: "Pay frequency" },
+                  { key: "stripeCustomerRef", label: "Stripe customer ref" },
+                ]
+              : []),
             { key: "status", label: "Status" },
           ])
           notify.success("Directory exported", `${employees.length} employees downloaded as CSV.`)
@@ -316,13 +360,15 @@ export function EmployeesPageClient() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Deactivate {deactivateTarget?.name}?</AlertDialogTitle>
-            <AlertDialogDescription>
-              <p>This deactivates {deactivateTarget?.name} from the directory. Their existing records are kept.</p>
-              <ul className="mt-2 flex flex-col gap-1 text-left">
-                <li>â€¢ {leaveStore.requests.filter((r) => r.employeeName === deactivateTarget?.name).length} leave request(s)</li>
-                <li>â€¢ {projectsStore.tasks.filter((t) => t.ownerName === deactivateTarget?.name).length} project(s)</li>
-                <li>â€¢ {goalsStore.objectives.filter((o) => o.ownerName === deactivateTarget?.name).length} objective(s)</li>
-              </ul>
+            <AlertDialogDescription asChild>
+              <div>
+                <span className="block">This deactivates {deactivateTarget?.name} from the directory. Their existing records are kept.</span>
+                <span className="mt-2 flex flex-col gap-1 text-left">
+                  <span>• {leaveStore.requests.filter((r) => r.employeeName === deactivateTarget?.name).length} leave request(s)</span>
+                  <span>• {projectsStore.tasks.filter((t) => t.ownerName === deactivateTarget?.name).length} project(s)</span>
+                  <span>• {goalsStore.objectives.filter((o) => o.ownerName === deactivateTarget?.name).length} objective(s)</span>
+                </span>
+              </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -411,6 +457,36 @@ export function EmployeesPageClient() {
                   <span className="font-sans text-[13px] font-medium text-foreground">{viewEmployee.reportingManager || "â€”"}</span>
                 </div>
               </div>
+              {isAdmin ? (
+                <div className="grid grid-cols-2 gap-3 rounded-lg border border-border bg-muted p-4">
+                  <div className="flex flex-col gap-0.5">
+                    <span className="font-sans text-[11px] text-muted-foreground">Gross salary</span>
+                    <span className="font-sans text-[13px] font-medium text-foreground">
+                      {viewEmployee.salary != null
+                        ? formatSalary(viewEmployee.salary, viewEmployee.salaryCurrency || "USD")
+                        : "Not set"}
+                    </span>
+                  </div>
+                  <div className="flex flex-col gap-0.5">
+                    <span className="font-sans text-[11px] text-muted-foreground">Pay frequency</span>
+                    <span className="font-sans text-[13px] font-medium capitalize text-foreground">
+                      {viewEmployee.payFrequency ?? "monthly"}
+                    </span>
+                  </div>
+                  <div className="flex flex-col gap-0.5">
+                    <span className="font-sans text-[11px] text-muted-foreground">Effective from</span>
+                    <span className="font-sans text-[13px] font-medium text-foreground">
+                      {viewEmployee.salaryEffectiveDate || "â€”"}
+                    </span>
+                  </div>
+                  <div className="flex flex-col gap-0.5">
+                    <span className="font-sans text-[11px] text-muted-foreground">Stripe reference</span>
+                    <span className="font-sans text-[13px] font-medium text-foreground">
+                      {viewEmployee.stripeCustomerRef || "Not linked"}
+                    </span>
+                  </div>
+                </div>
+              ) : null}
               <div className="flex flex-col gap-1 rounded-lg border border-border bg-muted p-4">
                 <span className="font-sans text-[11px] text-muted-foreground">Employee ID</span>
                 <span className="font-sans text-[13px] font-medium text-foreground">{viewEmployee.id}</span>
@@ -478,6 +554,12 @@ function AddEmployeeDialog({
     employmentType: editEmployee?.employmentType ?? "full-time",
     reportingManager: editEmployee?.reportingManager ?? "",
     salary: editEmployee?.salary != null ? String(editEmployee.salary) : "",
+    salaryCurrency: editEmployee?.salaryCurrency ?? "USD",
+    payFrequency: editEmployee?.payFrequency ?? "monthly",
+    salaryEffectiveDate: editEmployee?.salaryEffectiveDate ?? new Date().toISOString().slice(0, 10),
+    stripeCustomerRef: editEmployee?.stripeCustomerRef ?? "",
+    cardBrand: editEmployee?.cardBrand ?? "",
+    cardLast4: editEmployee?.cardLast4 ?? "",
     attachments: editEmployee?.attachments ?? [],
   })
 
@@ -496,6 +578,12 @@ function AddEmployeeDialog({
       employmentType: "full-time",
       reportingManager: "",
       salary: "",
+      salaryCurrency: "USD",
+      payFrequency: "monthly",
+      salaryEffectiveDate: new Date().toISOString().slice(0, 10),
+      stripeCustomerRef: "",
+      cardBrand: "",
+      cardLast4: "",
       attachments: [],
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -514,6 +602,12 @@ function AddEmployeeDialog({
       form.setValue("employmentType", editEmployee.employmentType ?? "full-time")
       form.setValue("reportingManager", editEmployee.reportingManager ?? "")
       form.setValue("salary", editEmployee.salary != null ? String(editEmployee.salary) : "")
+      form.setValue("salaryCurrency", editEmployee.salaryCurrency ?? "USD")
+      form.setValue("payFrequency", editEmployee.payFrequency ?? "monthly")
+      form.setValue("salaryEffectiveDate", editEmployee.salaryEffectiveDate ?? new Date().toISOString().slice(0, 10))
+      form.setValue("stripeCustomerRef", editEmployee.stripeCustomerRef ?? "")
+      form.setValue("cardBrand", editEmployee.cardBrand ?? "")
+      form.setValue("cardLast4", editEmployee.cardLast4 ?? "")
       form.setValue("attachments", editEmployee.attachments ?? [])
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -538,6 +632,16 @@ function AddEmployeeDialog({
       form.setErrors({ email: "An employee with this email already exists" } as never)
       return
     }
+    // Compensation is privileged: managers keep the stored values, admins can
+    // change them. Stripe refs are ids + display metadata, never card numbers.
+    const compensation = {
+      salaryCurrency: parsed.data.salaryCurrency,
+      payFrequency: parsed.data.payFrequency,
+      salaryEffectiveDate: parsed.data.salaryEffectiveDate || undefined,
+      stripeCustomerRef: form.values.stripeCustomerRef?.trim() || undefined,
+      cardBrand: form.values.cardBrand || undefined,
+      cardLast4: form.values.cardLast4 || undefined,
+    }
     setSubmitting(true)
     try {
       if (isEdit && editEmployee && onEdit) {
@@ -556,6 +660,7 @@ function AddEmployeeDialog({
           salary: isAdmin
             ? (parsed.data.salary === "" ? undefined : Number(parsed.data.salary))
             : editEmployee.salary,
+          ...(isAdmin ? compensation : {}),
           attachments: form.values.attachments,
         })
       } else if (onAdd) {
@@ -571,6 +676,7 @@ function AddEmployeeDialog({
             employmentType: parsed.data.employmentType,
             reportingManager: parsed.data.reportingManager || undefined,
             salary: parsed.data.salary === "" ? undefined : Number(parsed.data.salary),
+            ...compensation,
             attachments: form.values.attachments,
           }),
         )
@@ -686,13 +792,46 @@ function AddEmployeeDialog({
         />
       </div>
       {isAdmin ? (
-        <Field
-          label="Monthly gross salary (USD)"
-          type="number"
-          value={form.values.salary ?? ""}
-          onChange={(v) => form.setValue("salary", v)}
-          placeholder="e.g. 5200 â€” used by payroll"
-          error={form.errors.salary}
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <Field
+            label="Gross salary"
+            type="number"
+            value={form.values.salary ?? ""}
+            onChange={(v) => form.setValue("salary", v)}
+            placeholder="e.g. 5200 - used by payroll"
+            error={form.errors.salary}
+          />
+          <SelectField
+            label="Currency"
+            value={form.values.salaryCurrency ?? "USD"}
+            onChange={(v) => form.setValue("salaryCurrency", v)}
+            options={SALARY_CURRENCIES.map((c) => ({ value: c, label: c }))}
+          />
+          <SelectField
+            label="Pay frequency"
+            value={form.values.payFrequency ?? "monthly"}
+            onChange={(v) => form.setValue("payFrequency", v as PayFrequency)}
+            options={PAY_FREQUENCIES.map((f) => ({
+              value: f,
+              label: f.charAt(0).toUpperCase() + f.slice(1).replace("-", " "),
+            }))}
+          />
+          <Field
+            label="Salary effective date"
+            type="date"
+            value={form.values.salaryEffectiveDate ?? ""}
+            onChange={(v) => form.setValue("salaryEffectiveDate", v)}
+          />
+        </div>
+      ) : null}
+      {isAdmin ? (
+        <StripeReferenceField
+          value={form.values.stripeCustomerRef ?? ""}
+          onChange={(v) => form.setValue("stripeCustomerRef", v)}
+          onVerified={({ cardBrand, cardLast4 }) => {
+            form.setValue("cardBrand", cardBrand ?? "")
+            form.setValue("cardLast4", cardLast4 ?? "")
+          }}
         />
       ) : null}
       <SelectField

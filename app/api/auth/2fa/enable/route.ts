@@ -3,6 +3,7 @@ import { NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
 import { auth } from "@/lib/auth"
 import { verifyTotp } from "@/lib/totp"
+import { recordActivity } from "@/lib/activity"
 
 // Verify a TOTP code and enable 2FA for the user.
 export async function POST(request: Request) {
@@ -24,5 +25,11 @@ export async function POST(request: Request) {
   }
 
   await prisma.user.update({ where: { id: user.id }, data: { twoFactorEnabled: true } })
+  await recordActivity({
+    actor: { id: user.id, name: user.name ?? null, department: user.department ?? null, role: user.role },
+    action: "updated",
+    module: "security",
+    summary: "Enabled two-factor authentication",
+  })
   return NextResponse.json({ ok: true })
 }

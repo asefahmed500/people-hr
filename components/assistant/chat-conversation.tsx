@@ -58,15 +58,17 @@ export function ChatConversation({
             </p>
             <div className="flex flex-col gap-2">
               {prompts.map((prompt) => (
-                <button
+                <Button
                   key={prompt}
                   type="button"
+                  variant="outline"
+                  size="sm"
                   onClick={() => onSelectPrompt?.(prompt)}
                   disabled={thinking}
-                  className="rounded-lg border border-border bg-muted px-3 py-2 text-left font-sans text-[12.5px] text-secondary-foreground transition-colors hover:bg-muted/60 hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:opacity-60"
+                  className="h-auto min-w-0 justify-start px-3 py-2 text-left text-[12.5px] font-normal"
                 >
                   {prompt}
-                </button>
+                </Button>
               ))}
             </div>
           </div>
@@ -106,7 +108,7 @@ export function ChatConversation({
                 aria-label="Send message"
                 onClick={handleSend}
                 disabled={thinking || !input.trim()}
-                className="shrink-0 rounded-full"
+                className="shrink-0 rounded-lg"
               >
                 <Send className="size-4" strokeWidth={2} aria-hidden="true" />
               </Button>

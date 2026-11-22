@@ -4,6 +4,7 @@ import { ChevronRight } from "lucide-react"
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Progress } from "@/components/ui/progress"
+import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import type { Candidate, Opening, CandidateStage } from "@/lib/data"
 import { stageMeta, stageOrder } from "@/lib/data"
@@ -81,12 +82,10 @@ export function RecruitmentPipeline({
           </p>
         </div>
         {onOpenBoard ? (
-          <button type="button" onClick={onOpenBoard} className="flex items-center gap-[5px]">
-            <span className="font-sans inline-block text-[12.5px] font-semibold leading-normal text-primary">
-              Open board
-            </span>
-            <ChevronRight className="size-[15px] text-primary" strokeWidth={2} aria-hidden="true" />
-          </button>
+          <Button type="button" variant="link" size="sm" onClick={onOpenBoard} className="gap-1">
+            Open board
+            <ChevronRight className="button-arrow size-3.5" strokeWidth={2} aria-hidden="true" />
+          </Button>
         ) : null}
       </div>
       <div className="flex gap-3.5 overflow-x-auto pb-2">

@@ -21,8 +21,27 @@ const ADMIN_ONLY_ROUTES = [
   "/jobs",
 ]
 
-// Modules restricted to admins + managers.
-const MANAGER_ROUTES = ["/employees", "/onboarding"]
+// Modules restricted to admins + managers. Onboarding is intentionally not
+// here: employees may view their own checklist (read-only) there.
+const MANAGER_ROUTES = ["/employees"]
+
+// Defense in depth for APIs whose handlers are all admin-only. If a future
+// handler forgets its own requireAdmin(), the proxy still fails closed.
+// Store routes are deliberately absent: they have their own per-key gate.
+const ADMIN_ONLY_API_PREFIXES = [
+  "/api/users",
+  "/api/billing",
+  "/api/jobs",
+  "/api/reports",
+  "/api/documents",
+  "/api/payroll",
+]
+
+function isAdminOnlyApi(pathname: string): boolean {
+  return ADMIN_ONLY_API_PREFIXES.some(
+    (p) => pathname === p || pathname.startsWith(`${p}/`),
+  )
+}
 
 function isAdminOnly(pathname: string): boolean {
   return ADMIN_ONLY_ROUTES.some((r) => pathname === r || pathname.startsWith(`${r}/`))
@@ -75,6 +94,11 @@ export default auth((req) => {
       pathname === "/reset-password")
   ) {
     return NextResponse.redirect(new URL("/dashboard", originOf(req)))
+  }
+
+  // Admin-only APIs fail closed with JSON, never a page redirect.
+  if (signedIn && role !== "admin" && pathname.startsWith("/api/") && isAdminOnlyApi(pathname)) {
+    return NextResponse.json({ error: "You don't have permission to do that." }, { status: 403 })
   }
 
   // Role-based route protection (matches nav-data + server ADMIN_ONLY_KEYS).

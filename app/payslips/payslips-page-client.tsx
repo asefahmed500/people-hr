@@ -89,12 +89,31 @@ export function PayslipsPageClient() {
     [visible],
   )
 
-  function openGenerate() {
-    const eligible = payroll.state.payments.map((payment) =>
-      employees.state.find(
-        (e) => e.id === payment.id || `pay-${e.id}` === payment.id || e.name === payment.name,
-      ),
+  // Always resolve a payment for the SELECTED period. Older code picked the
+  // first payment across all periods, so a later slip reused an earlier
+  // period's gross/currency — a wrong-pay bug. Name is a legacy fallback only.
+  function paymentForEmployee(employee: Employee, forPeriod: string) {
+    const rows = payroll.state.payments
+    return (
+      rows.find((p) => p.employeeId === employee.id && p.period === forPeriod) ??
+      rows.find((p) => p.id === `pay-${employee.id}-${forPeriod}`) ??
+      rows.find((p) => !p.period && (p.id === `pay-${employee.id}` || p.id === employee.id)) ??
+      rows.find((p) => !p.employeeId && !p.period && p.name === employee.name)
     )
+  }
+
+  function openGenerate() {
+    const eligible = payroll.state.payments
+      .filter((payment) => !payment.period || payment.period === period)
+      .map((payment) =>
+        employees.state.find(
+          (e) =>
+            e.id === payment.employeeId ||
+            payment.id === `pay-${e.id}` ||
+            payment.id === e.id ||
+            (!payment.employeeId && e.name === payment.name),
+        ),
+      )
     setSelectedIds(
       eligible.filter((e): e is Employee => !!e).map((e) => e.id),
     )
@@ -109,9 +128,7 @@ export function PayslipsPageClient() {
     }
     setGenerating(true)
     const created = chosen.flatMap((employee) => {
-      const payment = payroll.state.payments.find(
-        (p) => p.id === `pay-${employee.id}` || p.id === employee.id || p.name === employee.name,
-      )
+      const payment = paymentForEmployee(employee, period)
       if (!payment) return []
       const existing = state.payslips.some(
         (p) => p.employeeId === employee.id && p.period === period,
@@ -183,6 +200,41 @@ export function PayslipsPageClient() {
           </div>
         ))}
       </div>
+
+      {!isAdmin && payroll.state.payments.length > 0 ? (
+        <div className="flex flex-col gap-2 rounded-lg border border-border bg-card p-4">
+          <div className="flex flex-col gap-0.5">
+            <h2 className="text-h3">My pay records</h2>
+            <span className="font-sans text-[12.5px] text-muted-foreground">
+              Recorded by payroll. No money is sent from this app.
+            </span>
+          </div>
+          {[...payroll.state.payments]
+            .sort((a, b) => (b.period ?? "").localeCompare(a.period ?? ""))
+            .map((p) => (
+              <div
+                key={p.id}
+                className="flex flex-wrap items-center justify-between gap-2 border-t border-border pt-2"
+              >
+                <div className="flex flex-col">
+                  <span className="font-sans text-[13px] font-medium text-foreground">
+                    {p.period ?? "Earlier record"}
+                  </span>
+                  <span className="font-sans text-[11px] capitalize text-muted-foreground">
+                    {p.status} · {p.currency ?? "USD"}
+                  </span>
+                </div>
+                <div className="flex gap-4 font-sans text-[13px] tabular-nums text-secondary-foreground">
+                  <span>Gross {formatPayslipMoney(p.gross, p.currency)}</span>
+                  <span>Deductions {formatPayslipMoney(p.deductions, p.currency)}</span>
+                  <span className="font-semibold text-foreground">
+                    Net {formatPayslipMoney(p.gross - p.deductions, p.currency)}
+                  </span>
+                </div>
+              </div>
+            ))}
+        </div>
+      ) : null}
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
         <label className="flex h-9 flex-1 items-center gap-2 rounded-lg border border-border bg-card px-3">

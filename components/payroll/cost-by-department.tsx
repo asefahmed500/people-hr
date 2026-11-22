@@ -23,7 +23,26 @@ const DEPT_FILLS: Record<string, string> = {
 
 const DEPT_ORDER = ["Engineering", "Sales", "Product", "Design", "Marketing", "People", "Research", "Finance"]
 
+function compactMoney(value: number, currency: string): string {
+  try {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency,
+      notation: "compact",
+      maximumFractionDigits: 1,
+    }).format(value)
+  } catch {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+      notation: "compact",
+      maximumFractionDigits: 1,
+    }).format(value)
+  }
+}
+
 export function CostByDepartment({ payments }: { payments: Payment[] }) {
+  const currency = payments[0]?.currency ?? "USD"
   const deptTotals: Record<string, number> = {}
   for (const p of payments) {
     deptTotals[p.department] = (deptTotals[p.department] ?? 0) + p.gross
@@ -34,12 +53,7 @@ export function CostByDepartment({ payments }: { payments: Payment[] }) {
       name,
       fillPct: Math.round((deptTotals[name] / maxVal) * 100),
       indicatorClass: DEPT_FILLS[name] ?? "",
-      amount:
-        deptTotals[name] >= 1_000_000
-          ? `$${(deptTotals[name] / 1_000_000).toFixed(1)}M`
-          : deptTotals[name] >= 1_000
-            ? `$${Math.round(deptTotals[name] / 1_000)}k`
-            : `$${deptTotals[name]}`,
+      amount: compactMoney(deptTotals[name], currency),
     }))
     .slice(0, 6)
 

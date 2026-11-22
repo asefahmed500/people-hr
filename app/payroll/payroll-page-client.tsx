@@ -16,7 +16,16 @@ import { useApiStore } from "@/hooks/use-api-store"
 import { useAuth } from "@/hooks/use-auth"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { StoreErrorState } from "@/components/shared/store-error-state"
-import { type PayrollStore, defaultPayrollStore, type Employee, formatMoney } from "@/lib/data"
+import {
+  type PayrollStore,
+  defaultPayrollStore,
+  type Employee,
+  formatMoney,
+  planPayrollRun,
+  currentPeriod,
+  type Payment,
+} from "@/lib/data"
+import { apiRequest } from "@/lib/api-client"
 
 export function PayrollPageClient() {
   const { user } = useAuth()
@@ -38,55 +47,56 @@ export function PayrollPageClient() {
   }
 
   const [runConfirmOpen, setRunConfirmOpen] = React.useState(false)
+  const [runSubmitting, setRunSubmitting] = React.useState(false)
 
-  // Employees eligible for this run: active directory members with a salary
-  // who don't already have a payment row for this cycle.
-  const eligible = employees.filter(
-    (e) =>
-      e.status !== "inactive" &&
-      typeof e.salary === "number" &&
-      e.salary > 0 &&
-      !state.payments.some((p) => p.id === `pay-${e.id}`),
+  // A run is a period-based business operation: snapshot each eligible
+  // employee's salary into a payment row, then record it. The pure planner is
+  // shared with the unit tests so the rules don't drift from the UI.
+  const period = currentPeriod()
+  const preview = React.useMemo(
+    () => planPayrollRun(state.payments, employees, period),
+    [state.payments, employees, period],
   )
-  const missingSalary = employees.filter(
-    (e) => e.status !== "inactive" && !(typeof e.salary === "number" && e.salary > 0),
-  )
+  const eligible = preview.generated
+  const missingSalary = preview.skipped
   const dueCount = state.payments.filter(
     (p) => p.status === "pending" || p.status === "failed",
   ).length
 
-  const handleRunPayroll = () => {
-    // 1) Generate pending payments for newly eligible employees (stable ids
-    //    keyed on the employee id so re-runs update rather than duplicate).
-    const generated = eligible.map((e) => ({
-      id: `pay-${e.id}`,
-      initials: e.initials,
-      name: e.name,
-      role: e.role,
-      department: e.department,
-      gross: e.salary ?? 0,
-      deductions: 0,
-      status: "pending" as const,
-    }))
-    // 2) Process: mark every pending/failed payment as paid.
-    const processed = generated.length + dueCount
-    setState((prev) => {
-      const payments = [...prev.payments, ...generated].map((p) =>
-        p.status === "pending" || p.status === "failed" ? { ...p, status: "paid" as const } : p,
+  const handleRunPayroll = async () => {
+    setRunSubmitting(true)
+    const beforeIds = new Set(state.payments.map((p) => p.id))
+    try {
+      const result = await apiRequest<{
+        processed: number
+        skipped: string[]
+        payments: Payment[]
+        lastRun: string
+      }>("/api/payroll/run", { method: "POST", body: { period } })
+      // The POST already advanced the document version under CAS. Do NOT write
+      // the old local state back — that would send a stale If-Match and show a
+      // false "out of date" toast. Refetch the authoritative document instead.
+      retryPayroll()
+      const newlyRecorded = result.payments.filter((p) => !beforeIds.has(p.id))
+      const currency = newlyRecorded[0]?.currency ?? "USD"
+      const gross = newlyRecorded.reduce((s, p) => s + p.gross, 0)
+      const skippedNote =
+        result.skipped.length > 0
+          ? ` Skipped ${result.skipped.length} employee(s) without a salary - add one on the Employees page.`
+          : ""
+      notify.success(
+        "Payroll recorded",
+        `${result.processed} payment(s) for ${period} (${formatMoney(gross, currency)} gross). No money was sent.${skippedNote}`,
       )
-      return { payments, lastRun: new Date().toISOString() }
-    })
-    const skippedNote =
-      missingSalary.length > 0
-        ? ` Skipped ${missingSalary.length} employee(s) without a salary — add one on the Employees page.`
-        : ""
-    notify.success(
-      "Payroll run complete",
-      `${processed} payment(s) processed (${formatMoney(
-        generated.reduce((s, p) => s + p.gross, 0),
-      )} gross).${skippedNote}`,
-    )
-
+    } catch (error) {
+      notify.error(
+        "Could not record payroll",
+        error instanceof Error ? error.message : "Please try again.",
+      )
+    } finally {
+      setRunSubmitting(false)
+      setRunConfirmOpen(false)
+    }
   }
 
   React.useEffect(() => {
@@ -126,12 +136,17 @@ export function PayrollPageClient() {
         employeeCount={state.payments.length}
         onExport={() => {
           exportToCsv("payroll", state.payments, [
+            { key: "employeeId", label: "Employee ID" },
+            { key: "period", label: "Period" },
             { key: "name", label: "Name" },
             { key: "role", label: "Role" },
             { key: "department", label: "Department" },
+            { key: "currency", label: "Currency" },
             { key: "gross", label: "Gross" },
             { key: "deductions", label: "Deductions" },
             { key: "status", label: "Status" },
+            { key: "paymentReference", label: "Payment reference" },
+            { key: "recordedAt", label: "Recorded at" },
           ])
           notify.success("Payroll exported", `${state.payments.length} payments downloaded as CSV.`)
         }}
@@ -169,18 +184,17 @@ export function PayrollPageClient() {
             ? missingSalary.length > 0
               ? `No employee has a salary set yet. Add monthly salaries on the Employees page first (${missingSalary.length} active employee(s) missing one).`
               : "There are no active employees in the directory yet."
-            : `Generate ${eligible.length} new payment(s) and process ${dueCount} pending. Employees are picked up from the directory with their monthly salary.${
+            : `Record ${eligible.length} new payment(s) for ${period} and close ${dueCount} pending. Salaries are snapshotted from the directory. This records data only - no money is sent, and no Stripe payout is created.${
                 missingSalary.length > 0
                   ? ` ${missingSalary.length} active employee(s) have no salary and will be skipped.`
                   : ""
               }`
         }
         confirmLabel="Run payroll"
+        submittingLabel="Recording…"
+        submitting={runSubmitting}
         destructive
-        onConfirm={() => {
-          setRunConfirmOpen(false)
-          handleRunPayroll()
-        }}
+        onConfirm={handleRunPayroll}
       />
     </DashboardShell>
   )

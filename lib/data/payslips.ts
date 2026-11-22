@@ -23,12 +23,16 @@ export type PayslipDeductions = {
 export type Payslip = {
   id: string
   employeeId: string
+  /** Verified email bridges `e-*` hire ids to `u-*` login id. */
+  employeeEmail?: string
   employeeName: string
   initials: string
   department: string
   jobTitle: string
   /** Payroll period in YYYY-MM form. */
   period: string
+  /** ISO 4217 code inherited from payroll. Defaults to USD for old slips. */
+  currency?: string
   issuedAt: string
   status: "draft" | "paid"
   earnings: PayslipEarnings
@@ -63,8 +67,13 @@ export const totalDeductions = (d: PayslipDeductions): number =>
 
 export const netPay = (p: Payslip): number => grossPay(p.earnings) - totalDeductions(p.deductions)
 
-export const formatPayslipMoney = (n: number): string =>
-  n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 })
+export const formatPayslipMoney = (n: number, currency = "USD"): string => {
+  try {
+    return n.toLocaleString("en-US", { style: "currency", currency, maximumFractionDigits: 0 })
+  } catch {
+    return n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 })
+  }
+}
 
 export function periodLabel(period: string): string {
   const [year, month] = period.split("-").map(Number)
@@ -89,7 +98,7 @@ export function buildPayslip(
   employee: Employee,
   payment: Payment,
   period: string,
-  status: Payslip["status"] = "draft",
+  status: Payslip["status"] = payment.status === "paid" ? "paid" : "draft",
 ): Payslip {
   const gross = Math.max(0, Math.round(payment.gross))
   const basic = Math.round(gross * 0.45)
@@ -107,11 +116,13 @@ export function buildPayslip(
   return {
     id: `ps-${crypto.randomUUID()}`,
     employeeId: employee.id,
+    employeeEmail: employee.email || undefined,
     employeeName: employee.name,
     initials: employee.initials || payment.initials,
     department: employee.department,
     jobTitle: employee.role || payment.role,
     period,
+    currency: payment.currency || "USD",
     issuedAt: new Date().toISOString().slice(0, 10),
     status,
     earnings: { basic, housing, transport, special, other },
@@ -123,7 +134,7 @@ export function buildPayslip(
 export function buildPayslipHtml(p: Payslip, company = "Your Company"): string {
   const esc = (s: string) =>
     s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
-  const money = (n: number) => esc(formatPayslipMoney(n))
+  const money = (n: number) => esc(formatPayslipMoney(n, p.currency))
   const row = (label: string, value: number) =>
     `<tr><td>${esc(label)}</td><td style="text-align:right">${money(value)}</td></tr>`
 

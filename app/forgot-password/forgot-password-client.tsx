@@ -104,9 +104,14 @@ export function ForgotPasswordClient() {
                 }}
                 error={error ?? undefined}
               />
-              <Button type="submit" disabled={submitting} className="mt-1 w-full">
+              <Button
+                type="submit"
+                loading={submitting}
+                loadingText="Sending…"
+                className="mt-1 w-full"
+              >
                 Send reset link
-                <ArrowRight className="size-4" strokeWidth={2} aria-hidden="true" />
+                <ArrowRight className="button-arrow size-4" strokeWidth={2} aria-hidden="true" />
               </Button>
             </form>
           )}

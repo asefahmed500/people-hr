@@ -126,30 +126,23 @@ function ConversationRow({
           </button>
         </form>
       ) : (
-        <button
+        <Button
           type="button"
+          variant="ghost"
+          size="sm"
           onClick={() => onSelect?.(conv.id)}
           className={cn(
-            "flex min-w-0 flex-1 items-center gap-2 rounded-lg px-2 py-[7px] text-left",
-            active && "bg-foreground/5",
+            "h-auto min-w-0 w-full justify-start gap-2 px-2 py-1.5 text-left text-[12.5px] font-normal",
+            active && "bg-foreground/5 text-primary hover:bg-foreground/5",
           )}
         >
           <MessageCircle
             className={cn("size-[13px] shrink-0", active ? "text-primary" : "text-muted-foreground")}
             strokeWidth={2}
           />
-          <span
-            className={cn(
-              "flex-1 overflow-clip font-sans text-[12.5px] leading-normal [text-overflow:ellipsis]",
-              active ? "font-medium text-primary" : "text-secondary-foreground",
-            )}
-          >
-            {conv.title}
-          </span>
-          <span className="shrink-0 font-sans text-[10.5px] leading-normal text-muted-foreground">
-            {timeAgo(conv.updatedAt)}
-          </span>
-        </button>
+          <span className="flex-1 overflow-clip [text-overflow:ellipsis]">{conv.title}</span>
+          <span className="shrink-0 text-[10.5px] text-muted-foreground">{timeAgo(conv.updatedAt)}</span>
+        </Button>
       )}
       {!renaming ? (
         <>
@@ -185,28 +178,32 @@ function ConversationRow({
               }}
               className="absolute right-0 top-full z-50 mt-1 w-36 rounded-lg border border-border bg-card py-1"
             >
-              <button
+              <Button
                 type="button"
+                variant="ghost"
+                size="sm"
                 onClick={() => {
                   setTitle(conv.title)
                   setRenaming(true)
                 }}
-                className="flex w-full items-center gap-2 px-3 py-2 text-left font-sans text-[13px] text-secondary-foreground hover:bg-muted"
+                className="h-auto w-full justify-start gap-2 px-3 py-2 text-[13px] font-normal"
               >
                 <Pencil className="size-3.5" strokeWidth={2} />
                 Rename
-              </button>
-              <button
+              </Button>
+              <Button
                 type="button"
+                variant="ghost"
+                size="sm"
                 onClick={() => {
                   setOpen(false)
                   onDelete?.(conv.id)
                 }}
-                className="flex w-full items-center gap-2 px-3 py-2 text-left font-sans text-[13px] text-foreground hover:bg-muted"
+                className="h-auto w-full justify-start gap-2 px-3 py-2 text-[13px] font-normal"
               >
                 <Trash2 className="size-3.5" strokeWidth={2} />
                 Delete
-              </button>
+              </Button>
             </div>
           ) : null}
         </>

@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/tooltip"
 
 type HireWithTasks = {
+  key: string
   initials: string
   name: string
   role: string
@@ -36,10 +37,11 @@ function buildPhaseData(tasks: OnboardingTask[]): PhaseGroup[] {
     const meta = phaseMeta[phase]
     const personMap = new Map<string, HireWithTasks>()
     for (const task of phaseTasks) {
-      // Key by name (not initials) so two hires sharing initials don't merge.
-      const key = task.hireName
+      // Prefer the stable employee id; fall back to name only for legacy rows.
+      const key = task.employeeId ?? task.hireName
       if (!personMap.has(key)) {
         personMap.set(key, {
+          key,
           initials: task.hireInit,
           name: task.hireName,
           role: task.hireRole,
@@ -62,7 +64,7 @@ function buildPhaseData(tasks: OnboardingTask[]): PhaseGroup[] {
 type OnboardingJourneyProps = {
   tasks?: OnboardingTask[]
   onToggleTask?: (id: string) => void
-  onAdvanceHire?: (hireName: string) => void
+  onAdvanceHire?: (hireKey: string) => void
   onDeleteTask?: (id: string) => void
 }
 
@@ -106,7 +108,7 @@ function PhaseRow({
   phase: PhaseGroup
   last: boolean
   onToggleTask?: (id: string) => void
-  onAdvanceHire?: (hireName: string) => void
+  onAdvanceHire?: (hireKey: string) => void
   onDeleteTask?: (id: string) => void
 }) {
   return (
@@ -143,7 +145,7 @@ function PhaseRow({
         <div className="flex flex-wrap gap-2">
           {phase.people.map((person) => (
             <PersonCard
-              key={person.initials + person.name}
+              key={person.key}
               person={person}
               onToggleTask={onToggleTask}
               onAdvanceHire={onAdvanceHire}
@@ -159,7 +161,7 @@ function PhaseRow({
 type PersonCardProps = {
   person: HireWithTasks
   onToggleTask?: (id: string) => void
-  onAdvanceHire?: (hireName: string) => void
+  onAdvanceHire?: (hireKey: string) => void
   onDeleteTask?: (id: string) => void
 }
 
@@ -190,7 +192,7 @@ function PersonCard({ person, onToggleTask, onAdvanceHire, onDeleteTask }: Perso
                 variant="ghost"
                 size="icon-xs"
                 className="size-5 shrink-0 text-muted-foreground hover:text-foreground"
-                onClick={() => onAdvanceHire(person.name)}
+                onClick={() => onAdvanceHire(person.key)}
                 aria-label={`Advance ${person.name} to the next phase`}
               >
                 <ChevronRight className="size-3.5" strokeWidth={2} aria-hidden="true" />

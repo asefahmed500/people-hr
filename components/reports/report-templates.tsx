@@ -2,6 +2,7 @@ import { ArrowRight, FileText } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import type { ReportTemplate } from "@/lib/data"
+import { Button } from "@/components/ui/button"
 
 const TEMPLATE_COLORS: { iconBg: string; iconColor: string }[] = [
   { iconBg: "bg-foreground/10", iconColor: "text-primary" },
@@ -51,10 +52,11 @@ export function ReportTemplates({ onSelect, templates }: ReportTemplatesProps) {
 
 function TemplateCard({ template, colors, onSelect }: { template: ReportTemplate; colors: { iconBg: string; iconColor: string }; onSelect?: (title: string) => void }) {
   return (
-    <button
+    <Button
       type="button"
+      variant="outline"
       onClick={() => onSelect?.(template.title)}
-      className="flex flex-col gap-3 rounded-lg border border-border bg-card p-4 text-left transition-colors hover:bg-muted"
+      className="h-auto min-w-0 w-full flex-col items-start gap-3 p-4 text-left font-normal"
     >
       <div
         className={cn(
@@ -72,10 +74,10 @@ function TemplateCard({ template, colors, onSelect }: { template: ReportTemplate
           {template.desc}
         </span>
       </div>
-      <span className="mt-1 flex items-center gap-1 font-sans text-[12px] font-semibold leading-normal text-primary">
+      <span className="mt-1 flex items-center gap-1 text-[12px] font-semibold text-primary">
         Build
-        <ArrowRight className="size-3.5" strokeWidth={2} aria-hidden="true" />
+        <ArrowRight className="button-arrow size-3.5" strokeWidth={2} aria-hidden="true" />
       </span>
-    </button>
+    </Button>
   )
 }

@@ -5,6 +5,7 @@ import Link from "next/link"
 import { ArrowRight, Menu, Users, X } from "lucide-react"
 
 import { Separator } from "@/components/ui/separator"
+import { Button } from "@/components/ui/button"
 
 const navLinks = [
   { label: "Product", href: "/#product" },
@@ -44,34 +45,32 @@ export function LandingTopNav() {
           </nav>
 
           <div className="hidden items-center gap-2 md:flex">
-            <Link
-              href="/login"
-              className="flex h-9 items-center rounded-md px-4 font-sans text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
-            >
-              Log in
-            </Link>
-            <Link
-              href="/signup"
-              className="flex h-9 items-center gap-2 rounded-md bg-primary px-4 font-sans text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
-            >
-              Get started
-              <ArrowRight className="size-[15px]" strokeWidth={2} aria-hidden="true" />
-            </Link>
+            <Button asChild variant="ghost" size="sm">
+              <Link href="/login">Log in</Link>
+            </Button>
+            <Button asChild size="sm">
+              <Link href="/signup">
+                Get started
+                <ArrowRight className="button-arrow size-3.5" strokeWidth={2} aria-hidden="true" />
+              </Link>
+            </Button>
           </div>
 
-          <button
+          <Button
             type="button"
+            variant="outline"
+            size="icon"
             aria-label={open ? "Close menu" : "Open menu"}
             aria-expanded={open}
             onClick={() => setOpen((v) => !v)}
-            className="flex size-9 items-center justify-center rounded-md border border-border bg-card text-foreground md:hidden"
+            className="md:hidden"
           >
             {open ? (
               <X className="size-5" strokeWidth={2} aria-hidden="true" />
             ) : (
               <Menu className="size-5" strokeWidth={2} aria-hidden="true" />
             )}
-          </button>
+          </Button>
         </div>
 
         {open ? (

@@ -70,14 +70,21 @@ export function OnboardingPageClient() {
     const toggledDone = !t.done
     setState((prev) => ({
       ...prev,
-      tasks: prev.tasks.map((x) => (x.id === id ? { ...x, done: !x.done } : x)),
+      tasks: prev.tasks.map((x) =>
+        x.id === id
+          ? { ...x, done: toggledDone, completedAt: toggledDone ? new Date().toISOString() : undefined }
+          : x,
+      ),
     }))
     notify.success(toggledDone ? "Task completed" : "Task reopened", t.label)
 
   }
 
-  const handleAdvanceHire = (hireName: string) => {
-    const hireTasks = state.tasks.filter((t) => t.hireName === hireName)
+  const handleAdvanceHire = (hireKey: string) => {
+    const byId = state.tasks.some((t) => t.employeeId === hireKey)
+    const matches = (t: OnboardingTask) =>
+      byId ? t.employeeId === hireKey : t.hireName === hireKey
+    const hireTasks = state.tasks.filter(matches)
     if (hireTasks.length === 0) return
     const currentIdx = Math.min(...hireTasks.map((t) => phaseOrder.indexOf(t.phase)))
     const nextPhase = phaseOrder[currentIdx + 1]
@@ -85,11 +92,10 @@ export function OnboardingPageClient() {
     setState((prev) => ({
       ...prev,
       tasks: prev.tasks.map((t) =>
-        t.hireName === hireName ? { ...t, phase: nextPhase, done: false } : t,
+        matches(t) ? { ...t, phase: nextPhase, done: false, completedAt: undefined } : t,
       ),
     }))
-    notify.success(`${hireName} â†’ ${nextPhase}`, "Moved to the next onboarding phase.")
-
+    notify.success(`${hireTasks[0].hireName} → ${nextPhase}`, "Moved to the next onboarding phase.")
   }
 
   return (
@@ -102,7 +108,9 @@ export function OnboardingPageClient() {
             { key: "hireDept", label: "Department" },
             { key: "phase", label: "Phase" },
             { key: "label", label: "Task" },
+            { key: "dueAt", label: "Due date" },
             { key: "done", label: "Completed" },
+            { key: "completedAt", label: "Completed at" },
           ])
           notify.success("Onboarding exported", `${state.tasks.length} tasks downloaded as CSV.`)
         }}

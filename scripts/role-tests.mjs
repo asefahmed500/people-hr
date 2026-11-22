@@ -198,8 +198,42 @@ async function testReads() {
   const leaveMgr = await get(sessions.manager.jar, "/api/store/leave")
   check("manager leave requests dept-scoped", leaveMgr.status === 200, leaveMgr.status)
 
+  // Reset payroll first: this suite is re-runnable against a persistent DB.
+  const clearedPayroll = await put(sessions.admin.jar, "/api/store/payroll", { payments: [], lastRun: null })
+  check("payroll reset for scoping test", clearedPayroll.status === 200, { status: clearedPayroll.status })
   const payrollEmp = await get(sessions.employee.jar, "/api/store/payroll")
   check("employee payroll is empty", Array.isArray(payrollEmp.body?.payments) && payrollEmp.body.payments.length === 0)
+
+  // New: employees may read their OWN payroll row, never anyone else's.
+  const employeeUserId = sessions.employee.user.id
+  const payrollAdmin = await get(sessions.admin.jar, "/api/store/payroll")
+  const basePayments = Array.isArray(payrollAdmin.body?.payments) ? payrollAdmin.body.payments : []
+  const seeded = [
+    ...basePayments,
+    {
+      id: `pay-${employeeUserId}-2026-11`, employeeId: employeeUserId, period: "2026-11",
+      currency: "USD", initials: "EE", name: U.employee.name, role: "Engineer",
+      department: "Engineering", gross: 100, deductions: 0, status: "paid",
+    },
+    {
+      id: "pay-other-2026-11", employeeId: "someone-else", period: "2026-11",
+      currency: "USD", initials: "XX", name: "Other Person", role: "Engineer",
+      department: "Engineering", gross: 999, deductions: 0, status: "paid",
+    },
+  ]
+  const seededPut = await put(sessions.admin.jar, "/api/store/payroll", {
+    payments: seeded, lastRun: payrollAdmin.body?.lastRun ?? null,
+  })
+  check("admin can seed payroll rows", seededPut.status === 200, { status: seededPut.status, err: seededPut.data })
+  const payrollEmp2 = await get(sessions.employee.jar, "/api/store/payroll")
+  check(
+    "employee sees only own payroll row",
+    payrollEmp2.body?.payments?.length === 1 && payrollEmp2.body.payments[0].employeeId === employeeUserId,
+    payrollEmp2.body,
+  )
+  const payrollMgr = await get(sessions.manager.jar, "/api/store/payroll")
+  check("manager sees no payroll rows", Array.isArray(payrollMgr.body?.payments) && payrollMgr.body.payments.length === 0)
+  await put(sessions.admin.jar, "/api/store/payroll", { payments: [], lastRun: null })
 }
 
 // ---------------------------------------------------------------------------
@@ -208,7 +242,7 @@ async function testReads() {
 async function testProxy() {
   console.log("\n[2] Proxy route protection")
   const adminOnly = ["/payroll", "/analytics", "/recruitment", "/organization", "/reports", "/documents"]
-  const managerRoutes = ["/employees", "/onboarding"]
+  const managerRoutes = ["/employees"]
 
   for (const path of adminOnly) {
     const r = await get(sessions.employee.jar, path)
@@ -224,6 +258,10 @@ async function testProxy() {
     const r2 = await get(sessions.manager.jar, path)
     check(`manager allowed ${path}`, r2.status === 200, { status: r2.status })
   }
+  // Onboarding is self-scoped: employees may view their own checklist but not
+  // add/change tasks (the server merge keeps it read-only for them).
+  const onboardingEmp = await get(sessions.employee.jar, "/onboarding")
+  check("employee allowed on /onboarding", onboardingEmp.status === 200, { status: onboardingEmp.status })
 }
 
 // ---------------------------------------------------------------------------
@@ -426,6 +464,17 @@ async function testHardening() {
     })
   }
 
+  // A manager may add a directory row in their department, but never with a
+  // salary attached (admin payroll would otherwise snapshot it as real pay).
+  const dirNow = await get(sessions.admin.jar, "/api/store/employees")
+  const evilHire = {
+    id: `e-evil-${Date.now()}`, name: "Evil Hire", email: `evil-${Date.now()}@x.co`,
+    initials: "EH", department: "Engineering", role: "Engineer", location: "Remote",
+    status: "active", hiredDaysAgo: 0, salary: 999999,
+  }
+  const evilHirePut = await put(sessions.manager.jar, "/api/store/employees", [...(dirNow.body ?? []), evilHire])
+  check("manager cannot mint a salaried employee row", evilHirePut.status === 403, { status: evilHirePut.status, err: evilHirePut.data })
+
   const mgrDir = await get(sessions.manager.jar, "/api/store/employees")
   const empRowInMgrScope = (mgrDir.body || []).find((e) => e.email === U.employee.email)
   check("manager sees employee row", !!empRowInMgrScope, mgrDir.body)
@@ -564,6 +613,106 @@ async function testAnnouncementAudience() {
   await put(sessions.admin.jar, "/api/store/announcements", { announcements: [] })
 }
 
+// ---------------------------------------------------------------------------
+// 9. Hire lifecycle: candidate -> employee + leave + onboarding in one call
+// ---------------------------------------------------------------------------
+async function testHireLifecycle() {
+  console.log("\n[9] Hire lifecycle transition")
+  const admin = sessions.admin.jar
+  const now = Date.now()
+  const candidate = {
+    id: `c-hire-${now}`, name: "Test Hire", initials: "TH", role: "QA Engineer",
+    department: "Engineering", appliedAt: new Date().toISOString().slice(0, 10),
+    stage: "offer", email: `hire-${now}@northwind.co`, offeredSalary: 4000, salaryCurrency: "USD",
+  }
+  const rec = await get(admin, "/api/store/recruitment")
+  const seedCandidate = await put(admin, "/api/store/recruitment", {
+    candidates: [...(rec.body?.candidates ?? []), candidate],
+    openings: rec.body?.openings ?? [],
+  })
+  check("hire fixture candidate seeded", seedCandidate.status === 200, { status: seedCandidate.status })
+
+  const hired = await apiJson("POST", "/api/lifecycle/hire", { candidateId: candidate.id }, admin)
+  check("hire endpoint succeeds", hired.status === 200, hired.data)
+  const employeeId = hired.data?.employeeId
+  check("hire returns a new employee id", !!employeeId, hired.data)
+
+  const employees = await get(admin, "/api/store/employees")
+  const hireRow = (employees.body ?? []).find((e) => e.id === employeeId)
+  check("hire creates directory row", !!hireRow && hireRow.email === candidate.email, hireRow)
+  check("hire carries offered salary", hireRow?.salary === 4000 && hireRow?.salaryCurrency === "USD", hireRow)
+
+  const leave = await get(admin, "/api/store/leave")
+  check("hire seeds leave balance", !!leave.body?.balances?.[employeeId])
+
+  const onboarding = await get(admin, "/api/store/onboarding")
+  const tasks = (onboarding.body?.tasks ?? []).filter((t) => t.employeeId === employeeId)
+  check("hire generates 8 onboarding tasks", tasks.length === 8, tasks.length)
+  check("onboarding tasks carry due dates", tasks.every((t) => !!t.dueAt))
+
+  const again = await apiJson("POST", "/api/lifecycle/hire", { candidateId: candidate.id }, admin)
+  check("re-hire is idempotent", again.status === 200 && again.data?.alreadyHired === true, again.data)
+  const onboarding2 = await get(admin, "/api/store/onboarding")
+  check(
+    "re-hire does not duplicate tasks",
+    (onboarding2.body?.tasks ?? []).filter((t) => t.employeeId === employeeId).length === 8,
+  )
+
+  const rec2 = await get(admin, "/api/store/recruitment")
+  const moved = (rec2.body?.candidates ?? []).find((c) => c.id === candidate.id)
+  check("candidate moved to hired stage", moved?.stage === "hired" && moved?.employeeId === employeeId, moved)
+
+  // Clean up every document the transition touched.
+  await put(admin, "/api/store/recruitment", {
+    candidates: (rec2.body?.candidates ?? []).filter((c) => c.id !== candidate.id),
+    openings: rec2.body?.openings ?? [],
+  })
+  await put(admin, "/api/store/employees", (employees.body ?? []).filter((e) => e.id !== employeeId))
+  const leaveNow = await get(admin, "/api/store/leave")
+  const balances = { ...(leaveNow.body?.balances ?? {}) }
+  delete balances[employeeId]
+  await put(admin, "/api/store/leave", { ...leaveNow.body, balances })
+  const onbNow = await get(admin, "/api/store/onboarding")
+  await put(admin, "/api/store/onboarding", {
+    tasks: (onbNow.body?.tasks ?? []).filter((t) => t.employeeId !== employeeId),
+  })
+}
+
+// ---------------------------------------------------------------------------
+// 10. Payroll run: server-authoritative, period-based, admin-only
+// ---------------------------------------------------------------------------
+async function testPayrollRun() {
+  console.log("\n[10] Payroll run workflow")
+  const admin = sessions.admin.jar
+  const employees = await get(admin, "/api/store/employees")
+  // Fixture directory ids are `e-<local-part>`, not the account id.
+  const target = (employees.body ?? []).find((e) => e.email === U.employee.email)
+  const salaried = (employees.body ?? []).map((e) =>
+    e.id === target?.id ? { ...e, salary: 2500, salaryCurrency: "USD" } : e,
+  )
+  const seedSalary = await put(admin, "/api/store/employees", salaried)
+  check("salary fixture seeded", seedSalary.status === 200 && !!target, { status: seedSalary.status, target })
+  await put(admin, "/api/store/payroll", { payments: [], lastRun: null })
+
+  const run = await apiJson("POST", "/api/payroll/run", { period: "2026-11" }, admin)
+  check("admin can record a payroll run", run.status === 200 && run.data?.processed >= 1, run.data)
+  check(
+    "run snapshots salary into the period",
+    (run.data?.payments ?? []).some((p) => p.employeeId === target?.id && p.period === "2026-11" && p.gross === 2500),
+    run.data?.payments,
+  )
+  check("run records a timestamp", !!run.data?.lastRun, run.data?.lastRun)
+  check("run contains no payout or transfer data", !/payout|transfer|chargeId/i.test(JSON.stringify(run.data)))
+
+  const mgrRun = await apiJson("POST", "/api/payroll/run", { period: "2026-11" }, sessions.manager.jar)
+  check("manager cannot run payroll", mgrRun.status === 403, { status: mgrRun.status })
+  const empRun = await apiJson("POST", "/api/payroll/run", { period: "2026-11" }, sessions.employee.jar)
+  check("employee cannot run payroll", empRun.status === 403, { status: empRun.status })
+
+  await put(admin, "/api/store/employees", employees.body ?? [])
+  await put(admin, "/api/store/payroll", { payments: [], lastRun: null })
+}
+
 async function main() {
   console.log(`Role integration tests against ${base}\n`)
   try {
@@ -582,6 +731,8 @@ async function main() {
   await testAnnouncements()
   await testHardening()
   await testAnnouncementAudience()
+  await testHireLifecycle()
+  await testPayrollRun()
 
   console.log(`\n${passed} passed, ${failed} failed`)
   if (failures.length) {

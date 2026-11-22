@@ -1,7 +1,7 @@
 import { Check } from "lucide-react"
 
 import { Separator } from "@/components/ui/separator"
-import type { Payment } from "@/lib/data"
+import { formatMoney, type Payment } from "@/lib/data"
 import { cn } from "@/lib/utils"
 
 type Figure = {
@@ -30,39 +30,37 @@ export function PayRunSummary({
   payments: Payment[]
   lastRun: string | null
 }) {
+  const currency = payments[0]?.currency ?? "USD"
   const totalGross = payments.reduce((s, p) => s + p.gross, 0)
   const totalDeductions = payments.reduce((s, p) => s + p.deductions, 0)
   const totalNet = totalGross - totalDeductions
-  const employerCost = Math.round(totalGross * 1.096)
+  // Planning estimate only — not a tax calculation. Set to 0 when there are
+  // no payments so an empty run never implies a cost.
+  const EMPLOYER_BURDEN_RATE = 0.096
+  const employerCost = Math.round(totalGross * EMPLOYER_BURDEN_RATE)
 
   const figures: Figure[] = [
-    { label: "Gross pay", value: `$${totalGross.toLocaleString()}` },
-    { label: "Taxes & deductions", value: `$${totalDeductions.toLocaleString()}` },
-    { label: "Net pay", value: `$${totalNet.toLocaleString()}` },
-    { label: "Employer cost", value: `$${employerCost.toLocaleString()}` },
+    { label: "Gross pay", value: formatMoney(totalGross, currency) },
+    { label: "Taxes & deductions", value: formatMoney(totalDeductions, currency) },
+    { label: "Net pay", value: formatMoney(totalNet, currency) },
+    {
+      label: `Est. employer cost (${(EMPLOYER_BURDEN_RATE * 100).toFixed(1)}%)`,
+      value: formatMoney(employerCost, currency),
+    },
   ]
 
-  const due = payments.filter(
-    (p) => p.status === "pending" || p.status === "failed",
-  ).length
   const ran = !!lastRun
+  // The timeline describes what actually happens: rows are prepared, then the
+  // run is recorded. There is no approval or payment step to claim.
   const steps: Step[] = [
-    { title: "Draft", sublabel: "Ready", state: "done" },
-    { title: "In review", sublabel: "Reviewed", state: "done" },
+    {
+      title: "Prepared",
+      sublabel: `${payments.length} payment row(s)`,
+      state: payments.length ? "done" : "current",
+    },
     ran
-      ? { title: "Approved", sublabel: "Approved", state: "done" }
-      : {
-          title: "Approved",
-          sublabel: due > 0 ? "Awaiting run" : "All paid",
-          state: due > 0 ? "current" : "done",
-        },
-    ran
-      ? {
-          title: "Paid",
-          sublabel: `Paid ${runDateLabel(lastRun)}`,
-          state: "done",
-        }
-      : { title: "Paid", sublabel: due > 0 ? "Not yet run" : "Nothing due", state: "todo" },
+      ? { title: "Recorded", sublabel: `Recorded ${runDateLabel(lastRun)}`, state: "done" }
+      : { title: "Recorded", sublabel: "Run not yet recorded", state: "todo" },
   ]
 
   return (

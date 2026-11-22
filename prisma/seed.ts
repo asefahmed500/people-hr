@@ -1,15 +1,15 @@
 import { PrismaClient } from "@prisma/client"
 import bcrypt from "bcryptjs"
 
-import { DEMO_EMAIL } from "../lib/data/session"
+import { DEMO_ACCOUNTS, DEMO_EMAIL } from "../lib/data/session"
 import { MODULE_DEFAULTS, MODULE_KEYS } from "../lib/module-defaults"
 import { defaultSettingsStore } from "../lib/data/settings"
 
 const prisma = new PrismaClient()
 
-// The database starts EMPTY: no fake people, leave requests, payments, etc.
-// Only the real demo admin account and per-module state shells are created.
-// Feature records are created through the app UI / API.
+// The database starts EMPTY of feature data: no fake people, leave requests,
+// payments, etc. Only the three demo LOGIN accounts (admin/manager/employee)
+// and per-module state shells are created. Feature records come from the UI.
 async function main() {
   console.log("🧹 Cleaning database...")
   const clearOrder = [
@@ -66,6 +66,23 @@ async function main() {
     },
   })
 
+  // Demo manager + employee so the login-page role picker works out of the box.
+  console.log("👥 Creating demo manager and employee...")
+  for (const account of DEMO_ACCOUNTS.filter((a) => a.id !== "admin")) {
+    await prisma.user.upsert({
+      where: { email: account.email },
+      update: { role: account.id, password: passwordHash },
+      create: {
+        email: account.email,
+        name: account.label,
+        role: account.id,
+        department: "Engineering",
+        initials: account.id === "manager" ? "MM" : "EE",
+        password: passwordHash,
+      },
+    })
+  }
+
   await prisma.settings.create({
     data: {
       userId: admin.id,
@@ -104,7 +121,7 @@ async function main() {
     })
   }
 
-  console.log("✅ Seed complete — database is clean (admin only, no demo data).")
+  console.log("✅ Seed complete — clean workspace with 3 demo logins, no demo records.")
 }
 
 main()

@@ -53,6 +53,38 @@
     --radius-3xl: 16px;
     --radius-4xl: 20px;
     --shadow-card: 0 1px 2px rgb(15 23 42 / 0.04);
+
+    /* Motion tokens for controls and action feedback. */
+    --duration-quick: 150ms;
+    --duration-fast: 250ms;
+    --ease-smooth-out: cubic-bezier(0.22, 1, 0.36, 1);
+    --distance-micro: 4px;
+    --blur-small: 2px;
+}
+
+/* Action feedback: the label of a busy button cross-fades in with a tiny
+   blurred rise instead of snapping between states. */
+@keyframes button-label-in {
+    from {
+        opacity: 0;
+        transform: translateY(var(--distance-micro));
+        filter: blur(var(--blur-small));
+    }
+    to {
+        opacity: 1;
+        transform: none;
+        filter: none;
+    }
+}
+
+[data-slot="button"] .button-label-in {
+    animation: button-label-in var(--duration-quick) var(--ease-smooth-out) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    [data-slot="button"] .button-label-in {
+        animation: none;
+    }
 }
 
 :root {

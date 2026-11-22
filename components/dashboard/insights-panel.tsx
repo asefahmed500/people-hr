@@ -4,6 +4,7 @@ import { BotMessageSquare, ChevronRight } from "lucide-react"
 import type { Employee, ProjectTask, Candidate, LeaveRequest } from "@/lib/data"
 import type { Objective } from "@/lib/data/goals"
 import type { Review } from "@/lib/data/performance"
+import { Button } from "@/components/ui/button"
 
 type Insight = {
   tone: "amber" | "coral" | "forest"
@@ -205,16 +206,16 @@ export function InsightsPanel({
           </div>
         ))}
       </div>
-      <button
+      <Button
         type="button"
+        variant="soft"
+        size="sm"
         onClick={onOpenAssistant}
-        className="mt-0.5 mb-0 flex h-9 items-center justify-center gap-1.5 rounded-xl bg-foreground/10 transition-colors hover:bg-foreground/15 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+        className="mb-0 mt-0.5 w-full"
       >
-        <span className="font-sans text-[13px] font-semibold leading-normal text-primary">
-          Open AI Assistant
-        </span>
-        <ChevronRight className="size-[15px] text-primary" strokeWidth={2} aria-hidden="true" />
-      </button>
+        Open AI Assistant
+        <ChevronRight className="button-arrow size-3.5" strokeWidth={2} aria-hidden="true" />
+      </Button>
     </div>
   )
 }

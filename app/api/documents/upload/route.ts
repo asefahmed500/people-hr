@@ -5,6 +5,8 @@ import { chunkPages } from "@/lib/rag/chunker";
 import { getVectorStore } from "@/lib/rag/vector-store";
 import { getEmbeddingService, EmbeddingUnavailableError } from "@/lib/rag/embeddings";
 import { getAIEnv } from "@/lib/ai/env";
+import { rateLimit } from "@/lib/rate-limit";
+import { recordActivity } from "@/lib/activity";
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024;
 
@@ -18,6 +20,14 @@ function isEmbeddingUnavailable(e: unknown): e is EmbeddingUnavailableError {
 export async function POST(request: NextRequest) {
   const auth = await requireAdmin();
   if (!auth.ok) return auth.response;
+
+  const limited = rateLimit(request, {
+    name: "documents-upload",
+    limit: 20,
+    windowMs: 60 * 60_000,
+    subject: auth.session.user.id,
+  });
+  if (limited) return limited;
 
   // Fail early on oversized uploads: the proxy clones the body, and a
   // truncated form would otherwise be reported as a misleading 400.
@@ -93,6 +103,18 @@ export async function POST(request: NextRequest) {
         createdAt: result.createdAt.toISOString(),
       });
     }
+
+    await recordActivity({
+      actor: {
+        id: auth.session.user.id!,
+        name: auth.session.user.name ?? null,
+        department: (auth.session.user as { department?: string | null }).department ?? null,
+        role: auth.session.user.role,
+      },
+      action: "created",
+      module: "documents",
+      summary: `Uploaded document ${result.fileName} to the HR corpus`,
+    });
 
     return NextResponse.json({
       id: result.id,

@@ -4,23 +4,30 @@ import { getAgentOrchestrator } from "@/lib/agent/orchestrator";
 import { getObservability, type AgentTrace } from "@/lib/agent/observability";
 import { rateLimit } from "@/lib/rate-limit";
 import { AIUnavailableError } from "@/lib/ai/provider";
+import { createApprovals } from "@/lib/agent/approvals";
 import { z } from "zod";
 
 const requestSchema = z.object({
   message: z.string().min(1).max(10000),
-  pageContext: z.string().optional(),
-  documentContext: z.string().optional(),
+  pageContext: z.string().max(4000).optional(),
+  documentContext: z.string().max(16000).optional(),
   maxSteps: z.number().min(1).max(20).optional(),
 });
 
 export async function POST(request: NextRequest) {
-  // Agent turns call an LLM and may run several tool steps, so bound the
-  // request rate before doing any auth/work. Best-effort, per-process.
-  const limited = rateLimit(request, { name: "agent-execute", limit: 20, windowMs: 60_000 });
-  if (limited) return limited;
-
   const auth = await requireAuth();
   if (!auth.ok) return auth.response;
+
+  // Agent turns call an LLM and may run several tool steps. Key the budget to
+  // the signed-in user so a shared office IP doesn't starve everyone, and so
+  // changing networks can't reset an individual's limit.
+  const limited = rateLimit(request, {
+    name: "agent-execute",
+    limit: 20,
+    windowMs: 60_000,
+    subject: auth.session.user.id,
+  });
+  if (limited) return limited;
 
   const requestId = crypto.randomUUID();
   const obs = getObservability();
@@ -60,6 +67,12 @@ export async function POST(request: NextRequest) {
       agentResponse.usage
     );
 
+    // Bind every approval to a server-issued token. The client can only send
+    // these ids back; it cannot invent an approval for a different tool/args.
+    const pendingApprovals = agentResponse.requiresApproval
+      ? await createApprovals(user.userId, agentResponse.pendingApprovals)
+      : [];
+
     return NextResponse.json({
       response: agentResponse.response,
       steps: agentResponse.steps.map((s) => ({
@@ -69,7 +82,7 @@ export async function POST(request: NextRequest) {
       })),
       toolCalls: agentResponse.toolCalls,
       requiresApproval: agentResponse.requiresApproval,
-      pendingApprovals: agentResponse.pendingApprovals,
+      pendingApprovals,
       usage: agentResponse.usage,
       requestId: agentResponse.requestId,
       durationMs: agentResponse.durationMs,

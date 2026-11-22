@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs"
 
 import { prisma } from "@/lib/db"
 import { auth } from "@/lib/auth"
+import { recordActivity } from "@/lib/activity"
 
 // Disable 2FA after verifying the account password.
 export async function POST(request: Request) {
@@ -31,5 +32,11 @@ export async function POST(request: Request) {
     prisma.backupCode.deleteMany({ where: { userId: user.id } }),
   ])
 
+  await recordActivity({
+    actor: { id: user.id, name: user.name ?? null, department: user.department ?? null, role: user.role },
+    action: "updated",
+    module: "security",
+    summary: "Disabled two-factor authentication",
+  })
   return NextResponse.json({ ok: true })
 }

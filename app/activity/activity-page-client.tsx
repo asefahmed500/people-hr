@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { AlertCircle, History, RotateCw } from "lucide-react"
+import { AlertCircle, History, Loader2, RotateCw } from "lucide-react"
 
 import {
   ActivityEmptyState,
@@ -160,10 +160,15 @@ export function ActivityPageClient() {
           size="icon"
           aria-label="Refresh activity"
           title="Refresh"
+          disabled={loading}
           className="self-start sm:self-end"
           onClick={() => setReloadKey((value) => value + 1)}
         >
-          <RotateCw className="size-4" strokeWidth={2} aria-hidden="true" />
+          {loading ? (
+            <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+          ) : (
+            <RotateCw className="size-4" strokeWidth={2} aria-hidden="true" />
+          )}
         </Button>
       </div>
 
@@ -184,8 +189,13 @@ export function ActivityPageClient() {
           <AlertCircle className="size-7 text-destructive" strokeWidth={1.6} aria-hidden="true" />
           <p className="font-sans text-sm font-medium text-foreground">Couldn&apos;t load activity</p>
           <p className="max-w-sm font-sans text-[12.5px] text-muted-foreground">{error}</p>
-          <Button type="button" variant="outline" onClick={() => setReloadKey((value) => value + 1)}>
-            <RotateCw className="size-4" strokeWidth={2} aria-hidden="true" />
+          <Button
+            type="button"
+            variant="outline"
+            loading={loading}
+            loadingText="Retrying…"
+            onClick={() => setReloadKey((value) => value + 1)}
+          >
             Retry
           </Button>
         </div>

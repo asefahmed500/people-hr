@@ -123,17 +123,16 @@ export function SignupPageClient() {
 
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
             {GOOGLE_ENABLED ? (
-              <button
+              <Button
                 type="button"
+                variant="outline"
                 onClick={handleGoogle}
                 disabled={submitting}
-                className="flex h-9 w-full items-center justify-center gap-2.5 rounded-md border border-border bg-card px-4 transition-colors hover:bg-muted disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                className="w-full"
               >
                 <Globe className="size-4 text-foreground" strokeWidth={2} aria-hidden="true" />
-                <span className="font-sans text-sm font-medium text-secondary-foreground">
-                  Sign up with Google
-                </span>
-              </button>
+                Sign up with Google
+              </Button>
             ) : null}
 
             {GOOGLE_ENABLED ? (
@@ -175,18 +174,19 @@ export function SignupPageClient() {
               onChange={(e) => update("password", e.target.value)}
               error={errors.password}
               trailing={
-                <button
+                <Button
                   type="button"
+                  variant="ghost"
+                  size="icon-sm"
                   aria-label={showPassword ? "Hide password" : "Show password"}
                   onClick={() => setShowPassword((s) => !s)}
-                  className="flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                 >
                   {showPassword ? (
                     <EyeOff className="size-4" strokeWidth={2} />
                   ) : (
                     <Eye className="size-4" strokeWidth={2} />
                   )}
-                </button>
+                </Button>
               }
             />
             {strength ? (
@@ -236,9 +236,14 @@ export function SignupPageClient() {
               </Alert>
             ) : null}
 
-            <Button type="submit" disabled={submitting} className="mt-1 w-full">
+            <Button
+              type="submit"
+              loading={submitting}
+              loadingText="Creating account…"
+              className="mt-1 w-full"
+            >
               Create account
-              <ArrowRight className="size-4" strokeWidth={2} aria-hidden="true" />
+              <ArrowRight className="button-arrow size-4" strokeWidth={2} aria-hidden="true" />
             </Button>
           </form>
 

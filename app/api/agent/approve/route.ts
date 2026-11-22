@@ -2,10 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth-guards";
 import { getToolRegistry } from "@/lib/agent/tools";
 import { getToolSecurity } from "@/lib/agent/security";
+import { consumeApproval } from "@/lib/agent/approvals";
+import { recordActivity } from "@/lib/activity";
+import { rateLimit } from "@/lib/rate-limit";
 import { z } from "zod";
 
 const approvalSchema = z.object({
-  toolName: z.string(),
+  approvalId: z.string().min(1),
+  toolName: z.string().min(1),
   args: z.record(z.string(), z.unknown()),
   approved: z.boolean(),
 });
@@ -21,6 +25,14 @@ function refusalError(result: unknown): string | null {
 export async function POST(request: NextRequest) {
   const auth = await requireAuth();
   if (!auth.ok) return auth.response;
+
+  const limited = rateLimit(request, {
+    name: "agent-approve",
+    limit: 20,
+    windowMs: 60_000,
+    subject: auth.session.user.id,
+  });
+  if (limited) return limited;
 
   try {
     const body = await request.json();
@@ -50,6 +62,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: `Unknown tool: ${parsed.toolName}` }, { status: 400 });
     }
 
+    // A tool that is not enabled in the agent must never be executable through
+    // the approval endpoint — that would bypass its `available: false` guard.
+    if (!toolMeta.available) {
+      return NextResponse.json(
+        { error: `Tool '${parsed.toolName}' is not available.` },
+        { status: 403 }
+      );
+    }
+
     const security = getToolSecurity();
     const permCheck = security.checkPermission(toolMeta.definition, user);
     if (!permCheck.allowed) {
@@ -67,6 +88,30 @@ export async function POST(request: NextRequest) {
     }
 
     const sanitized = security.sanitizeArgs(parsed.args);
+    // Verify and burn the server-issued token BEFORE running the tool. This
+    // binds the approval to this user, tool and exact argument set.
+    const consumed = await consumeApproval({
+      approvalId: parsed.approvalId,
+      userId: user.userId,
+      toolName: parsed.toolName,
+      args: sanitized,
+    });
+    if (!consumed.ok) {
+      return NextResponse.json({ error: consumed.error }, { status: consumed.status });
+    }
+
+    await recordActivity({
+      actor: {
+        id: user.userId,
+        name: user.name,
+        department: user.department || null,
+        role: user.role,
+      },
+      action: "approved",
+      module: "agent",
+      summary: `Approved agent tool '${parsed.toolName}'`,
+    });
+
     const result = await toolMeta.executor(sanitized, user);
 
     let parsedResult: unknown;

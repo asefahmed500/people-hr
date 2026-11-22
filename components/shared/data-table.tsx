@@ -13,6 +13,7 @@ import {
 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
+import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -153,31 +154,21 @@ export function DataTable<T>({
                 const count = rows.filter(chip.matcher).length
                 const isActive = chip.id === activeChip
                 return (
-                  <button
+                  <Button
                     key={chip.id}
                     type="button"
+                    variant={isActive ? "secondary" : "ghost"}
+                    size="sm"
                     onClick={() => setActiveChip(chip.id)}
                     aria-label={`Filter: ${chip.label} (${count})`}
                     aria-pressed={isActive}
-                    className={cn(
-                      "flex h-8 shrink-0 items-center gap-1.5 rounded-lg px-3 py-0",
-                      isActive ? "bg-card" : "",
-                    )}
+                    className="h-8 min-w-0 shrink-0 gap-1.5 px-3"
                   >
-                    <span
-                      className={cn(
-                        "font-sans text-[12.5px] leading-normal",
-                        isActive
-                          ? "font-semibold text-foreground"
-                          : "font-medium text-muted-foreground",
-                      )}
-                    >
+                    <span className={cn("text-[12.5px]", isActive ? "font-semibold text-foreground" : "text-muted-foreground")}>
                       {chip.label}
                     </span>
-                    <span className="font-sans text-[11.5px] font-medium leading-normal text-muted-foreground">
-                      {count}
-                    </span>
-                  </button>
+                    <span className="text-[11.5px] font-medium text-muted-foreground">{count}</span>
+                  </Button>
                 )
               })}
             </div>
@@ -186,16 +177,16 @@ export function DataTable<T>({
         {sortOptions && sortOptions.length > 0 ? (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button
+              <Button
                 type="button"
+                variant="outline"
+                size="sm"
                 aria-label={`Sort rows: ${activeSort ? activeSort.label : "default"}`}
-                className="flex h-[38px] items-center gap-2 self-start rounded-lg border border-border bg-card px-3.5 sm:self-auto"
+                className="min-w-[104px] self-start sm:self-auto"
               >
-                <span className="font-sans text-[13px] font-medium leading-normal text-secondary-foreground">
-                  {activeSort ? activeSort.label : "Sort"}
-                </span>
-                <ChevronDown className="size-3.5 text-muted-foreground" strokeWidth={2} aria-hidden="true" />
-              </button>
+                <span>{activeSort ? activeSort.label : "Sort"}</span>
+                <ChevronDown className="size-3.5 text-muted-foreground transition-transform duration-150 group-hover/button:translate-y-0.5" strokeWidth={2} aria-hidden="true" />
+              </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               {sortOptions.map((opt) => (
@@ -249,15 +240,17 @@ export function DataTable<T>({
               )}
             >
               {sortable ? (
-                <button
+                <Button
                   type="button"
+                  variant="ghost"
+                  size="xs"
                   onClick={() => handleHeaderSort(c)}
                   aria-label={`Sort by ${c.header}${isActive ? `, currently ${direction === "asc" ? "ascending" : "descending"}` : ""}`}
-                  className="inline-flex items-center gap-1.5 rounded-sm text-left transition-colors hover:text-foreground"
+                  className="min-w-0 gap-1.5 px-1 py-0 text-[11px] font-semibold uppercase tracking-[0.06em]"
                 >
                   {c.header}
                   <SortIcon className="size-3 shrink-0" strokeWidth={2} aria-hidden="true" />
-                </button>
+                </Button>
               ) : (
                 c.header
               )}
@@ -373,18 +366,18 @@ export function DataTable<T>({
             const pages: number[] = []
             for (let p = start; p <= end; p++) pages.push(p)
             return pages.map((pageNum) => (
-              <button
+              <Button
                 key={pageNum}
                 type="button"
+                variant={pageNum === safePage ? "default" : "outline"}
+                size="icon-sm"
                 onClick={() => setPage(pageNum)}
-                className={cn(
-                  "flex size-[34px] items-center justify-center rounded-lg border border-border bg-card font-sans text-[13px] font-medium leading-normal text-secondary-foreground",
-                  pageNum === safePage &&
-                    "border-0 bg-primary font-medium text-primary-foreground",
-                )}
+                aria-label={`Page ${pageNum}`}
+                aria-current={pageNum === safePage ? "page" : undefined}
+                className="size-[34px] text-[13px]"
               >
                 {pageNum}
-              </button>
+              </Button>
             ))
           })()}
           <PagerButton
@@ -410,14 +403,16 @@ function RowMenu<T>({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <button
+        <Button
           type="button"
+          variant="ghost"
+          size="icon-xs"
           aria-label="Row actions"
-          className="flex size-[30px] items-center justify-center rounded-lg bg-muted hover:bg-muted"
+          className="size-[30px]"
           onClick={(e) => e.stopPropagation()}
         >
           <Ellipsis className="size-4 text-muted-foreground" strokeWidth={2} aria-hidden="true" />
-        </button>
+        </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         {items.map((item) => (
@@ -449,15 +444,17 @@ function PagerButton({
   ariaLabel: string
 }) {
   return (
-    <button
+    <Button
       type="button"
+      variant="outline"
+      size="icon-sm"
       aria-label={ariaLabel}
       disabled={disabled}
       onClick={onClick}
-      className="flex size-[34px] items-center justify-center rounded-lg border border-border bg-card text-muted-foreground disabled:opacity-50"
+      className="size-[34px] text-muted-foreground"
     >
       {children}
-    </button>
+    </Button>
   )
 }
 
