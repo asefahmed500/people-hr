@@ -30,6 +30,16 @@ export async function PATCH(request: Request) {
     image?: string | null
     initials?: string
   } = {}
+  // Job title is stored in the personal settings document (User has no such
+  // column). Validate it here so the settings page can persist it atomically
+  // with the rest of the profile instead of relying on a debounced PUT.
+  let jobTitle: string | undefined
+  if (body.jobTitle !== undefined) {
+    if (typeof body.jobTitle !== "string" || body.jobTitle.length > 120) {
+      return NextResponse.json({ error: "Enter a valid job title." }, { status: 400 })
+    }
+    jobTitle = body.jobTitle.trim()
+  }
 
   if (typeof body.name === "string" && body.name.trim().length >= 2) {
     const name: string = body.name.trim()
@@ -118,19 +128,25 @@ export async function PATCH(request: Request) {
   // from /api/store/settings while the session shows the User row — updating
   // only the latter left a stale form after "Saved changes".
   try {
-    const key = `settings:${session.user.id}`
-    const doc = await prisma.moduleState.findUnique({ where: { userId_key: { userId: session.user.id, key: "settings" } } })
+    const where = { userId_key: { userId: session.user.id, key: "settings" } }
+    const doc = await prisma.moduleState.findUnique({ where, select: { data: true, updatedAt: true } })
     if (doc && doc.data && typeof doc.data === "object" && !Array.isArray(doc.data)) {
       const state = doc.data as Record<string, unknown>
       const personal = (state.personal && typeof state.personal === "object" ? state.personal : {}) as Record<string, unknown>
       if (typeof updated.name === "string") personal.fullName = updated.name
       if (typeof updated.email === "string") personal.email = updated.email
-      await prisma.moduleState.update({
-        where: { userId_key: { userId: session.user.id, key: "settings" } },
+      if (typeof jobTitle === "string") personal.jobTitle = jobTitle
+      // CAS: a concurrent debounced store PUT must not be clobbered (or
+      // clobber these values) just because the two writes overlapped.
+      await prisma.moduleState.updateMany({
+        where: {
+          userId: session.user.id,
+          key: "settings",
+          updatedAt: doc.updatedAt,
+        },
         data: { data: { ...state, personal } as object },
       })
     }
-    void key
   } catch {
     // Settings sync is best-effort — never fail a profile save over it.
   }

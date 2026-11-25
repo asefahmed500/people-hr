@@ -13,6 +13,7 @@
     "test:roles": "node scripts/role-tests.mjs",
     "test:usecases": "node scripts/usecase-tests.mjs",
     "test:e2e": "node scripts/e2e-test.mjs",
+    "test:browser": "playwright test",
     "test:load": "node scripts/load-test.mjs",
     "test:unit": "node --import tsx --test --test-concurrency=1 tests/*.test.ts",
     "test": "npm run test:unit && npm run test:roles",
@@ -60,6 +61,7 @@
     "zustand": "^5.0.14"
   },
   "devDependencies": {
+    "@playwright/test": "^1.65.1",
     "@tailwindcss/postcss": "^4",
     "@types/bcryptjs": "^2.4.6",
     "@types/node": "^20",

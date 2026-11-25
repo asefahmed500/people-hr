@@ -8,8 +8,9 @@ import { prisma } from "@/lib/db"
 import { recordActivity } from "@/lib/activity"
 import { isLoginLocked, recordLoginFailure, recordLoginSuccess } from "@/lib/rate-limit"
 import {
-  getSessionEpoch,
+  getSessionSecurity,
   recordSignInEvent,
+  revokeSignIn,
   signInMetaFromRequest,
 } from "@/lib/login-history"
 
@@ -145,6 +146,17 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   pages: {
     signIn: "/login",
   },
+  events: {
+    // Auth.js clears the cookie on Sign out, but a session refresh already in
+    // flight can re-set it with a freshly signed copy of the same JWT. Mark
+    // the sign-in as ended server-side so the jwt callback rejects it.
+    async signOut(event) {
+      const token = "token" in event ? event.token : null
+      if (typeof token?.id === "string" && typeof token.signInId === "string") {
+        await revokeSignIn(token.id, token.signInId)
+      }
+    },
+  },
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
@@ -165,18 +177,26 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       // Revocation and deactivation must take effect on the NEXT request, not
       // at the old 60s profile-refresh interval — a stolen token or a
       // deactivated account must not stay usable for a minute.
-      const [dbUser, epoch] = await Promise.all([
+      const [dbUser, security] = await Promise.all([
         prisma.user.findUnique({
           where: { id: token.id as string },
           select: { id: true, name: true, email: true, role: true, initials: true, department: true, managerId: true, twoFactorEnabled: true, deactivatedAt: true },
         }),
-        getSessionEpoch(token.id as string),
+        getSessionSecurity(token.id as string),
       ])
       if (!dbUser || dbUser.deactivatedAt) return null
+      // A session refresh that was already in flight during Sign out re-signs
+      // the old JWT and re-sets the cookie. Reject its sign-in id explicitly.
+      if (
+        typeof token.signInId === "string" &&
+        security.revokedSignInIds.includes(token.signInId)
+      ) {
+        return null
+      }
       // Tokens with no epoch (Google OAuth / legacy sessions) are left alone.
-      if (typeof epoch === "number") {
-        if (typeof token.epoch === "number" && token.epoch !== epoch) return null
-        token.epoch = epoch
+      if (typeof security.epoch === "number") {
+        if (typeof token.epoch === "number" && token.epoch !== security.epoch) return null
+        token.epoch = security.epoch
       }
 
       // dbUser is already read on every request for revocation checks, so keep

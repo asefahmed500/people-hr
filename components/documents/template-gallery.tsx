@@ -87,7 +87,7 @@ export function TemplateGallery({ onSelect }: TemplateGalleryProps) {
             type="button"
             variant="outline"
             onClick={() => onSelect(type)}
-            className="h-auto min-w-0 w-full flex-col items-start gap-2 p-4 text-left font-normal"
+            className="h-auto min-w-0 w-full flex-col items-start gap-2 overflow-hidden p-4 text-left font-normal whitespace-normal"
           >
             <span className="flex size-8 items-center justify-center rounded-lg border border-border bg-muted">
               <Icon className="size-4 text-secondary-foreground" strokeWidth={2} aria-hidden="true" />
@@ -95,7 +95,7 @@ export function TemplateGallery({ onSelect }: TemplateGalleryProps) {
             <span className="font-sans text-[13px] font-medium leading-snug text-foreground">
               {DOCUMENT_TYPE_LABELS[type]}
             </span>
-            <span className="text-[11.5px] leading-snug text-muted-foreground">
+            <span className="break-words text-[11.5px] leading-snug text-muted-foreground">
               {TYPE_DESCRIPTIONS[type]}
             </span>
           </Button>

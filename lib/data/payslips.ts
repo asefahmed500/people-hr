@@ -130,39 +130,47 @@ export function buildPayslip(
   }
 }
 
-/** Sanitized HTML for printing/exporting a single payslip. */
+/** Clean, print-ready HTML for a single salary statement. */
 export function buildPayslipHtml(p: Payslip, company = "Your Company"): string {
-  const esc = (s: string) =>
-    s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+  const esc = (s: unknown) =>
+    String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
   const money = (n: number) => esc(formatPayslipMoney(n, p.currency))
   const row = (label: string, value: number) =>
-    `<tr><td>${esc(label)}</td><td style="text-align:right">${money(value)}</td></tr>`
+    `<tr><td>${esc(label)}</td><td>${money(value)}</td></tr>`
+  const table = (
+    heading: string,
+    keys: string[],
+    labels: Record<string, string>,
+    values: Record<string, number>,
+  ) =>
+    [
+      `<h2>${esc(heading)}</h2>`,
+      `<table><thead><tr><th>Component</th><th>Amount (${esc(p.currency ?? "USD")})</th></tr></thead><tbody>`,
+      ...keys.map((k) => row(labels[k] ?? k, values[k] ?? 0)),
+      `</tbody></table>`,
+    ].join("")
 
   return [
-    `<h2 style="margin:0 0 4px">Salary Slip</h2>`,
-    `<p style="margin:0 0 18px;color:#555">${esc(periodLabel(p.period))}</p>`,
-    `<table style="width:100%;border-collapse:collapse;margin-bottom:18px">`,
-    `<tr><td><strong>Employee</strong></td><td style="text-align:right">${esc(p.employeeName)} (${esc(p.initials)})</td></tr>`,
-    `<tr><td><strong>Department</strong></td><td style="text-align:right">${esc(p.department)}</td></tr>`,
-    `<tr><td><strong>Designation</strong></td><td style="text-align:right">${esc(p.jobTitle)}</td></tr>`,
-    `<tr><td><strong>Issued</strong></td><td style="text-align:right">${esc(p.issuedAt)}</td></tr>`,
+    `<h1>Salary statement</h1>`,
+    `<p class="muted">${esc(periodLabel(p.period))} · ${esc(p.status === "paid" ? "Paid" : "Draft")}</p>`,
+    `<table class="meta">`,
+    `<tr><td>Employee</td><td>${esc(p.employeeName)} (${esc(p.initials)})</td></tr>`,
+    `<tr><td>Employee ID</td><td>${esc(p.employeeId)}</td></tr>`,
+    `<tr><td>Department</td><td>${esc(p.department)}</td></tr>`,
+    `<tr><td>Designation</td><td>${esc(p.jobTitle)}</td></tr>`,
+    `<tr><td>Pay period</td><td>${esc(p.period)}</td></tr>`,
+    `<tr><td>Issued on</td><td>${esc(p.issuedAt)}</td></tr>`,
     `</table>`,
-    `<table style="width:100%;border-collapse:collapse">`,
-    `<thead><tr><th style="text-align:left;border-bottom:1px solid #999;padding:6px 0">Earnings</th><th style="text-align:right;border-bottom:1px solid #999;padding:6px 0">Amount</th></tr></thead>`,
-    `<tbody>${(Object.keys(EARNINGS_LABELS) as Array<keyof PayslipEarnings>)
-      .map((k) => row(EARNINGS_LABELS[k], p.earnings[k]))
-      .join("")}</tbody>`,
-    `<tfoot><tr><td style="padding:6px 0"><strong>Gross pay</strong></td><td style="text-align:right;padding:6px 0"><strong>${money(grossPay(p.earnings))}</strong></td></tr></tfoot>`,
+    table("Earnings", Object.keys(EARNINGS_LABELS), EARNINGS_LABELS, p.earnings),
+    table("Deductions", Object.keys(DEDUCTIONS_LABELS), DEDUCTIONS_LABELS, p.deductions),
+    `<table class="totals">`,
+    `<tr><td>Gross pay</td><td>${money(grossPay(p.earnings))}</td></tr>`,
+    `<tr><td>Total deductions</td><td>${money(totalDeductions(p.deductions))}</td></tr>`,
+    `<tr class="net"><td>Net pay</td><td>${money(netPay(p))}</td></tr>`,
     `</table>`,
-    `<table style="width:100%;border-collapse:collapse;margin-top:18px">`,
-    `<thead><tr><th style="text-align:left;border-bottom:1px solid #999;padding:6px 0">Deductions</th><th style="text-align:right;border-bottom:1px solid #999;padding:6px 0">Amount</th></tr></thead>`,
-    `<tbody>${(Object.keys(DEDUCTIONS_LABELS) as Array<keyof PayslipDeductions>)
-      .map((k) => row(DEDUCTIONS_LABELS[k], p.deductions[k]))
-      .join("")}</tbody>`,
-    `<tfoot><tr><td style="padding:6px 0"><strong>Total deductions</strong></td><td style="text-align:right;padding:6px 0"><strong>${money(totalDeductions(p.deductions))}</strong></td></tr></tfoot>`,
-    `</table>`,
-    `<p style="margin:20px 0 6px;padding:12px;background:#f6f6f4;border-radius:8px"><strong>Net pay: ${money(netPay(p))}</strong></p>`,
-    p.notes ? `<p style="color:#555">${esc(p.notes)}</p>` : "",
-    `<p style="margin-top:32px;color:#777">Issued by ${esc(company)} · People Operations</p>`,
+    p.notes ? `<p class="note">${esc(p.notes)}</p>` : "",
+    `<p class="note">This is a system-generated salary statement. No signature is required. ` +
+      `Please contact People Operations with questions about this statement.</p>`,
+    `<div class="foot">${esc(company)} · People Operations · Statement ref: ${esc(p.id)}</div>`,
   ].join("\n")
 }

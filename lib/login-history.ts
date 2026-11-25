@@ -24,9 +24,15 @@ const CAS_RETRIES = 3
 export type LoginHistoryDoc = {
   events: SignInEvent[]
   sessionEpoch: number
+  /** Sign-in ids explicitly signed out. A JWT refresh that was already in
+   *  flight when Sign out ran can re-set the session cookie after Auth.js
+   *  cleared it; checking this list on every request kills that race. */
+  revokedSignInIds: string[]
 }
 
-const EMPTY_DOC: LoginHistoryDoc = { events: [], sessionEpoch: 0 }
+const MAX_REVOKED = 100
+
+const EMPTY_DOC: LoginHistoryDoc = { events: [], sessionEpoch: 0, revokedSignInIds: [] }
 
 type StoredRow = { data: Prisma.JsonValue; updatedAt: Date }
 
@@ -51,7 +57,7 @@ function isSignInEvent(value: unknown): value is SignInEvent {
 
 function parseDoc(value: unknown): LoginHistoryDoc {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return { events: [], sessionEpoch: 0 }
+    return { ...EMPTY_DOC }
   }
   const obj = value as Record<string, unknown>
   const events = Array.isArray(obj.events)
@@ -61,7 +67,10 @@ function parseDoc(value: unknown): LoginHistoryDoc {
     typeof obj.sessionEpoch === "number" && Number.isFinite(obj.sessionEpoch)
       ? obj.sessionEpoch
       : 0
-  return { events, sessionEpoch }
+  const revokedSignInIds = Array.isArray(obj.revokedSignInIds)
+    ? obj.revokedSignInIds.filter((id): id is string => typeof id === "string").slice(-MAX_REVOKED)
+    : []
+  return { events, sessionEpoch, revokedSignInIds }
 }
 
 function asJson(value: LoginHistoryDoc): Prisma.InputJsonValue {
@@ -80,7 +89,7 @@ async function readRow(userId: string): Promise<StoredRow | null> {
 export async function getLoginHistory(userId: string): Promise<LoginHistoryDoc> {
   try {
     const row = await readRow(userId)
-    return row ? parseDoc(row.data) : { events: [], sessionEpoch: 0 }
+    return row ? parseDoc(row.data) : { ...EMPTY_DOC }
   } catch {
     return { ...EMPTY_DOC, events: [] }
   }
@@ -88,15 +97,59 @@ export async function getLoginHistory(userId: string): Promise<LoginHistoryDoc> 
 
 /** Returns the epoch only when one is actually stored (legacy docs are skipped). */
 export async function getSessionEpoch(userId: string): Promise<number | null> {
+  return (await getSessionSecurity(userId)).epoch
+}
+
+/**
+ * Everything the JWT callback needs to validate a token, read in one query.
+ * `revokedSignInIds` closes the sign-out/session-refresh race: Auth.js clears
+ * the cookie on Sign out, but an in-flight `GET /api/auth/session` can re-set
+ * it afterwards with a freshly signed copy of the old token.
+ */
+export async function getSessionSecurity(userId: string): Promise<{
+  epoch: number | null
+  revokedSignInIds: string[]
+}> {
   try {
     const row = await readRow(userId)
-    if (!row) return null
-    const obj: unknown = row.data
-    if (!obj || typeof obj !== "object" || Array.isArray(obj)) return null
-    const epoch = (obj as Record<string, unknown>).sessionEpoch
-    return typeof epoch === "number" && Number.isFinite(epoch) ? epoch : null
+    if (!row) return { epoch: null, revokedSignInIds: [] }
+    const doc = parseDoc(row.data)
+    return { epoch: doc.sessionEpoch, revokedSignInIds: doc.revokedSignInIds }
   } catch {
-    return null
+    return { epoch: null, revokedSignInIds: [] }
+  }
+}
+
+/** Mark one sign-in as ended so its JWT is rejected on the next request. */
+export async function revokeSignIn(userId: string, signInId: string): Promise<void> {
+  if (!userId || !signInId) return
+  for (let attempt = 0; attempt < CAS_RETRIES; attempt++) {
+    try {
+      const row = await readRow(userId)
+      if (!row) {
+        await prisma.moduleState.create({
+          data: {
+            userId: LOGIN_HISTORY_SCOPE,
+            key: userId,
+            data: asJson({ ...EMPTY_DOC, revokedSignInIds: [signInId] }),
+          },
+        })
+        return
+      }
+      const doc = parseDoc(row.data)
+      if (doc.revokedSignInIds.includes(signInId)) return
+      const next: LoginHistoryDoc = {
+        ...doc,
+        revokedSignInIds: [...doc.revokedSignInIds, signInId].slice(-MAX_REVOKED),
+      }
+      const swapped = await prisma.moduleState.updateMany({
+        where: { ...manyWhere(userId), updatedAt: row.updatedAt },
+        data: { data: asJson(next) },
+      })
+      if (swapped.count > 0) return
+    } catch {
+      // Best effort: a failed revocation write must not break Sign out.
+    }
   }
 }
 
@@ -125,7 +178,7 @@ export async function recordSignInEvent(
           data: {
             userId: LOGIN_HISTORY_SCOPE,
             key: userId,
-            data: asJson({ events: [event], sessionEpoch: 0 }),
+            data: asJson({ ...EMPTY_DOC, events: [event] }),
           },
         })
         return { id, epoch: 0 }
@@ -133,8 +186,8 @@ export async function recordSignInEvent(
 
       const doc = parseDoc(row.data)
       const next: LoginHistoryDoc = {
+        ...doc,
         events: [event, ...doc.events].slice(0, MAX_EVENTS),
-        sessionEpoch: doc.sessionEpoch,
       }
       const swapped = await prisma.moduleState.updateMany({
         where: { ...manyWhere(userId), updatedAt: row.updatedAt },
@@ -159,7 +212,7 @@ export async function bumpSessionEpoch(userId: string): Promise<number> {
         data: {
           userId: LOGIN_HISTORY_SCOPE,
           key: userId,
-          data: asJson({ events: [], sessionEpoch: 1 }),
+          data: asJson({ ...EMPTY_DOC, sessionEpoch: 1 }),
         },
       })
       return 1
@@ -169,7 +222,7 @@ export async function bumpSessionEpoch(userId: string): Promise<number> {
     const epoch = doc.sessionEpoch + 1
     const swapped = await prisma.moduleState.updateMany({
       where: { ...manyWhere(userId), updatedAt: row.updatedAt },
-      data: { data: asJson({ events: doc.events, sessionEpoch: epoch }) },
+      data: { data: asJson({ ...doc, sessionEpoch: epoch }) },
     })
     if (swapped.count > 0) return epoch
   }

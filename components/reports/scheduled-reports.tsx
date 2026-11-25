@@ -38,7 +38,7 @@ export function ScheduledReports({
   const items = scheduled ?? []
   const active = items.filter((r) => r.enabled).length
   return (
-    <div className="flex flex-1 flex-col overflow-clip rounded-lg border border-border bg-card">
+    <div className="flex flex-1 flex-col rounded-lg border border-border bg-card">
       <div className="flex items-center justify-between border-b border-b-border px-4 py-3 sm:px-4">
         <div className="flex flex-col gap-1">
           <h2 className="text-h3">
@@ -89,6 +89,10 @@ function ReportRow({
   onGenerateNow?: (report: ScheduledReport) => void
 }) {
   const [open, setOpen] = React.useState(false)
+  // The inline menu is absolutely positioned (no Radix collision handling),
+  // so flip it above the trigger when the row is near the bottom of the
+  // viewport — otherwise its actions get clipped by the scrolling page.
+  const [dropUp, setDropUp] = React.useState(false)
   const ref = React.useRef<HTMLDivElement>(null)
   const cadence = cadenceStyles[report.cadence]
 
@@ -151,7 +155,11 @@ function ReportRow({
                   aria-label={`More options for ${report.name}`}
                   aria-haspopup="menu"
                   aria-expanded={open}
-                  onClick={() => setOpen((v) => !v)}
+                  onClick={(e) => {
+                    const rect = e.currentTarget.getBoundingClientRect()
+                    setDropUp(rect.bottom + 152 > window.innerHeight)
+                    setOpen((v) => !v)
+                  }}
                   onKeyDown={(e) => {
                     if (e.key === "Escape" && open) {
                       e.stopPropagation()
@@ -171,7 +179,10 @@ function ReportRow({
               onKeyDown={(e) => {
                 if (e.key === "Escape") setOpen(false)
               }}
-              className="absolute right-0 top-full z-50 mt-1 w-40 rounded-lg border border-border bg-card py-1"
+              className={cn(
+                "absolute right-0 z-50 w-40 rounded-lg border border-border bg-card py-1",
+                dropUp ? "bottom-full mb-1" : "top-full mt-1",
+              )}
             >
               <Button
                 type="button"

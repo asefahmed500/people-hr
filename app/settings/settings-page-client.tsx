@@ -157,6 +157,9 @@ export function SettingsPageClient() {
         body: {
           name,
           email,
+          // Job title lives in the settings document, not on User. Send it
+          // explicitly so a concurrent debounced store PUT can't drop it.
+          jobTitle: settings.personal.jobTitle.trim(),
           ...(isAdmin ? { department: settings.personal.department } : {}),
           avatar: settings.personal.avatar ?? "",
         },

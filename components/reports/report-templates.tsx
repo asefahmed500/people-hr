@@ -56,7 +56,7 @@ function TemplateCard({ template, colors, onSelect }: { template: ReportTemplate
       type="button"
       variant="outline"
       onClick={() => onSelect?.(template.title)}
-      className="h-auto min-w-0 w-full flex-col items-start gap-3 p-4 text-left font-normal"
+      className="h-auto min-w-0 w-full flex-col items-start gap-3 overflow-hidden p-4 text-left font-normal whitespace-normal"
     >
       <div
         className={cn(
@@ -66,11 +66,11 @@ function TemplateCard({ template, colors, onSelect }: { template: ReportTemplate
       >
         <FileText className={cn("size-5", colors.iconColor)} strokeWidth={2} aria-hidden="true" />
       </div>
-      <div className="flex flex-col gap-1">
+      <div className="flex min-w-0 flex-col gap-1">
         <span className="font-sans inline-block text-[14px] font-semibold leading-tight text-foreground">
           {template.title}
         </span>
-        <span className="font-sans inline-block text-[12px] leading-normal text-muted-foreground">
+        <span className="font-sans inline-block break-words text-[12px] leading-normal text-muted-foreground">
           {template.desc}
         </span>
       </div>

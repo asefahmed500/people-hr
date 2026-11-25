@@ -10,6 +10,9 @@
 
 # testing
 /coverage
+# Playwright evidence: screenshots, traces, HTML/JSON reports and saved
+# authenticated storage states (session tokens — never commit these).
+/tests/reports/
 
 # next.js
 /.next/
